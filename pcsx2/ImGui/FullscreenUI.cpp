@@ -275,6 +275,24 @@ namespace FullscreenUI
 	static std::string s_current_disc_path;
 	static u32 s_current_disc_crc;
 
+	//star types (different textures for each):
+	//0 spots - small-med, slow rot speed
+	//1 triangles - small-med, slow rot speed
+	//2 small stars - small-med, med-fast rot speed
+	//3 big stars - med-large, med-fast rot speed
+	struct star
+	{
+		bool disabled = true;
+		u16 type;
+		ImVec2 size;
+		ImVec2 pos;
+		ImVec2 direction;
+		float age;
+		float lifetime;
+		float rotation;
+		float speed;
+	};
+
 	//////////////////////////////////////////////////////////////////////////
 	// Resources
 	//////////////////////////////////////////////////////////////////////////
@@ -288,6 +306,10 @@ namespace FullscreenUI
 	static std::vector<std::unique_ptr<GSTexture>> s_cleanup_textures;
 
 	static std::shared_ptr<GSTexture> s_paused_texture;
+	static std::shared_ptr<GSTexture> s_star_texture;
+	float s_star_rotation;
+	static star stars[50];
+	;
 
 	//////////////////////////////////////////////////////////////////////////
 	// Landing
@@ -842,6 +864,7 @@ void FullscreenUI::Shutdown(bool clear_state)
 	s_tried_to_initialize = false;
 }
 
+
 void FullscreenUI::Render()
 {
 	if (!s_initialized)
@@ -862,6 +885,14 @@ void FullscreenUI::Render()
 	// Primed achievements must come first, because we don't want the pause screen to be behind them.
 	if (s_current_main_window == MainWindowType::None && EmuConfig.Achievements.Overlays)
 		Achievements::DrawGameOverlays();
+
+	//draw star bg.
+	
+	//while stars.count < density * game_width
+		//createStar()
+	//for star in stars
+		//drawStar(star)
+
 
 	switch (s_current_main_window)
 	{
@@ -993,7 +1024,8 @@ bool FullscreenUI::LoadResources()
 	s_fallback_exe_texture = LoadTexture("fullscreenui/applications-system.png");
 
 	s_paused_texture = LoadTexture("fullscreenui/ptr2plus/pause.png");
-
+	s_star_texture = LoadTexture("fullscreenui/ptr2plus/star.png");
+	s_star_rotation = 0.1f;
 	for (u32 i = static_cast<u32>(GameDatabaseSchema::Compatibility::Nothing);
 		 i <= static_cast<u32>(GameDatabaseSchema::Compatibility::Perfect); i++)
 	{
@@ -5982,7 +6014,7 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 	const ImU32 text_color = IM_COL32(UIBackgroundTextColor.x * 255, UIBackgroundTextColor.y * 255, UIBackgroundTextColor.z * 255, 255);
 	dl->AddRectFilled(ImVec2(0.0f, 0.0f) + ImVec2(g_layout_padding_left, g_layout_padding_top), display_size - ImVec2(g_layout_padding_left, g_layout_padding_top), IM_COL32(UIBackgroundColor.x * 255, UIBackgroundColor.y * 255, UIBackgroundColor.z * 255, 200));
 	//dl->AddRectFilled(ImVec2(0.0f, 0.0f), display_size, IM_COL32(UIBackgroundColor.x * 255, UIBackgroundColor.y * 255, UIBackgroundColor.z * 255, 200));
-	
+
 	//upstream version
 	//dl->AddRectFilled(
 	//	ImVec2(0.0f, 0.0f), display_size, IM_COL32(UIBackgroundColor.x * 255, UIBackgroundColor.y * 255, UIBackgroundColor.z * 255, 200));
@@ -5995,8 +6027,8 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 		const ImVec2 title_size(
 			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, s_current_game_title.c_str()));
 		const ImVec2 path_size(path_string.empty() ?
-								   ImVec2(0.0f, 0.0f) :
-								   g_medium_font->CalcTextSizeA(g_medium_font->FontSize, std::numeric_limits<float>::max(), -1.0f,
+                                   ImVec2(0.0f, 0.0f) :
+                                   g_medium_font->CalcTextSizeA(g_medium_font->FontSize, std::numeric_limits<float>::max(), -1.0f,
 									   path_string.data(), path_string.data() + path_string.length()));
 		const ImVec2 subtitle_size(g_medium_font->CalcTextSizeA(
 			g_medium_font->FontSize, std::numeric_limits<float>::max(), -1.0f, s_current_game_subtitle.c_str()));
@@ -6070,7 +6102,7 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 			ImRect(image_min, image_max), ImVec2(static_cast<float>(cover->GetWidth()), static_cast<float>(cover->GetHeight()))));
 		dl->AddImage(reinterpret_cast<ImTextureID>(cover->GetNativeHandle()), image_rect.Min, image_rect.Max);*/
 	}
-	
+
 	/*
 	// current time / play time
 	{
@@ -6124,7 +6156,7 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 	//upstream
 	//const ImVec2 window_size(LayoutScale(500.0f, LAYOUT_SCREEN_HEIGHT));
 	//const ImVec2 window_pos(0.0f, display_size.y - LayoutScale(LAYOUT_FOOTER_HEIGHT) - window_size.y);
-	
+
 	ImVec2 window_padding(LayoutScale(20.0f), LayoutScale(15.0f));
 	ImVec2 folder_padding(LayoutScale(20.0f), LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY + LAYOUT_MENU_BUTTON_Y_PADDING * 3.0f + 2.0f));
 	float subtitle_padding_x = LayoutScale(40.0f);
@@ -6141,16 +6173,16 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 
 
 	//vertical black bar is as big as the longest text option plus padding (25%)
-	float longest_text_size = 
-			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, "Switch To Software Renderer").x;
+	float longest_text_size =
+		g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, "Switch To Software Renderer").x;
 
 	ImVec2 black_bar_size = ImVec2(longest_text_size * 1.2 + LayoutScale(60.0f), game_size.y);
-	
+
 
 	ImVec2 options_size = g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, "Test");
 	options_size.y = (options_size.y + LayoutScale(LAYOUT_MENU_BUTTON_Y_PADDING)) * 10;
 	float options_y_pos = game_size.y / 2 - options_size.y / 2;
-	
+
 	float pause_image_aspect = 0.2026;
 
 	ImVec2 pause_image_size = ImVec2(black_bar_size.x - LayoutScale(60.0f), pause_image_aspect * black_bar_size.x);
@@ -6171,6 +6203,97 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 	//BeginMenuButtons(submenu_item_count[static_cast<u32>(s_current_pause_submenu)], 1.0f, ImGuiFullscreen::LAYOUT_MENU_BUTTON_X_PADDING,
 	//	ImGuiFullscreen::LAYOUT_MENU_BUTTON_Y_PADDING, ImGuiFullscreen::LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY, true, image_rect_pre.GetHeight());
 
+	//star tests
+	GSTexture* const starImg = s_star_texture.get();
+	ImGuiIO& io = ImGui::GetIO();
+	float deltaTime = io.DeltaTime;
+	float rot_speed = 1.0f;
+	float speed = 0.1f;
+	s_star_rotation += 0.05f * rot_speed * deltaTime;
+
+	for (int i = 0; i < 50; i++)
+	{
+		if (stars[i].disabled)
+		{
+			//create new star
+			stars[i].size = ImVec2(LayoutScale(80 + rand() % 80), LayoutScale(80 + rand() % 80));
+			stars[i].pos = ImVec2(rand() % static_cast<int>(game_size.x) - stars[i].size.x / 2, rand() % static_cast<int>(game_size.y) - stars[i].size.y / 2);
+			stars[i].age = 0;
+			stars[i].speed = static_cast<float>(rand()) / (RAND_MAX * 2);
+			stars[i].rotation = static_cast<float>(rand()) / RAND_MAX;
+			//calculate direction via angle from centre
+			float angle = atan2f(stars[i].pos.x - game_size.x / 2, game_size.y / 2 - stars[i].pos.y); //* (180.0f / 3.14159265f);
+			stars[i].direction = ImVec2(sinf(angle), -cosf(angle));
+			if (rand() % 5 == 0)
+				stars[i].lifetime = 5;
+			else if (rand() % 3 == 0)
+				stars[i].lifetime = 2;
+			else
+				stars[i].lifetime = 1;
+
+			stars[i].disabled = false;
+		}
+		else
+		{
+			//draw star
+			if (stars[i].age > stars[i].lifetime)
+				stars[i].disabled = true;
+			else
+			{
+				stars[i].pos += stars[i].direction * ImGuiFullscreen::oldLayoutScale(stars[i].speed);
+				const ImRect star_image_rect(CenterImage(
+					ImRect(stars[i].pos, ImVec2(stars[i].pos.x + stars[i].size.x, stars[i].pos.y + stars[i].size.y)), ImVec2(static_cast<float>(starImg->GetWidth()), static_cast<float>(starImg->GetHeight()))));
+
+				//if less than a second remaining, lower opacity
+
+				int alpha = 255; //full opacity
+				float remaining_time = stars[i].lifetime - stars[i].age;
+				if (stars[i].age < 1) //fade in
+					alpha *= stars[i].age;
+				if (remaining_time < 1)
+					alpha *= remaining_time; //fade out
+				int vert_start_idx = dl->VtxBuffer.Size;
+				dl->AddImage(reinterpret_cast<ImTextureID>(starImg->GetNativeHandle()), star_image_rect.Min + ImVec2(g_layout_padding_left, g_layout_padding_top), star_image_rect.Max + ImVec2(g_layout_padding_left, g_layout_padding_top),
+					ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), IM_COL32(255, 255, 255, alpha));
+				int vert_end_idx = dl->VtxBuffer.Size;
+
+				float cos_a = ImCos(stars[i].rotation * 3.14);
+				float sin_a = ImSin(stars[i].rotation * 3.14);
+
+				ImGui::ShadeVertsTransformPos(dl, vert_start_idx, vert_end_idx, star_image_rect.GetCenter() + ImVec2(g_layout_padding_left, g_layout_padding_top), cos_a, sin_a, star_image_rect.GetCenter() + ImVec2(g_layout_padding_left, g_layout_padding_top));
+				stars[i].age += deltaTime;
+				stars[i].rotation += 0.2f * rot_speed * deltaTime;
+			}
+		}
+	}
+
+	//draw rects in area outside of game, to cover up the stars moving
+	if (g_layout_padding_top == 0)
+	{
+		dl->AddRectFilled(ImVec2(0, 0),
+			ImVec2(g_layout_padding_left, game_size.y),
+			IM_COL32(0.0f, 0.0f, 0.0f, 255),
+			LayoutScale(0.0f), ImDrawFlags_None);
+
+		dl->AddRectFilled(ImVec2(game_size.x + g_layout_padding_left, 0),
+			ImVec2(game_size.x + g_layout_padding_left, 0) + ImVec2(g_layout_padding_left, game_size.y),
+			IM_COL32(0.0f, 0.0f, 0.0f, 255),
+			LayoutScale(0.0f), ImDrawFlags_None);
+	}
+	else {
+		dl->AddRectFilled(ImVec2(0, 0),
+			ImVec2(game_size.x, g_layout_padding_top),
+			IM_COL32(0.0f, 0.0f, 0.0f, 255),
+			LayoutScale(0.0f), ImDrawFlags_None);
+
+		dl->AddRectFilled(ImVec2(0, game_size.y + g_layout_padding_top),
+			ImVec2(0, game_size.y + g_layout_padding_top) + ImVec2(game_size.x, g_layout_padding_top),
+			IM_COL32(0.0f, 0.0f, 0.0f, 255),
+			LayoutScale(0.0f), ImDrawFlags_None);
+	}
+	
+
+
 	const float pause_image_width = pause_image_size.x;
 	const float pause_image_height = pause_image_size.y;
 	//draw pause logo
@@ -6179,20 +6302,20 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 
 	const ImRect pause_image_rect(CenterImage(
 		ImRect(pause_image_pos, ImVec2(pause_image_pos.x + pause_image_width, pause_image_pos.y + pause_image_height)), ImVec2(static_cast<float>(pausedLogo->GetWidth()), static_cast<float>(pausedLogo->GetHeight()))));
-	
+
 	//ImGui::SetCursorPosY(ImGui::GetCursorPosY() + pause_image_rect.GetHeight());
 
 	const float bg_alpha = VMManager::HasValidVM() ? 0.90f : 1.0f;
 
 	//bevel
-	int vert_start_idx = dl->VtxBuffer.Size;
 
+	//int vert_start_idx = dl->VtxBuffer.Size;
 	dl->AddRectFilled(ImVec2(game_size.x / 2 - black_bar_size.x / 2, 0) +
-					ImVec2(g_layout_padding_left, g_layout_padding_top),
+						  ImVec2(g_layout_padding_left, g_layout_padding_top),
 		ImVec2(game_size.x / 2 + black_bar_size.x / 2, game_size.y) + ImVec2(g_layout_padding_left, g_layout_padding_top),
 		IM_COL32(0.0f, 0.0f, 0.0f, 255),
 		LayoutScale(0.0f), ImDrawFlags_None);
-	int vert_end_idx = dl->VtxBuffer.Size;
+	//int vert_end_idx = dl->VtxBuffer.Size;
 
 	dl->AddImage(reinterpret_cast<ImTextureID>(pausedLogo->GetNativeHandle()), pause_image_rect.Min + ImVec2(g_layout_padding_left, g_layout_padding_top), pause_image_rect.Max + ImVec2(g_layout_padding_left, g_layout_padding_top));
 
@@ -6202,7 +6325,10 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 	ImVec2 ptr2plus_text_pos(game_size.x / 2 - ptr2plus_text_size.x / 2, window_padding.y);
 
 	dl->AddText(g_large_font, g_large_font->FontSize - 2, ptr2plus_text_pos + ImVec2(g_layout_padding_left, g_layout_padding_top), ImGui::GetColorU32(UIPrimaryColor), ptr2plus_text.c_str(), nullptr);
+
+
 	
+
 	//bevel gradient
 	
 	/* ImVec4 grad = CalcGradientStartEnd(black_bar_size, LayoutScale(80.0f));
