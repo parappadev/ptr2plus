@@ -146,6 +146,7 @@ using ImGuiFullscreen::HorizontalMenuItem;
 using ImGuiFullscreen::IsFocusResetQueued;
 using ImGuiFullscreen::IsGamepadInputSource;
 using ImGuiFullscreen::LayoutScale;
+using ImGuiFullscreen::GameBounds;
 using ImGuiFullscreen::LoadTexture;
 using ImGuiFullscreen::MenuButton;
 using ImGuiFullscreen::MenuButtonFrame;
@@ -251,7 +252,9 @@ namespace FullscreenUI
 	static void DrawLandingWindow();
 	static void DrawStartGameWindow();
 	static void DrawExitWindow();
+	static void DrawStarBg(); //ptr2plus
 	static void DrawPauseMenu(MainWindowType type);
+	static void DrawSubtitleBubble(ImVec2 pos, ImVec2 size, float alpha, std::string text = ""); //ptr2plus
 	static void ExitFullscreenAndOpenURL(const std::string_view url);
 	static void CopyTextToClipboard(std::string title, const std::string_view text);
 	static void DrawAboutWindow();
@@ -275,6 +278,11 @@ namespace FullscreenUI
 	static std::string s_current_disc_path;
 	static u32 s_current_disc_crc;
 
+	//ptr2plus display sizes, padding
+	static ImVec2 s_display_size;
+	static ImVec2 s_game_size;
+	static ImVec2 s_window_padding;
+	
 	//star types (different textures for each):
 	//0 spots - small-med, slow rot speed
 	//1 triangles - small-med, slow rot speed
@@ -877,6 +885,7 @@ void FullscreenUI::Render()
 	if (ImGuiManager::s_need_layout_update)
 	{
 		//ImGuiFullscreen::UpdateLayoutScale();
+		//float old_scale = ImGuiManager::s_global_scale;
 		ImGuiManager::UpdateScale();
 		ImGuiManager::s_need_layout_update = false;
 	}
@@ -886,13 +895,12 @@ void FullscreenUI::Render()
 	if (s_current_main_window == MainWindowType::None && EmuConfig.Achievements.Overlays)
 		Achievements::DrawGameOverlays();
 
-	//draw star bg.
-	
-	//while stars.count < density * game_width
-		//createStar()
-	//for star in stars
-		//drawStar(star)
+	s_display_size = ImVec2(g_gs_device->GetWindowWidth(), g_gs_device->GetWindowHeight());
+	s_game_size = s_display_size - ImVec2(g_layout_padding_left * 2.0f, g_layout_padding_top * 2.0f);
+	s_window_padding = ImVec2(LayoutScale(20.0f), LayoutScale(15.0f));
 
+	if (s_current_main_window != MainWindowType::None || s_save_state_selector_open)
+		DrawStarBg();
 
 	switch (s_current_main_window)
 	{
@@ -947,6 +955,20 @@ void FullscreenUI::Render()
 	if (s_input_binding_type != InputBindingInfo::Type::Unknown)
 		DrawInputBindingWindow();
 
+	if (s_current_main_window != MainWindowType::None || s_save_state_selector_open)
+	{
+		//draw subtitle bubble
+		float subtitle_padding_x = LayoutScale(40.0f);
+		float large_font_height = g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, "test").y;
+
+		//subtitle = bottom bubble with setting summaries
+		ImVec2 subtitle_size = ImVec2(s_game_size.x - (s_window_padding.x + subtitle_padding_x) * 2, large_font_height * 3.2f); //LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT + LAYOUT_MENU_BUTTON_Y_PADDING * 4.0f + 2.0f));
+		ImVec2 subtitle_pos = ImVec2(s_window_padding.x + subtitle_padding_x, s_game_size.y - s_window_padding.y - subtitle_size.y);
+
+		const float bg_alpha = VMManager::HasValidVM() ? 0.90f : 1.0f;
+		DrawSubtitleBubble(subtitle_pos, subtitle_size, bg_alpha, ImGuiFullscreen::current_summary);
+		ImGuiFullscreen::current_summary = "";
+	}
 	ImGuiFullscreen::EndLayout();
 
 	if (s_settings_changed.load(std::memory_order_relaxed))
@@ -3095,12 +3117,12 @@ void FullscreenUI::DoClearGameSettings()
 void FullscreenUI::DrawModMenuWindow()
 {
 	/* unused, cant remember what this was for
-	const ImVec2 display_size(ImVec2(g_gs_device->GetWindowWidth(), g_gs_device->GetWindowHeight()));
-	const ImVec2 game_size(display_size - ImVec2(g_layout_padding_left * 2.0f, g_layout_padding_top * 2.0f));
+	const ImVec2 s_display_size(ImVec2(g_gs_device->GetWindowWidth(), g_gs_device->GetWindowHeight()));
+	const ImVec2 s_game_size(s_display_size - ImVec2(g_layout_padding_left * 2.0f, g_layout_padding_top * 2.0f));
 
 	ImGuiIO& io = ImGui::GetIO();
 	const ImVec2 heading_size =
-		ImVec2(game_size.x, LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY) +
+		ImVec2(s_game_size.x, LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY) +
 									 (LayoutScale(LAYOUT_MENU_BUTTON_Y_PADDING) * 2.0f) + LayoutScale(2.0f));
 
 	const float bg_alpha = VMManager::HasValidVM() ? 0.90f : 1.0f;
@@ -3175,7 +3197,7 @@ void FullscreenUI::DrawModMenuWindow()
 
 	EndFullscreenWindow();
 
-	if (BeginFullscreenWindow(ImVec2(0.0f, heading_size.y), ImVec2(game_size.x, game_size.y - heading_size.y), "settings_parent",
+	if (BeginFullscreenWindow(ImVec2(0.0f, heading_size.y), ImVec2(s_game_size.x, s_game_size.y - heading_size.y), "settings_parent",
 			ImVec4(UIBackgroundColor.x, UIBackgroundColor.y, UIBackgroundColor.z, bg_alpha)))
 	{
 		ResetFocusHere();
@@ -3338,7 +3360,6 @@ void FullscreenUI::DrawTexturePacksPage()
 
 void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 {
-
 	const ImGuiStyle& style = ImGui::GetStyle();
 	ImGuiIO& io = ImGui::GetIO();
 
@@ -3383,21 +3404,18 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 
 
 //Positions and Sizes
-	const ImVec2 display_size(ImVec2(g_gs_device->GetWindowWidth(), g_gs_device->GetWindowHeight()));
-	const ImVec2 game_size(display_size - ImVec2(g_layout_padding_left * 2.0f, g_layout_padding_top * 2.0f));
 	
-	ImVec2 window_padding(LayoutScale(20.0f), LayoutScale(15.0f));
 	ImVec2 folder_padding(LayoutScale(20.0f), LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY + LAYOUT_MENU_BUTTON_Y_PADDING * 3.0f + 2.0f));
 	float subtitle_padding_x = LayoutScale(40.0f);
 
 	//subtitle = bottom bubble with setting summaries
-	ImVec2 subtitle_size = ImVec2(game_size.x - (window_padding.x + subtitle_padding_x) * 2, large_font_height * 3.2f );//LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT + LAYOUT_MENU_BUTTON_Y_PADDING * 4.0f + 2.0f));
-	ImVec2 subtitle_pos = ImVec2(window_padding.x + subtitle_padding_x, game_size.y - window_padding.y - subtitle_size.y);
+	ImVec2 subtitle_size = ImVec2(s_game_size.x - (s_window_padding.x + subtitle_padding_x) * 2, large_font_height * 3.2f );//LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT + LAYOUT_MENU_BUTTON_Y_PADDING * 4.0f + 2.0f));
+	ImVec2 subtitle_pos = ImVec2(s_window_padding.x + subtitle_padding_x, s_game_size.y - s_window_padding.y - subtitle_size.y);
 
 	//heading = title text tab
-	ImVec2 heading_pos(window_padding.x, window_padding.y);
-	ImVec2 heading_size(game_size.x - window_padding.x * 2, heading_text_height + style.FramePadding.y * 2);
-		//ImVec2(game_size.x, LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY) + (LayoutScale(LAYOUT_MENU_BUTTON_Y_PADDING) * 4.0f) + LayoutScale(4.0f));
+	ImVec2 heading_pos(s_window_padding.x, s_window_padding.y);
+	ImVec2 heading_size(s_game_size.x - s_window_padding.x * 2, heading_text_height + style.FramePadding.y * 2);
+		//ImVec2(s_game_size.x, LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY) + (LayoutScale(LAYOUT_MENU_BUTTON_Y_PADDING) * 4.0f) + LayoutScale(4.0f));
 
 	//navbar = navigation buttons
 	ImVec2 navbar_pos(heading_pos.x, heading_pos.y + heading_size.y);
@@ -3409,47 +3427,12 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 	
 	//content = settings page
 	ImVec2 content_pos(navbar_pos.x + folder_padding.x, navbar_pos.y + navbar_size.y);
-	ImVec2 content_size(navbar_size.x - folder_padding.x * 2, game_size.y - window_padding.y * 2 - heading_size.y - navbar_size.y * 2 - subtitle_size.y * (1 - subtitle_overlap_percent));
-
+	ImVec2 content_size(navbar_size.x - folder_padding.x * 2, s_game_size.y - s_window_padding.y * 2 - heading_size.y - navbar_size.y * 2 - subtitle_size.y * (1 - subtitle_overlap_percent));
 
 	ImVec2 heading_text_size;
 	float heading_text_padding_x;
-	
-	//draw bottom subtitle description
-	if (BeginFullscreenWindow(subtitle_pos, subtitle_size, "settings_subtitle",
-			ImVec4(0.0f, 0.0f, 0.0f, bg_alpha), 30.0f))
-	{
-		//HEX_TO_IMVEC4(0x000000, bg_alpha)
-		//const char* summary = ImGuiFullscreen::current_summary.data();
-		//summary.length();
-		if (ImGuiFullscreen::current_summary.length() > 2)
-		{
 
-			ImDrawList* dl = ImGui::GetWindowDrawList();
-			const ImU32 text_color = IM_COL32(UIBackgroundTextColor.x * 255, UIBackgroundTextColor.y * 255, UIBackgroundTextColor.z * 255, 255);
-			ImVec2 text_size(
-				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, ImGuiFullscreen::current_summary.data()));
-
-			ImVec2 text_pos(0.0f + (game_size.x - text_size.x) / 2, subtitle_pos.y + subtitle_size.y / 2 - (text_size.y * 2) / 3);
-			if (text_size.x > subtitle_size.x - ( LayoutScale(40.0f) * 2))
-			{
-				//if more than 2 lines
-				if (text_size.x > 2 * ( subtitle_size.x - (LayoutScale(40.0f) * 2 )) )
-				{
-					text_pos = ImVec2(subtitle_pos.x + LayoutScale(40.0f), subtitle_pos.y + LayoutScale(5.0f));
-				}
-				else
-					text_pos = ImVec2(subtitle_pos.x + LayoutScale(40.0f), subtitle_pos.y + subtitle_size.y / 2 - text_size.y);
-			}
-
-			//DrawShadowedText(dl, g_medium_font, ImVec2(0.0f, game_size.y - heading_size.y - subtitle_size.y), text_color, ImGuiFullscreen::current_summary.data());
-			dl->AddText(g_large_font, g_large_font->FontSize, text_pos + ImVec2(g_layout_padding_left, g_layout_padding_top), text_color, ImGuiFullscreen::current_summary.data(), nullptr, subtitle_size.x - ( LayoutScale(40.0f) * 2));
-			ImGuiFullscreen::current_summary = "";
-		}
-	}
-	EndFullscreenWindow();
-
-	//draw navbar buttons and tab text
+//draw navbar buttons and tab text
 	if (BeginFullscreenWindow(
 			heading_pos, heading_size + navbar_size, "settings_category", ImVec4(UIPrimaryColor.x, UIPrimaryColor.y, UIPrimaryColor.z, 0.0f), 30.0f))
 	{
@@ -3570,11 +3553,11 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 
 		ImGui::SetCursorPosY(heading_size.y + bevel_thickness); //navbar_pos.y - heading_pos.y);
 		ImGui::SetCursorPosX(navbar_pos.x + navbar_size.x - folder_padding.x - (style.FramePadding.x * 2.0f + style.FrameBorderSize + style.ItemSpacing.x + LayoutScale(ITEM_WIDTH)) - style.FramePadding.x);
-		//ImGui::SetCursorPosX(game_size.x - window_padding.x - style.FrameBorderSize - LayoutScale(ITEM_WIDTH));
+		//ImGui::SetCursorPosX(s_game_size.x - s_window_padding.x - style.FrameBorderSize - LayoutScale(ITEM_WIDTH));
 		//RightAlignNavButtons(1, ITEM_WIDTH, LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY);
 
 		if (NavButton(ICON_PF_BACKWARD, true, true, ITEM_WIDTH, navbar_size.y - style.FramePadding.y * 2.0f - bevel_thickness * 2.0f)) //LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY))
-			ReturnToMainWindow();
+			ReturnToPreviousWindow();
 
 		//RightAlignNavButtons(count, ITEM_WIDTH, LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY);
 		ImGui::SetCursorPosX(0.0f + style.FramePadding.x + style.FrameBorderSize);
@@ -3717,8 +3700,8 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 	ImGui::PopStyleColor(6);
 	ImGui::PopStyleVar(2);
 
-	//draw folder graphics
-	if (BeginFullscreenWindow(ImVec2(0.0f, 0.0f), ImVec2(game_size.x, game_size.y), "folder_graphics",
+//draw folder graphics
+	if (BeginFullscreenWindow(ImVec2(0.0f, 0.0f), ImVec2(s_game_size.x, s_game_size.y), "folder_graphics",
 			ImVec4(1.0f, 0.686f, 0.082f, 0.0f), 30.0f))
 	{ 
 	
@@ -3734,9 +3717,8 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 		//bevel
 		int vert_start_idx = dl->VtxBuffer.Size;
 		
-		dl->AddRect(tab_pos + ImVec2(bevel_thickness / 2, bevel_thickness /2) +
-							  ImVec2(g_layout_padding_left, g_layout_padding_top),
-			tab_pos + tab_size - ImVec2(bevel_thickness / 2, bevel_thickness / 2) + ImVec2(g_layout_padding_left, g_layout_padding_top),
+		dl->AddRect(GameBounds(tab_pos + ImVec2(bevel_thickness / 2, bevel_thickness /2)),
+			GameBounds(tab_pos + tab_size - ImVec2(bevel_thickness / 2, bevel_thickness / 2)),
 			IM_COL32(UIPrimaryColor.x * 255, UIPrimaryColor.y * 255, UIPrimaryColor.z * 255, 255),
 			LayoutScale(22.0f), ImDrawFlags_None, bevel_thickness);
 		int vert_end_idx = dl->VtxBuffer.Size;
@@ -3747,8 +3729,8 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 		ImVec2 grad_end = tab_pos + ImVec2(grad.z, grad.w);
 		
 		ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
-			grad_start + ImVec2(g_layout_padding_left, g_layout_padding_top),
-			grad_end + ImVec2(g_layout_padding_left, g_layout_padding_top),
+			GameBounds(grad_start),
+			GameBounds(grad_end),
 			IM_COL32(folder_highlight_col.x * 255, folder_highlight_col.y * 255, folder_highlight_col.z * 255, 255),
 			IM_COL32(folder_shadow_col.x * 255, folder_shadow_col.y * 255, folder_shadow_col.z * 255, 255));
 
@@ -3758,33 +3740,29 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 		ImVec4 rect_col(folder_col);
 
 		//filled area
-		dl->AddRectFilled(rect_pos +
-							  ImVec2(g_layout_padding_left, g_layout_padding_top),
-			rect_pos + rect_size +
-				ImVec2(g_layout_padding_left, g_layout_padding_top),
+		dl->AddRectFilled(GameBounds(rect_pos),
+			GameBounds(rect_pos + rect_size),
 			IM_COL32(rect_col.x * 255, rect_col.y * 255, rect_col.z * 255, 255),
 			LayoutScale(30.0f));
 
 		//bevel
 		vert_start_idx = dl->VtxBuffer.Size;
-		dl->AddRect(rect_pos + ImVec2(bevel_thickness / 2, bevel_thickness / 2) +
-						ImVec2(g_layout_padding_left, g_layout_padding_top),
-			rect_pos + rect_size - ImVec2(bevel_thickness / 2, bevel_thickness / 2) + ImVec2(g_layout_padding_left, g_layout_padding_top),
+		dl->AddRect(GameBounds(rect_pos + ImVec2(bevel_thickness / 2, bevel_thickness / 2)),
+			GameBounds(rect_pos + rect_size - ImVec2(bevel_thickness / 2, bevel_thickness / 2)),
 			IM_COL32(UIPrimaryColor.x * 255, UIPrimaryColor.y * 255, UIPrimaryColor.z * 255, 255),
 			LayoutScale(22.0f), ImDrawFlags_None, bevel_thickness);
 		vert_end_idx = dl->VtxBuffer.Size;
 
 		//bevel gradient
 		ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
-			ImVec2(rect_pos.x + rect_size.x * 0.65f, rect_pos.y + rect_size.y * 0.3f) + ImVec2(g_layout_padding_left, g_layout_padding_top),
-			ImVec2(rect_pos.x + rect_size.x * 0.9f, rect_pos.y + rect_size.y) + ImVec2(g_layout_padding_left, g_layout_padding_top),
+			GameBounds(ImVec2(rect_pos.x + rect_size.x * 0.65f, rect_pos.y + rect_size.y * 0.3f)),
+			GameBounds(ImVec2(rect_pos.x + rect_size.x * 0.9f, rect_pos.y + rect_size.y)),
 			IM_COL32(folder_highlight_col.x * 255, folder_highlight_col.y * 255, folder_highlight_col.z * 255, 255),
 			IM_COL32(folder_shadow_col.x * 255, folder_shadow_col.y * 255, folder_shadow_col.z * 255, 255));
 		
 		//tab filled area (drawn now to overlap and look connected to folder)
-		dl->AddRectFilled(tab_pos + ImVec2(bevel_thickness, bevel_thickness) +
-							  ImVec2(g_layout_padding_left, g_layout_padding_top),
-			tab_pos + tab_size - ImVec2(bevel_thickness, bevel_thickness) + ImVec2(g_layout_padding_left, g_layout_padding_top),
+		dl->AddRectFilled(GameBounds(tab_pos + ImVec2(bevel_thickness, bevel_thickness)),
+			GameBounds(tab_pos + tab_size - ImVec2(bevel_thickness, bevel_thickness)),
 			IM_COL32(UIPrimaryColor.x * 255, UIPrimaryColor.y * 255, UIPrimaryColor.z * 255, 255),
 			LayoutScale(18.0f));
 		
@@ -3800,9 +3778,8 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 		bevel_thickness = LayoutScale(10.0f);
 
 		//bevel
-		dl->AddRect(rect_pos + ImVec2(bevel_thickness / 6, 0.0f) +
-						ImVec2(g_layout_padding_left, g_layout_padding_top),
-			rect_pos + rect_size - ImVec2(bevel_thickness * 1/6, 0.0f) + ImVec2(g_layout_padding_left, g_layout_padding_top),
+		dl->AddRect(GameBounds(rect_pos + ImVec2(bevel_thickness / 6, 0.0f)),
+			GameBounds(rect_pos + rect_size - ImVec2(bevel_thickness * 1/6, 0.0f)),
 			IM_COL32(UIPrimaryColor.x * 255, UIPrimaryColor.y * 255, UIPrimaryColor.z * 255, 255),
 			LayoutScale(22.0f), ImDrawFlags_None, bevel_thickness);
 		vert_end_idx = dl->VtxBuffer.Size;
@@ -3813,31 +3790,27 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 		grad_end = rect_pos + ImVec2(grad.z, grad.w);
 
 		ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
-			grad_start + ImVec2(g_layout_padding_left, g_layout_padding_top),
-			grad_end + ImVec2(g_layout_padding_left, g_layout_padding_top),
+			GameBounds(grad_start),
+			GameBounds(grad_end),
 			IM_COL32(folder_shadow_col.x * 255, folder_shadow_col.y * 255, folder_shadow_col.z * 255, 255),
 			IM_COL32(folder_highlight_col.x * 255, folder_highlight_col.y * 255, folder_highlight_col.z * 255, 255));
 
 		//area
-		dl->AddRectFilled(rect_pos +
-							  ImVec2(g_layout_padding_left, g_layout_padding_top),
-			rect_pos + rect_size +
-				ImVec2(g_layout_padding_left, g_layout_padding_top),
+		dl->AddRectFilled(GameBounds(rect_pos),
+			GameBounds(rect_pos + rect_size),
 			IM_COL32(rect_col.x * 255, rect_col.y * 255, rect_col.z * 255, 255),
 			LayoutScale(30.0f));
 
 
 		/*
 		//inner content area highlight
-		rect_pos = ImVec2(ImVec2(0.0f + window_padding.x + folder_border.x + style.FrameBorderSize, heading_size.y + style.FrameBorderSize + style.FramePadding.x));
-		rect_size = ImVec2(game_size.x - (window_padding.x + folder_border.x) * 2 + style.FrameBorderSize, game_size.y - heading_size.y - subtitle_size.y * 0.65 - folder_border.y + style.FrameBorderSize + style.FramePadding.x);
+		rect_pos = ImVec2(ImVec2(0.0f + s_window_padding.x + folder_border.x + style.FrameBorderSize, heading_size.y + style.FrameBorderSize + style.FramePadding.x));
+		rect_size = ImVec2(s_game_size.x - (s_window_padding.x + folder_border.x) * 2 + style.FrameBorderSize, s_game_size.y - heading_size.y - subtitle_size.y * 0.65 - folder_border.y + style.FrameBorderSize + style.FramePadding.x);
 		rect_col = ImVec4(HEX_TO_IMVEC4(0xFFAF15, 0xff));
 		
 		int vert_start_idx = dl->VtxBuffer.Size;
-		dl->AddRectFilled(rect_pos +
-							  ImVec2(g_layout_padding_left, g_layout_padding_top),
-			rect_pos + rect_size + 
-			ImVec2(g_layout_padding_left, g_layout_padding_top),
+		dl->AddRectFilled(GameBounds(rect_pos),
+			GameBounds(rect_pos + rect_size),
 			IM_COL32(rect_col.x * 255, rect_col.y * 255, rect_col.z * 255, 0.5 * 255),
 			LayoutScale(30.0f));
 		int vert_end_idx = dl->VtxBuffer.Size;
@@ -6001,209 +5974,106 @@ void FullscreenUI::DrawGameFixesSettingsPage()
 static void DrawShadowedText(
 	ImDrawList* dl, ImFont* font, const ImVec2& pos, u32 col, const char* text, const char* text_end = nullptr, float wrap_width = 0.0f)
 {
-	dl->AddText(font, font->FontSize, pos + LayoutScale(1.0f, 1.0f) + ImVec2(g_layout_padding_left, g_layout_padding_top), IM_COL32(0, 0, 0, 100), text, text_end, wrap_width);
-	dl->AddText(font, font->FontSize, pos + ImVec2(g_layout_padding_left, g_layout_padding_top), col, text, text_end, wrap_width);
+	dl->AddText(font, font->FontSize, pos + LayoutScale(1.0f, 1.0f), IM_COL32(0, 0, 0, 100), text, text_end, wrap_width);
+	dl->AddText(font, font->FontSize, pos, col, text, text_end, wrap_width);
 }
 
-void FullscreenUI::DrawPauseMenu(MainWindowType type)
+//ptr2plus - draw bottom subtitle description
+static void FullscreenUI::DrawSubtitleBubble(ImVec2 subtitle_pos, ImVec2 subtitle_size, float bg_alpha, std::string text)
 {
-	ImDrawList* dl = ImGui::GetBackgroundDrawList();
-	const ImVec2 display_size(ImVec2(g_gs_device->GetWindowWidth(), g_gs_device->GetWindowHeight()));
-	const ImVec2 game_size(display_size - ImVec2(g_layout_padding_left * 2.0f, g_layout_padding_top * 2.0f));
-	//display_size += ImVec2(g_layout_padding_left, g_layout_padding_top);
-	const ImU32 text_color = IM_COL32(UIBackgroundTextColor.x * 255, UIBackgroundTextColor.y * 255, UIBackgroundTextColor.z * 255, 255);
-	dl->AddRectFilled(ImVec2(0.0f, 0.0f) + ImVec2(g_layout_padding_left, g_layout_padding_top), display_size - ImVec2(g_layout_padding_left, g_layout_padding_top), IM_COL32(UIBackgroundColor.x * 255, UIBackgroundColor.y * 255, UIBackgroundColor.z * 255, 200));
-	//dl->AddRectFilled(ImVec2(0.0f, 0.0f), display_size, IM_COL32(UIBackgroundColor.x * 255, UIBackgroundColor.y * 255, UIBackgroundColor.z * 255, 200));
-
-	//upstream version
-	//dl->AddRectFilled(
-	//	ImVec2(0.0f, 0.0f), display_size, IM_COL32(UIBackgroundColor.x * 255, UIBackgroundColor.y * 255, UIBackgroundColor.z * 255, 200));
-
-	// title info
+	if (BeginFullscreenWindow(subtitle_pos, subtitle_size, "settings_subtitle",
+			ImVec4(0.0f, 0.0f, 0.0f, bg_alpha), 30.0f))
 	{
-		const float image_width = 60.0f;
-		const float image_height = 90.0f;
-		const std::string_view path_string(Path::GetFileName(s_current_disc_path));
-		const ImVec2 title_size(
-			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, s_current_game_title.c_str()));
-		const ImVec2 path_size(path_string.empty() ?
-                                   ImVec2(0.0f, 0.0f) :
-                                   g_medium_font->CalcTextSizeA(g_medium_font->FontSize, std::numeric_limits<float>::max(), -1.0f,
-									   path_string.data(), path_string.data() + path_string.length()));
-		const ImVec2 subtitle_size(g_medium_font->CalcTextSizeA(
-			g_medium_font->FontSize, std::numeric_limits<float>::max(), -1.0f, s_current_game_subtitle.c_str()));
-
-		ImVec2 title_pos(
-			game_size.x - LayoutScale(10.0f + image_width + 20.0f) - title_size.x, game_size.y - LayoutScale(10.0f + image_height));
-		ImVec2 path_pos(game_size.x - LayoutScale(10.0f + image_width + 20.0f) - path_size.x,
-			title_pos.y + g_large_font->FontSize + LayoutScale(4.0f));
-		ImVec2 subtitle_pos(game_size.x - LayoutScale(10.0f + image_width + 20.0f) - subtitle_size.x,
-			(path_string.empty() ? title_pos.y : path_pos.y) + g_medium_font->FontSize + LayoutScale(4.0f));
-
-		//upstream version
-		/*ImVec2 title_pos(display_size.x - LayoutScale(10.0f + image_width + 20.0f) - title_size.x,
-			display_size.y - LayoutScale(LAYOUT_FOOTER_HEIGHT) - LayoutScale(10.0f + image_height));
-		ImVec2 path_pos(display_size.x - LayoutScale(10.0f + image_width + 20.0f) - path_size.x,
-			title_pos.y + g_large_font->FontSize + LayoutScale(4.0f));
-		ImVec2 subtitle_pos(display_size.x - LayoutScale(10.0f + image_width + 20.0f) - subtitle_size.x,
-			(path_string.empty() ? title_pos.y + g_large_font->FontSize : path_pos.y + g_medium_font->FontSize) + LayoutScale(4.0f));*/
-
-		float rp_height = 0.0f;
+		ImDrawList* dl = ImGui::GetWindowDrawList();
+		if (text == "") //if no text input, then display menu controls
 		{
-			const auto lock = Achievements::GetLock();
-			const std::string& rp = Achievements::IsActive() ? Achievements::GetRichPresenceString() : std::string();
+			//this is one of the most horrific things i've ever coded
+			//but i couldn't see a good way to do it, and it's worth it to make the controls text look nice
 
-			if (!rp.empty())
+			std::string subtitle_text1 = IsGamepadInputSource() ? ICON_PF_DPAD_UP_DOWN : ICON_PF_ARROW_UP ICON_PF_ARROW_DOWN;
+			std::string subtitle_text = subtitle_text1;
+			ImVec2 text_size1(
+				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text1.c_str()));
+			std::string subtitle_text2 = " ";
+			subtitle_text2 += FSUI_VSTR("Change Selection");
+			subtitle_text += subtitle_text2;
+			ImVec2 text_size2(
+				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text2.c_str()));
+			std::string subtitle_text3 = " ";
+			subtitle_text3 += IsGamepadInputSource() ? ICON_PF_BUTTON_CROSS : ICON_PF_ENTER;
+			subtitle_text += subtitle_text3;
+			ImVec2 text_size3(
+				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text3.c_str()));
+			std::string subtitle_text4 = " ";
+			subtitle_text4 += FSUI_VSTR("Select");
+			subtitle_text += subtitle_text4;
+			ImVec2 text_size4(
+				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text4.c_str()));
+			std::string subtitle_text5 = " ";
+			subtitle_text5 += IsGamepadInputSource() ? ICON_PF_BUTTON_CIRCLE : ICON_PF_ESC;
+			subtitle_text += subtitle_text5;
+			ImVec2 text_size5(
+				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text5.c_str()));
+			std::string subtitle_text6 = " ";
+			if (s_current_main_window != MainWindowType::PauseMenu)
+				subtitle_text6 += FSUI_VSTR("Return To Pause Menu");
+			else 
+				subtitle_text6 += FSUI_VSTR("Return To Game");
+			subtitle_text += subtitle_text6;
+
+			ImVec2 subtitle_text_size(
+				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text.c_str()));
+
+			ImVec2 text_pos(0.0f + (s_game_size.x - subtitle_text_size.x) / 2, subtitle_pos.y + subtitle_size.y / 2 - (subtitle_text_size.y * 2) / 3);
+			
+			ImU32 color = ImGui::GetColorU32(UIPrimaryColor);
+			dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text1.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+			text_pos += ImVec2(text_size1.x, 0);
+			color = ImGui::GetColorU32(UIBackgroundTextColor);
+			dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text2.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+			text_pos += ImVec2(text_size2.x, 0);
+			color = ImGui::GetColorU32(UIPrimaryColor);
+			dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text3.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+			text_pos += ImVec2(text_size3.x, 0);
+			color = ImGui::GetColorU32(UIBackgroundTextColor);
+			dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text4.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+			text_pos += ImVec2(text_size4.x, 0);
+			color = ImGui::GetColorU32(UIPrimaryColor);
+			dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text5.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+			text_pos += ImVec2(text_size5.x, 0);
+			color = ImGui::GetColorU32(UIBackgroundTextColor);
+			dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text6.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+		}
+		else
+		{
+			if (text.length() > 2)
 			{
-				const float wrap_width = LayoutScale(350.0f);
-				const ImVec2 rp_size = g_medium_font->CalcTextSizeA(
-					g_medium_font->FontSize, std::numeric_limits<float>::max(), wrap_width, rp.data(), rp.data() + rp.length());
+				const ImU32 text_color = IM_COL32(UIBackgroundTextColor.x * 255, UIBackgroundTextColor.y * 255, UIBackgroundTextColor.z * 255, 255);
+				ImVec2 text_size(
+					g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, ImGuiFullscreen::current_summary.data()));
 
-				// Add a small extra gap if any Rich Presence is displayed
-				rp_height = rp_size.y - g_medium_font->FontSize + LayoutScale(2.0f);
-
-				const ImVec2 rp_pos(game_size.x - LayoutScale(20.0f + 50.0f + 20.0f) - rp_size.x - rp_height,
-					subtitle_pos.y + g_medium_font->FontSize + LayoutScale(4.0f));
-
-				//upstream ver
-				//const ImVec2 rp_pos(display_size.x - LayoutScale(20.0f + 50.0f + 20.0f) - rp_size.x,
-				//	subtitle_pos.y + g_medium_font->FontSize + LayoutScale(4.0f) - rp_height);
-
-				title_pos.y -= rp_height;
-				path_pos.y -= rp_height;
-				subtitle_pos.y -= rp_height;
-
-				DrawShadowedText(dl, g_medium_font, rp_pos, text_color, rp.data(), rp.data() + rp.length(), wrap_width);
+				ImVec2 text_pos(0.0f + (s_game_size.x - text_size.x) / 2, subtitle_pos.y + subtitle_size.y / 2 - (text_size.y * 2) / 3);
+				if (text_size.x > subtitle_size.x - (LayoutScale(40.0f) * 2))
+				{
+					//if more than 2 lines
+					if (text_size.x > 2 * (subtitle_size.x - (LayoutScale(40.0f) * 2)))
+					{
+						text_pos = ImVec2(subtitle_pos.x + LayoutScale(40.0f), subtitle_pos.y + LayoutScale(5.0f));
+					}
+					else
+						text_pos = ImVec2(subtitle_pos.x + LayoutScale(40.0f), subtitle_pos.y + subtitle_size.y / 2 - text_size.y);
+				}
+				//DrawShadowedText(dl, g_medium_font, ImVec2(0.0f, s_game_size.y - heading_size.y - subtitle_size.y), text_color, ImGuiFullscreen::current_summary.data());
+				dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), text_color, text.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
 			}
 		}
-
-		/* DrawShadowedText(dl, g_large_font, title_pos, text_color, s_current_game_title.c_str());
-		if (!path_string.empty())
-		{
-			DrawShadowedText(dl, g_medium_font, path_pos, text_color, path_string.data(), path_string.data() + path_string.length());
-		}
-		DrawShadowedText(dl, g_medium_font, subtitle_pos, text_color, s_current_game_subtitle.c_str());
-		
-		
-		GSTexture* const cover = GetCoverForCurrentGame();
-
-		const ImVec2 image_min(
-			game_size.x - LayoutScale(10.0f + image_width) - rp_height, game_size.y - LayoutScale(10.0f + image_height) - rp_height);
-		const ImVec2 image_max(image_min.x + LayoutScale(image_width) + rp_height, image_min.y + LayoutScale(image_height) + rp_height);
-		const ImRect image_rect(CenterImage(
-			ImRect(image_min, image_max) , ImVec2(static_cast<float>(cover->GetWidth()), static_cast<float>(cover->GetHeight()))));
-		dl->AddImage(reinterpret_cast<ImTextureID>(cover->GetNativeHandle()), image_rect.Min + ImVec2(g_layout_padding_left, g_layout_padding_top), image_rect.Max + ImVec2(g_layout_padding_left, g_layout_padding_top));
-		*/
-		//upstream version
-		/*const ImVec2 image_min(display_size.x - LayoutScale(10.0f + image_width),
-			display_size.y - LayoutScale(LAYOUT_FOOTER_HEIGHT) - LayoutScale(10.0f + image_height) - rp_height);
-		const ImVec2 image_max(image_min.x + LayoutScale(image_width), image_min.y + LayoutScale(image_height) + rp_height);
-		const ImRect image_rect(CenterImage(
-			ImRect(image_min, image_max), ImVec2(static_cast<float>(cover->GetWidth()), static_cast<float>(cover->GetHeight()))));
-		dl->AddImage(reinterpret_cast<ImTextureID>(cover->GetNativeHandle()), image_rect.Min, image_rect.Max);*/
 	}
-
-	/*
-	// current time / play time
-	{
-		char buf[256];
-		struct tm ltime;
-		const std::time_t ctime(std::time(nullptr));
-#ifdef _MSC_VER
-		localtime_s(&ltime, &ctime);
-#else
-		localtime_r(&ctime, &ltime);
-#endif
-		std::strftime(buf, sizeof(buf), "%X", &ltime);
-
-		const ImVec2 time_size(g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, buf));
-		const ImVec2 time_pos(game_size.x - LayoutScale(10.0f) - time_size.x, LayoutScale(10.0f));
-		DrawShadowedText(dl, g_large_font, time_pos, text_color, buf);
-
-		if (!s_current_disc_serial.empty())
-		{
-			const std::time_t cached_played_time = GameList::GetCachedPlayedTimeForSerial(s_current_disc_serial);
-			const std::time_t session_time = static_cast<std::time_t>(VMManager::GetSessionPlayedTime());
-			const std::string played_time_str(GameList::FormatTimespan(cached_played_time + session_time, true));
-			const std::string session_time_str(GameList::FormatTimespan(session_time, true));
-
-			SmallString buf;
-			buf.format(FSUI_FSTR("This Session: {}"), session_time_str);
-			const ImVec2 session_size(g_medium_font->CalcTextSizeA(g_medium_font->FontSize, std::numeric_limits<float>::max(), -1.0f, buf));
-			const ImVec2 session_pos(
-				game_size.x - LayoutScale(10.0f) - session_size.x, time_pos.y + g_large_font->FontSize + LayoutScale(4.0f));
-			DrawShadowedText(dl, g_medium_font, session_pos, text_color, buf);
-
-			buf.format(FSUI_FSTR("All Time: {}"), played_time_str);
-			const ImVec2 total_size(g_medium_font->CalcTextSizeA(g_medium_font->FontSize, std::numeric_limits<float>::max(), -1.0f, buf));
-			const ImVec2 total_pos(
-				game_size.x - LayoutScale(10.0f) - total_size.x, session_pos.y + g_medium_font->FontSize + LayoutScale(4.0f));
-			DrawShadowedText(dl, g_medium_font, total_pos, text_color, buf);
-		}
-	}
-	*/
-
-	//const ImVec2 window_size(LayoutScale(500.0f, LAYOUT_SCREEN_HEIGHT));
-	//const ImVec2 window_size(LayoutScale(LAYOUT_SCREEN_WIDTH, LAYOUT_SCREEN_HEIGHT));
-	const ImVec2 window_size(game_size.x, game_size.y);
-
-	//const ImVec2 window_pos(0.0f, display_size.y - window_size.y);
-	//const ImVec2 window_pos(ImVec2(g_layout_padding_left, g_layout_padding_top));
-	const ImVec2 window_pos(0.0f, 0.0f);
-
-	float large_font_height = g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, "test").y;
-
-	//upstream
-	//const ImVec2 window_size(LayoutScale(500.0f, LAYOUT_SCREEN_HEIGHT));
-	//const ImVec2 window_pos(0.0f, display_size.y - LayoutScale(LAYOUT_FOOTER_HEIGHT) - window_size.y);
-
-	ImVec2 window_padding(LayoutScale(20.0f), LayoutScale(15.0f));
-	ImVec2 folder_padding(LayoutScale(20.0f), LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY + LAYOUT_MENU_BUTTON_Y_PADDING * 3.0f + 2.0f));
-	float subtitle_padding_x = LayoutScale(40.0f);
-
-	//subtitle = bottom bubble with setting summaries
-	ImVec2 subtitle_size = ImVec2(game_size.x - (window_padding.x + subtitle_padding_x) * 2, large_font_height * 3.2f); //LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT + LAYOUT_MENU_BUTTON_Y_PADDING * 4.0f + 2.0f));
-	ImVec2 subtitle_pos = ImVec2(window_padding.x + subtitle_padding_x, game_size.y - window_padding.y - subtitle_size.y);
-
-	//heading = title text tab
-	//ImVec2 heading_pos(window_padding.x, window_padding.y);
-	//ImVec2 heading_size(game_size.x - window_padding.x * 2, heading_text_height + style.FramePadding.y * 2);
-	//ImVec2(game_size.x, LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY) + (LayoutScale(LAYOUT_MENU_BUTTON_Y_PADDING) * 4.0f) + LayoutScale(4.0f));
-
-
-
-	//vertical black bar is as big as the longest text option plus padding (25%)
-	float longest_text_size =
-		g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, "Switch To Software Renderer").x;
-
-	ImVec2 black_bar_size = ImVec2(longest_text_size * 1.2 + LayoutScale(60.0f), game_size.y);
-
-
-	ImVec2 options_size = g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, "Test");
-	options_size.y = (options_size.y + LayoutScale(LAYOUT_MENU_BUTTON_Y_PADDING)) * 10;
-	float options_y_pos = game_size.y / 2 - options_size.y / 2;
-
-	float pause_image_aspect = 0.2026;
-
-	ImVec2 pause_image_size = ImVec2(black_bar_size.x - LayoutScale(60.0f), pause_image_aspect * black_bar_size.x);
-	ImVec2 pause_image_pos = ImVec2(game_size.x / 2 - pause_image_size.x / 2, options_y_pos - pause_image_size.y);
-
-	//hacky and possibly unecessary pre calculation oF pause logo
-	GSTexture* const pausedLogo = s_paused_texture.get();
-	/* 
-	const ImVec2 image_min_pre(
-		game_size.x / 2 - LayoutScale(image_width) / 2, game_size.y / 2 - LayoutScale(image_height) / 2);
-	const ImVec2 image_max_pre(image_min_pre.x + LayoutScale(image_width), image_min_pre.y + LayoutScale(image_height));
-	const ImRect image_rect_pre(CenterImage(
-	ImRect(image_min_pre, image_max_pre), ImVec2(static_cast<float>(pausedLogo->GetWidth()), static_cast<float>(pausedLogo->GetHeight()))));
-
-	const bool just_focused = ResetFocusHere();
-	*/
-	//prepares cursor y pos for menu buttons, accounting for pause logo on top
-	//BeginMenuButtons(submenu_item_count[static_cast<u32>(s_current_pause_submenu)], 1.0f, ImGuiFullscreen::LAYOUT_MENU_BUTTON_X_PADDING,
-	//	ImGuiFullscreen::LAYOUT_MENU_BUTTON_Y_PADDING, ImGuiFullscreen::LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY, true, image_rect_pre.GetHeight());
-
-	//star tests
+	EndFullscreenWindow();
+}
+void FullscreenUI::DrawStarBg()
+{
+	ImDrawList* dl = ImGui::GetBackgroundDrawList();
+	
 	GSTexture* const starImg = s_star_texture.get();
 	ImGuiIO& io = ImGui::GetIO();
 	float deltaTime = io.DeltaTime;
@@ -6216,13 +6086,13 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 		if (stars[i].disabled)
 		{
 			//create new star
-			stars[i].size = ImVec2(LayoutScale(80 + rand() % 80), LayoutScale(80 + rand() % 80));
-			stars[i].pos = ImVec2(rand() % static_cast<int>(game_size.x) - stars[i].size.x / 2, rand() % static_cast<int>(game_size.y) - stars[i].size.y / 2);
+			stars[i].size = LayoutScale(ImVec2(80 + rand() % 80, 80 + rand() % 80));
+			stars[i].pos = ImVec2(rand() % static_cast<int>(s_game_size.x) - stars[i].size.x / 2, rand() % static_cast<int>(s_game_size.y) - stars[i].size.y / 2);
 			stars[i].age = 0;
 			stars[i].speed = static_cast<float>(rand()) / (RAND_MAX * 2);
 			stars[i].rotation = static_cast<float>(rand()) / RAND_MAX;
 			//calculate direction via angle from centre
-			float angle = atan2f(stars[i].pos.x - game_size.x / 2, game_size.y / 2 - stars[i].pos.y); //* (180.0f / 3.14159265f);
+			float angle = atan2f(stars[i].pos.x - s_game_size.x / 2, s_game_size.y / 2 - stars[i].pos.y); //* (180.0f / 3.14159265f);
 			stars[i].direction = ImVec2(sinf(angle), -cosf(angle));
 			if (rand() % 5 == 0)
 				stars[i].lifetime = 5;
@@ -6253,14 +6123,14 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 				if (remaining_time < 1)
 					alpha *= remaining_time; //fade out
 				int vert_start_idx = dl->VtxBuffer.Size;
-				dl->AddImage(reinterpret_cast<ImTextureID>(starImg->GetNativeHandle()), star_image_rect.Min + ImVec2(g_layout_padding_left, g_layout_padding_top), star_image_rect.Max + ImVec2(g_layout_padding_left, g_layout_padding_top),
+				dl->AddImage(reinterpret_cast<ImTextureID>(starImg->GetNativeHandle()), GameBounds(star_image_rect.Min), GameBounds(star_image_rect.Max),
 					ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), IM_COL32(255, 255, 255, alpha));
 				int vert_end_idx = dl->VtxBuffer.Size;
 
 				float cos_a = ImCos(stars[i].rotation * 3.14);
 				float sin_a = ImSin(stars[i].rotation * 3.14);
 
-				ImGui::ShadeVertsTransformPos(dl, vert_start_idx, vert_end_idx, star_image_rect.GetCenter() + ImVec2(g_layout_padding_left, g_layout_padding_top), cos_a, sin_a, star_image_rect.GetCenter() + ImVec2(g_layout_padding_left, g_layout_padding_top));
+				ImGui::ShadeVertsTransformPos(dl, vert_start_idx, vert_end_idx, GameBounds(star_image_rect.GetCenter()), cos_a, sin_a, GameBounds(star_image_rect.GetCenter()));
 				stars[i].age += deltaTime;
 				stars[i].rotation += 0.2f * rot_speed * deltaTime;
 			}
@@ -6271,156 +6141,235 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 	if (g_layout_padding_top == 0)
 	{
 		dl->AddRectFilled(ImVec2(0, 0),
-			ImVec2(g_layout_padding_left, game_size.y),
+			ImVec2(g_layout_padding_left, s_game_size.y),
 			IM_COL32(0.0f, 0.0f, 0.0f, 255),
 			LayoutScale(0.0f), ImDrawFlags_None);
 
-		dl->AddRectFilled(ImVec2(game_size.x + g_layout_padding_left, 0),
-			ImVec2(game_size.x + g_layout_padding_left, 0) + ImVec2(g_layout_padding_left, game_size.y),
+		dl->AddRectFilled(ImVec2(s_game_size.x + g_layout_padding_left, 0),
+			ImVec2(s_game_size.x + g_layout_padding_left, 0) + ImVec2(g_layout_padding_left, s_game_size.y),
 			IM_COL32(0.0f, 0.0f, 0.0f, 255),
 			LayoutScale(0.0f), ImDrawFlags_None);
 	}
-	else {
+	else
+	{
 		dl->AddRectFilled(ImVec2(0, 0),
-			ImVec2(game_size.x, g_layout_padding_top),
+			ImVec2(s_game_size.x, g_layout_padding_top),
 			IM_COL32(0.0f, 0.0f, 0.0f, 255),
 			LayoutScale(0.0f), ImDrawFlags_None);
 
-		dl->AddRectFilled(ImVec2(0, game_size.y + g_layout_padding_top),
-			ImVec2(0, game_size.y + g_layout_padding_top) + ImVec2(game_size.x, g_layout_padding_top),
+		dl->AddRectFilled(ImVec2(0, s_game_size.y + g_layout_padding_top),
+			ImVec2(0, s_game_size.y + g_layout_padding_top) + ImVec2(s_game_size.x, g_layout_padding_top),
 			IM_COL32(0.0f, 0.0f, 0.0f, 255),
 			LayoutScale(0.0f), ImDrawFlags_None);
 	}
+}
+void FullscreenUI::DrawPauseMenu(MainWindowType type)
+{
+	ImDrawList* dl = ImGui::GetBackgroundDrawList();
+
+	const ImU32 text_color = IM_COL32(UIBackgroundTextColor.x * 255, UIBackgroundTextColor.y * 255, UIBackgroundTextColor.z * 255, 255);
 	
+//dim the paused game
+	dl->AddRectFilled( GameBounds(ImVec2(0.0f, 0.0f)), GameBounds(s_game_size),
+		IM_COL32(UIBackgroundColor.x * 255, UIBackgroundColor.y * 255, UIBackgroundColor.z * 255, 200));
 
+// title info, and retro achievements rich prescense thingy - not really needed for ptr2plus
+	/*
+	{
+		const float image_width = 60.0f;
+		const float image_height = 90.0f;
+		const std::string_view path_string(Path::GetFileName(s_current_disc_path));
+		const ImVec2 title_size(
+			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, s_current_game_title.c_str()));
+		const ImVec2 path_size(path_string.empty() ?
+                                   ImVec2(0.0f, 0.0f) :
+                                   g_medium_font->CalcTextSizeA(g_medium_font->FontSize, std::numeric_limits<float>::max(), -1.0f,
+									   path_string.data(), path_string.data() + path_string.length()));
+		const ImVec2 subtitle_size(g_medium_font->CalcTextSizeA(
+			g_medium_font->FontSize, std::numeric_limits<float>::max(), -1.0f, s_current_game_subtitle.c_str()));
 
-	const float pause_image_width = pause_image_size.x;
-	const float pause_image_height = pause_image_size.y;
-	//draw pause logo
-	//const ImVec2 image_min(
-	//	game_size.x / 2 - LayoutScale(pause_image_width) / 2, ImGui::GetCursorPosY() + g_layout_padding_top);
+		ImVec2 title_pos(
+			s_game_size.x - LayoutScale(10.0f + image_width + 20.0f) - title_size.x, s_game_size.y - LayoutScale(10.0f + image_height));
+		ImVec2 path_pos(s_game_size.x - LayoutScale(10.0f + image_width + 20.0f) - path_size.x,
+			title_pos.y + g_large_font->FontSize + LayoutScale(4.0f));
+		ImVec2 subtitle_pos(s_game_size.x - LayoutScale(10.0f + image_width + 20.0f) - subtitle_size.x,
+			(path_string.empty() ? title_pos.y : path_pos.y) + g_medium_font->FontSize + LayoutScale(4.0f));
 
-	const ImRect pause_image_rect(CenterImage(
-		ImRect(pause_image_pos, ImVec2(pause_image_pos.x + pause_image_width, pause_image_pos.y + pause_image_height)), ImVec2(static_cast<float>(pausedLogo->GetWidth()), static_cast<float>(pausedLogo->GetHeight()))));
+		//upstream version
+		//ImVec2 title_pos(s_display_size.x - LayoutScale(10.0f + image_width + 20.0f) - title_size.x,
+		//	s_display_size.y - LayoutScale(LAYOUT_FOOTER_HEIGHT) - LayoutScale(10.0f + image_height));
+		//ImVec2 path_pos(s_display_size.x - LayoutScale(10.0f + image_width + 20.0f) - path_size.x,
+		//	title_pos.y + g_large_font->FontSize + LayoutScale(4.0f));
+		//ImVec2 subtitle_pos(s_display_size.x - LayoutScale(10.0f + image_width + 20.0f) - subtitle_size.x,
+		//	(path_string.empty() ? title_pos.y + g_large_font->FontSize : path_pos.y + g_medium_font->FontSize) + LayoutScale(4.0f));
+		
+		//Game Info and RetroAchievements Rich Prescense string thingy.. not really needed for ptr2plus..
+		
+		float rp_height = 0.0f;
+		{
+			const auto lock = Achievements::GetLock();
+			const std::string& rp = Achievements::IsActive() ? Achievements::GetRichPresenceString() : std::string();
 
-	//ImGui::SetCursorPosY(ImGui::GetCursorPosY() + pause_image_rect.GetHeight());
+			if (!rp.empty())
+			{
+				const float wrap_width = LayoutScale(350.0f);
+				const ImVec2 rp_size = g_medium_font->CalcTextSizeA(
+					g_medium_font->FontSize, std::numeric_limits<float>::max(), wrap_width, rp.data(), rp.data() + rp.length());
 
-	const float bg_alpha = VMManager::HasValidVM() ? 0.90f : 1.0f;
+				// Add a small extra gap if any Rich Presence is displayed
+				rp_height = rp_size.y - g_medium_font->FontSize + LayoutScale(2.0f);
 
-	//bevel
+				const ImVec2 rp_pos(s_game_size.x - LayoutScale(20.0f + 50.0f + 20.0f) - rp_size.x - rp_height,
+					subtitle_pos.y + g_medium_font->FontSize + LayoutScale(4.0f));
+
+				//upstream ver
+				//const ImVec2 rp_pos(s_display_size.x - LayoutScale(20.0f + 50.0f + 20.0f) - rp_size.x,
+				//	subtitle_pos.y + g_medium_font->FontSize + LayoutScale(4.0f) - rp_height);
+
+				title_pos.y -= rp_height;
+				path_pos.y -= rp_height;
+				subtitle_pos.y -= rp_height;
+
+				DrawShadowedText(dl, g_medium_font, GameBounds(rp_pos), text_color, rp.data(), rp.data() + rp.length(), wrap_width);
+			}
+		}
+		
+		DrawShadowedText(dl, g_large_font, title_pos, text_color, s_current_game_title.c_str());
+		if (!path_string.empty())
+		{
+			DrawShadowedText(dl, g_medium_font, path_pos, text_color, path_string.data(), path_string.data() + path_string.length());
+		}
+		DrawShadowedText(dl, g_medium_font, subtitle_pos, text_color, s_current_game_subtitle.c_str());
+		
+		
+		GSTexture* const cover = GetCoverForCurrentGame();
+
+		const ImVec2 image_min(
+			s_game_size.x - LayoutScale(10.0f + image_width) - rp_height, s_game_size.y - LayoutScale(10.0f + image_height) - rp_height);
+		const ImVec2 image_max(image_min.x + LayoutScale(image_width) + rp_height, image_min.y + LayoutScale(image_height) + rp_height);
+		const ImRect image_rect(CenterImage(
+			ImRect(image_min, image_max) , ImVec2(static_cast<float>(cover->GetWidth()), static_cast<float>(cover->GetHeight()))));
+		dl->AddImage(reinterpret_cast<ImTextureID>(cover->GetNativeHandle()), GameBounds(image_rect.Min), GameBounds(image_rect.Max));
+		
+		//upstream version
+		//const ImVec2 image_min(s_display_size.x - LayoutScale(10.0f + image_width),
+		//	s_display_size.y - LayoutScale(LAYOUT_FOOTER_HEIGHT) - LayoutScale(10.0f + image_height) - rp_height);
+		//const ImVec2 image_max(image_min.x + LayoutScale(image_width), image_min.y + LayoutScale(image_height) + rp_height);
+		//const ImRect image_rect(CenterImage(
+		//	ImRect(image_min, image_max), ImVec2(static_cast<float>(cover->GetWidth()), static_cast<float>(cover->GetHeight()))));
+		//dl->AddImage(reinterpret_cast<ImTextureID>(cover->GetNativeHandle()), image_rect.Min, image_rect.Max);
+	}
+	*/
+	
+// current time / play time - also not really needed
+	/*
+	{
+		char buf[256];
+		struct tm ltime;
+		const std::time_t ctime(std::time(nullptr));
+#ifdef _MSC_VER
+		localtime_s(&ltime, &ctime);
+#else
+		localtime_r(&ctime, &ltime);
+#endif
+		std::strftime(buf, sizeof(buf), "%X", &ltime);
+
+		const ImVec2 time_size(g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, buf));
+		const ImVec2 time_pos(s_game_size.x - LayoutScale(10.0f) - time_size.x, LayoutScale(10.0f));
+		DrawShadowedText(dl, g_large_font, time_pos, text_color, buf);
+
+		if (!s_current_disc_serial.empty())
+		{
+			const std::time_t cached_played_time = GameList::GetCachedPlayedTimeForSerial(s_current_disc_serial);
+			const std::time_t session_time = static_cast<std::time_t>(VMManager::GetSessionPlayedTime());
+			const std::string played_time_str(GameList::FormatTimespan(cached_played_time + session_time, true));
+			const std::string session_time_str(GameList::FormatTimespan(session_time, true));
+
+			SmallString buf;
+			buf.format(FSUI_FSTR("This Session: {}"), session_time_str);
+			const ImVec2 session_size(g_medium_font->CalcTextSizeA(g_medium_font->FontSize, std::numeric_limits<float>::max(), -1.0f, buf));
+			const ImVec2 session_pos(
+				s_game_size.x - LayoutScale(10.0f) - session_size.x, time_pos.y + g_large_font->FontSize + LayoutScale(4.0f));
+			DrawShadowedText(dl, g_medium_font, session_pos, text_color, buf);
+
+			buf.format(FSUI_FSTR("All Time: {}"), played_time_str);
+			const ImVec2 total_size(g_medium_font->CalcTextSizeA(g_medium_font->FontSize, std::numeric_limits<float>::max(), -1.0f, buf));
+			const ImVec2 total_pos(
+				s_game_size.x - LayoutScale(10.0f) - total_size.x, session_pos.y + g_medium_font->FontSize + LayoutScale(4.0f));
+			DrawShadowedText(dl, g_medium_font, total_pos, text_color, buf);
+		}
+	}
+	*/
+
+//draw vertical black bar in middle
+	//vertical black bar is as big as the longest text option plus padding (25%)
+	float longest_text_size =
+		g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, "Switch To Software Renderer").x;
+
+	ImVec2 black_bar_size = ImVec2(longest_text_size * 1.2 + LayoutScale(60.0f), s_game_size.y);
 
 	//int vert_start_idx = dl->VtxBuffer.Size;
-	dl->AddRectFilled(ImVec2(game_size.x / 2 - black_bar_size.x / 2, 0) +
-						  ImVec2(g_layout_padding_left, g_layout_padding_top),
-		ImVec2(game_size.x / 2 + black_bar_size.x / 2, game_size.y) + ImVec2(g_layout_padding_left, g_layout_padding_top),
+	dl->AddRectFilled(GameBounds(ImVec2(s_game_size.x / 2 - black_bar_size.x / 2, 0)),
+		GameBounds(ImVec2(s_game_size.x / 2 + black_bar_size.x / 2, s_game_size.y)),
 		IM_COL32(0.0f, 0.0f, 0.0f, 255),
 		LayoutScale(0.0f), ImDrawFlags_None);
 	//int vert_end_idx = dl->VtxBuffer.Size;
 
-	dl->AddImage(reinterpret_cast<ImTextureID>(pausedLogo->GetNativeHandle()), pause_image_rect.Min + ImVec2(g_layout_padding_left, g_layout_padding_top), pause_image_rect.Max + ImVec2(g_layout_padding_left, g_layout_padding_top));
+	//wip bevel gradient
 
-	std::string ptr2plus_text = "PTR2 Plus DEV";
-	ImVec2 ptr2plus_text_size(
-		g_large_font->CalcTextSizeA(g_large_font->FontSize - 2, std::numeric_limits<float>::max(), -1.0f, "PTR2 Plus DEV"));
-	ImVec2 ptr2plus_text_pos(game_size.x / 2 - ptr2plus_text_size.x / 2, window_padding.y);
-
-	dl->AddText(g_large_font, g_large_font->FontSize - 2, ptr2plus_text_pos + ImVec2(g_layout_padding_left, g_layout_padding_top), ImGui::GetColorU32(UIPrimaryColor), ptr2plus_text.c_str(), nullptr);
-
-
-	
-
-	//bevel gradient
-	
 	/* ImVec4 grad = CalcGradientStartEnd(black_bar_size, LayoutScale(80.0f));
-	ImVec2 grad_start = ImVec2(game_size.x / 2 - black_bar_size.x / 2, 0) + ImVec2(grad.x, grad.y);
-	ImVec2 grad_end = ImVec2(game_size.x / 2 - black_bar_size.x / 2, 0) + ImVec2(grad.z, grad.w);
+	ImVec2 grad_start = ImVec2(s_game_size.x / 2 - black_bar_size.x / 2, 0) + ImVec2(grad.x, grad.y);
+	ImVec2 grad_end = ImVec2(s_game_size.x / 2 - black_bar_size.x / 2, 0) + ImVec2(grad.z, grad.w);
 
 	ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
-		grad_start + ImVec2(g_layout_padding_left, g_layout_padding_top),
-		grad_end + ImVec2(g_layout_padding_left, g_layout_padding_top),
+		GameBounds(grad_start),
+		GameBounds(grad_end),
 		IM_COL32(0, 255, 0, 255),
 		IM_COL32(0, 0, 255, 0)); 
 	*/
+	
+//draw pause logo
 
-	//draw bottom subtitle description
-	if (BeginFullscreenWindow(subtitle_pos, subtitle_size, "settings_subtitle",
-			ImVec4(0.0f, 0.0f, 0.0f, bg_alpha), 30.0f))
-	{
-		//HEX_TO_IMVEC4(0x000000, bg_alpha)
-		//const char* summary = ImGuiFullscreen::current_summary.data();
-		//summary.length();
-		
-		//this is one of the most horrific things i've ever coded
-		//but i couldn't see a good away to do it, and it's worth it to make the controls text look nice
+	GSTexture* const pausedLogo = s_paused_texture.get();
+	//hacky and prob unecessary pre calculation oF pause logo, commented out
+	/* 
+	const ImVec2 image_min_pre(
+		s_game_size.x / 2 - LayoutScale(image_width) / 2, s_game_size.y / 2 - LayoutScale(image_height) / 2);
+	const ImVec2 image_max_pre(image_min_pre.x + LayoutScale(image_width), image_min_pre.y + LayoutScale(image_height));
+	const ImRect image_rect_pre(CenterImage(
+	ImRect(image_min_pre, image_max_pre), ImVec2(static_cast<float>(pausedLogo->GetWidth()), static_cast<float>(pausedLogo->GetHeight()))));
 
-		std::string subtitle_text1 = IsGamepadInputSource() ? ICON_PF_DPAD_UP_DOWN : ICON_PF_ARROW_UP ICON_PF_ARROW_DOWN;
-		std::string subtitle_text = subtitle_text1;
-		ImVec2 text_size1(
-			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text1.c_str()));
-		std::string subtitle_text2 = " ";
-		subtitle_text2 += FSUI_VSTR("Change Selection");
-		subtitle_text += subtitle_text2;
-		ImVec2 text_size2(
-			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text2.c_str()));
-		std::string subtitle_text3 = " ";
-		subtitle_text3 += IsGamepadInputSource() ? ICON_PF_BUTTON_CROSS : ICON_PF_ENTER;
-		subtitle_text += subtitle_text3;
-		ImVec2 text_size3(
-			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text3.c_str()));
-		std::string subtitle_text4 = " ";
-		subtitle_text4 += FSUI_VSTR("Select");
-		subtitle_text += subtitle_text4;
-		ImVec2 text_size4(
-			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text4.c_str()));
-		std::string subtitle_text5 = " ";
-		subtitle_text5 += IsGamepadInputSource() ? ICON_PF_BUTTON_CIRCLE : ICON_PF_ESC;
-		subtitle_text += subtitle_text5;
-		ImVec2 text_size5(
-			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text5.c_str()));
-		std::string subtitle_text6 = " ";
-		subtitle_text6 += FSUI_VSTR("Return To Game");
-		subtitle_text += subtitle_text6;
+	const bool just_focused = ResetFocusHere();
+	*/
 
-		ImDrawList* dl = ImGui::GetWindowDrawList();
-		//const ImU32 text_color = IM_COL32(UIBackgroundTextColor.x * 255, UIBackgroundTextColor.y * 255, UIBackgroundTextColor.z * 255, 255);
-		ImVec2 subtitle_text_size(
-			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text.c_str()));
+	ImVec2 options_size = g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, "Test");
+	options_size.y = (options_size.y + LayoutScale(LAYOUT_MENU_BUTTON_Y_PADDING)) * 10;
+	float options_y_pos = s_game_size.y / 2 - options_size.y / 2;
 
-		ImVec2 text_pos(0.0f + (game_size.x - subtitle_text_size.x) / 2, subtitle_pos.y + subtitle_size.y / 2 - (subtitle_text_size.y * 2) / 3);
-		/* if (text_size.x > subtitle_size.x - (LayoutScale(40.0f) * 2))
-		{
-			//if more than 2 lines
-			if (text_size.x > 2 * (subtitle_size.x - (LayoutScale(40.0f) * 2)))
-			{
-				text_pos = ImVec2(subtitle_pos.x + LayoutScale(40.0f), subtitle_pos.y + LayoutScale(5.0f));
-			}
-			else
-				text_pos = ImVec2(subtitle_pos.x + LayoutScale(40.0f), subtitle_pos.y + subtitle_size.y / 2 - text_size.y);
-		}*/
+	float pause_image_aspect = 0.2026;
 
-		//DrawShadowedText(dl, g_medium_font, ImVec2(0.0f, game_size.y - heading_size.y - subtitle_size.y), text_color, ImGuiFullscreen::current_summary.data());
-		
-ImU32 color = ImGui::GetColorU32(UIPrimaryColor);
-		dl->AddText(g_large_font, g_large_font->FontSize, text_pos + ImVec2(g_layout_padding_left, g_layout_padding_top), color, subtitle_text1.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
-		text_pos += ImVec2(text_size1.x, 0);
-		color = ImGui::GetColorU32(UIBackgroundTextColor);
-		dl->AddText(g_large_font, g_large_font->FontSize, text_pos + ImVec2(g_layout_padding_left, g_layout_padding_top), color, subtitle_text2.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
-		text_pos += ImVec2(text_size2.x, 0);
-		color = ImGui::GetColorU32(UIPrimaryColor);
-		dl->AddText(g_large_font, g_large_font->FontSize, text_pos + ImVec2(g_layout_padding_left, g_layout_padding_top), color, subtitle_text3.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
-		text_pos += ImVec2(text_size3.x, 0);
-		color = ImGui::GetColorU32(UIBackgroundTextColor);
-		dl->AddText(g_large_font, g_large_font->FontSize, text_pos + ImVec2(g_layout_padding_left, g_layout_padding_top), color, subtitle_text4.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
-		text_pos += ImVec2(text_size4.x, 0);
-		color = ImGui::GetColorU32(UIPrimaryColor);
-		dl->AddText(g_large_font, g_large_font->FontSize, text_pos + ImVec2(g_layout_padding_left, g_layout_padding_top), color, subtitle_text5.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
-		text_pos += ImVec2(text_size5.x, 0);
-		color = ImGui::GetColorU32(UIBackgroundTextColor);
-		dl->AddText(g_large_font, g_large_font->FontSize, text_pos + ImVec2(g_layout_padding_left, g_layout_padding_top), color, subtitle_text6.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+	ImVec2 pause_image_size = ImVec2(black_bar_size.x - LayoutScale(60.0f), pause_image_aspect * black_bar_size.x);
+	ImVec2 pause_image_pos = ImVec2(s_game_size.x / 2 - pause_image_size.x / 2, options_y_pos - pause_image_size.y);
 
-	}
-	EndFullscreenWindow();
+	const float pause_image_width = pause_image_size.x;
+	const float pause_image_height = pause_image_size.y;
+	
+	const ImRect pause_image_rect(CenterImage(
+		ImRect(pause_image_pos, ImVec2(pause_image_pos.x + pause_image_width, pause_image_pos.y + pause_image_height)), ImVec2(static_cast<float>(pausedLogo->GetWidth()), static_cast<float>(pausedLogo->GetHeight()))));
 
+	dl->AddImage(reinterpret_cast<ImTextureID>(pausedLogo->GetNativeHandle()), GameBounds(pause_image_rect.Min), GameBounds(pause_image_rect.Max));
+
+//draw ptr2plus version text at top
+	std::string ptr2plus_text = "PTR2 Plus DEV";
+	ImVec2 ptr2plus_text_size(
+		g_large_font->CalcTextSizeA(g_large_font->FontSize - 2, std::numeric_limits<float>::max(), -1.0f, "PTR2 Plus DEV"));
+	ImVec2 ptr2plus_text_pos(s_game_size.x / 2 - ptr2plus_text_size.x / 2, s_window_padding.y);
+
+	dl->AddText(g_large_font, g_large_font->FontSize - 2, GameBounds(ptr2plus_text_pos), ImGui::GetColorU32(UIPrimaryColor), ptr2plus_text.c_str(), nullptr);
+
+//draw pause menu buttons
+	const ImVec2 window_size(s_game_size.x, s_game_size.y);
+	const ImVec2 window_pos(0.0f, 0.0f);
 	if (BeginFullscreenWindow(window_pos, window_size, "pause_menu", ImVec4(0.0f, 0.0f, 0.0f, 0.0f), 0.0f,
 			ImVec2(10.0f, 10.0f), ImGuiWindowFlags_NoBackground))
 	{
@@ -6429,31 +6378,9 @@ ImU32 color = ImGui::GetColorU32(UIPrimaryColor);
 			4, // Exit
 			3, // Achievements
 		};
-		/*
-		//hacky and possibly unecessary pre calculation oF pause logo
-		GSTexture* const pausedLogo = s_paused_texture.get();
-		const float image_width = static_cast<float>(pausedLogo->GetWidth()) * 0.8f;
-		const float image_height = static_cast<float>(pausedLogo->GetHeight()) * 0.8f;
-		const ImVec2 image_min_pre(
-			game_size.x / 2 - LayoutScale(image_width) / 2, game_size.y / 2 - LayoutScale(image_height) / 2);
-		const ImVec2 image_max_pre(image_min_pre.x + LayoutScale(image_width), image_min_pre.y + LayoutScale(image_height));
-		const ImRect image_rect_pre(CenterImage(
-			ImRect(image_min_pre, image_max_pre), ImVec2(static_cast<float>(pausedLogo->GetWidth()), static_cast<float>(pausedLogo->GetHeight()))));
 
-		
-
-				//draw pause logo
-		const ImVec2 image_min(
-			game_size.x / 2 - LayoutScale(image_width) / 2, ImGui::GetCursorPosY() + g_layout_padding_top);
-		const ImVec2 image_max(image_min.x + LayoutScale(image_width), image_min.y + LayoutScale(image_height));
-		const ImRect image_rect(CenterImage(
-			ImRect(image_min, image_max), ImVec2(static_cast<float>(pausedLogo->GetWidth()), static_cast<float>(pausedLogo->GetHeight()))));
-		dl->AddImage(reinterpret_cast<ImTextureID>(pausedLogo->GetNativeHandle()), image_rect.Min + ImVec2(g_layout_padding_left, 0), image_rect.Max + ImVec2(g_layout_padding_left, 0));
-
-		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + image_rect.GetHeight());
-		*/
 		bool expertMode = false;
-		//float buttonPos = display_size.x / 2 - ;
+		//float buttonPos = s_display_size.x / 2 - ;
 		//ImGui::SetCursorPosX(buttonPos);
 		//float cursor = ImGui::GetCursorPosX();
 
@@ -6597,25 +6524,9 @@ ImU32 color = ImGui::GetColorU32(UIPrimaryColor);
 
 		EndFullscreenWindow();
 	}
-
 	// Primed achievements must come first, because we don't want the pause screen to be behind them.
 	if (Achievements::HasAchievementsOrLeaderboards())
 		Achievements::DrawPauseMenuOverlays();
-
-	/*
-	if (IsGamepadInputSource())
-	{
-		SetFullscreenFooterText(std::array{std::make_pair(ICON_PF_DPAD_UP_DOWN, FSUI_VSTR("Change Selection")),
-			std::make_pair(ICON_PF_BUTTON_CROSS, FSUI_VSTR("Select")),
-			std::make_pair(ICON_PF_BUTTON_CIRCLE, FSUI_VSTR("Return To Game"))});
-	}
-	else
-	{
-		SetFullscreenFooterText(std::array{
-			std::make_pair(ICON_PF_ARROW_UP ICON_PF_ARROW_DOWN, FSUI_VSTR("Change Selection")),
-			std::make_pair(ICON_PF_ENTER, FSUI_VSTR("Select")), std::make_pair(ICON_PF_ESC, FSUI_VSTR("Return To Game"))});
-	}
-	*/
 }
 
 void FullscreenUI::InitializePlaceholderSaveStateListEntry(SaveStateListEntry* li, s32 slot)

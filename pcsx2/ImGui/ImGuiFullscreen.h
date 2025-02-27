@@ -69,6 +69,7 @@ namespace ImGuiFullscreen
 	extern ImVec4 UISecondaryWeakColor;
 	extern ImVec4 UISecondaryTextColor;
 
+	static __fi ImVec2 GameBounds(const ImVec2& v) { return ImVec2(v.x + g_layout_padding_left, v.y + g_layout_padding_top); }
 	static __fi float oldLayoutScale(float v) { return g_layout_scale * v; }
 	static __fi float LayoutScale(float v) { return ImCeil(g_layout_scale * v); }
 	static __fi ImVec2 LayoutScale(const ImVec2& v) { return ImVec2(ImCeil(v.x * g_layout_scale), ImCeil(v.y * g_layout_scale)); }
