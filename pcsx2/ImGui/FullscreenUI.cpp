@@ -298,7 +298,8 @@ namespace FullscreenUI
 		float age;
 		float lifetime;
 		float rotation;
-		float speed;
+		float rot_speed;
+		int init_alpha;
 	};
 
 	//////////////////////////////////////////////////////////////////////////
@@ -315,9 +316,13 @@ namespace FullscreenUI
 
 	static std::shared_ptr<GSTexture> s_paused_texture;
 	static std::shared_ptr<GSTexture> s_star_texture;
-	float s_star_rotation;
-	static star stars[50];
-	;
+	static std::shared_ptr<GSTexture> s_starsmall_texture;
+	static std::shared_ptr<GSTexture> s_ast_texture;
+	static std::shared_ptr<GSTexture> s_circle_texture;
+	static std::shared_ptr<GSTexture> s_tri_texture;
+	static std::shared_ptr<GSTexture> s_spark_texture;
+
+	static star stars[80];
 
 	//////////////////////////////////////////////////////////////////////////
 	// Landing
@@ -1047,7 +1052,12 @@ bool FullscreenUI::LoadResources()
 
 	s_paused_texture = LoadTexture("fullscreenui/ptr2plus/pause.png");
 	s_star_texture = LoadTexture("fullscreenui/ptr2plus/star.png");
-	s_star_rotation = 0.1f;
+	s_starsmall_texture = LoadTexture("fullscreenui/ptr2plus/starsmall.png");
+	s_circle_texture = LoadTexture("fullscreenui/ptr2plus/circle.png");
+	s_spark_texture = LoadTexture("fullscreenui/ptr2plus/spark.png");
+	s_tri_texture = LoadTexture("fullscreenui/ptr2plus/tri.png");
+	s_ast_texture = LoadTexture("fullscreenui/ptr2plus/ast.png");
+
 	for (u32 i = static_cast<u32>(GameDatabaseSchema::Compatibility::Nothing);
 		 i <= static_cast<u32>(GameDatabaseSchema::Compatibility::Perfect); i++)
 	{
@@ -6073,34 +6083,79 @@ static void FullscreenUI::DrawSubtitleBubble(ImVec2 subtitle_pos, ImVec2 subtitl
 void FullscreenUI::DrawStarBg()
 {
 	ImDrawList* dl = ImGui::GetBackgroundDrawList();
-	
-	GSTexture* const starImg = s_star_texture.get();
+
+	//dim the paused game
+	dl->AddRectFilled(GameBounds(ImVec2(0.0f, 0.0f)), GameBounds(s_game_size),
+		IM_COL32(UIBackgroundColor.x * 255, UIBackgroundColor.y * 255, UIBackgroundColor.z * 255, 200));
+
 	ImGuiIO& io = ImGui::GetIO();
 	float deltaTime = io.DeltaTime;
-	float rot_speed = 1.0f;
-	float speed = 0.1f;
-	s_star_rotation += 0.05f * rot_speed * deltaTime;
+	float speed = 0.17f;
 
-	for (int i = 0; i < 50; i++)
+	for (int i = 0; i < 80; i++)
 	{
 		if (stars[i].disabled)
 		{
-			//create new star
-			stars[i].size = LayoutScale(ImVec2(80 + rand() % 80, 80 + rand() % 80));
+			if (rand() % 10 == 0) //1/10 chance it is the asterisk shaped star
+				stars[i].type = 5;
+			else
+			{
+				stars[i].type = rand() % 5; //others are equal chance
+			}
+			if (stars[i].type == 0 and rand() % 3 == 0) //a third of big stars are rerolled
+				stars[i].type = 1 + rand() % 5;
+
+			int star_size = 160;
+			stars[i].size = ImVec2(star_size, star_size); //star
+			stars[i].rot_speed = 4.5f + static_cast<float>(rand()) / RAND_MAX;
+			switch (stars[i].type)
+			{
+				case 1:
+					star_size = 45 + rand() % 40;
+					stars[i].size = ImVec2(star_size, star_size); //starsmall
+					stars[i].rot_speed = 4.5f + static_cast<float>(rand()) / RAND_MAX;
+					break;
+				case 2:
+					star_size = 25 + rand() % 28;
+					stars[i].size = ImVec2(star_size, star_size); //triangle
+					stars[i].rot_speed = 1.5f + static_cast<float>(rand()) / RAND_MAX;
+					break;
+				case 3:
+					star_size = 25 + rand() % 28;
+					stars[i].size = ImVec2(star_size, star_size); //circle
+					stars[i].rot_speed = 1.5f + static_cast<float>(rand()) / RAND_MAX;
+					break;
+				case 4:
+					star_size = 37 + rand() % 47;
+					stars[i].size = ImVec2(star_size, star_size); //spark
+					stars[i].rot_speed = 5.5f + static_cast<float>(rand()) / RAND_MAX;
+					break;
+				case 5:
+					star_size = 32 + rand() % 43;
+					stars[i].size = ImVec2(star_size, star_size); //asterisk
+					stars[i].rot_speed = 4.5f + static_cast<float>(rand()) / RAND_MAX;
+					break;
+			}
+			stars[i].size = LayoutScale(stars[i].size);
+			//stars[i].size = LayoutScale(ImVec2(80 + rand() % 80, 80 + rand() % 80));
 			stars[i].pos = ImVec2(rand() % static_cast<int>(s_game_size.x) - stars[i].size.x / 2, rand() % static_cast<int>(s_game_size.y) - stars[i].size.y / 2);
 			stars[i].age = 0;
-			stars[i].speed = static_cast<float>(rand()) / (RAND_MAX * 2);
+			//stars[i].speed = static_cast<float>(rand()) / (RAND_MAX * 2);
 			stars[i].rotation = static_cast<float>(rand()) / RAND_MAX;
 			//calculate direction via angle from centre
 			float angle = atan2f(stars[i].pos.x - s_game_size.x / 2, s_game_size.y / 2 - stars[i].pos.y); //* (180.0f / 3.14159265f);
 			stars[i].direction = ImVec2(sinf(angle), -cosf(angle));
-			if (rand() % 5 == 0)
+			if (rand() % 5 == 0) //1/5 chance
 				stars[i].lifetime = 5;
-			else if (rand() % 3 == 0)
-				stars[i].lifetime = 2;
-			else
+			else if (rand() % 3 == 0) //1/3 chance
 				stars[i].lifetime = 1;
+			else
+				stars[i].lifetime = 2;
 
+			if (rand() % 2 == 0) //1/3 chance
+				stars[i].init_alpha = 120;
+			else
+				stars[i].init_alpha = 255;
 			stars[i].disabled = false;
 		}
 		else
@@ -6110,20 +6165,42 @@ void FullscreenUI::DrawStarBg()
 				stars[i].disabled = true;
 			else
 			{
-				stars[i].pos += stars[i].direction * ImGuiFullscreen::oldLayoutScale(stars[i].speed);
+				//get star image
+				GSTexture* image = s_star_texture.get();
+				switch (stars[i].type)
+				{
+					case 1:
+						image = s_starsmall_texture.get();
+						break;
+					case 2:
+						image = s_tri_texture.get();
+						break;
+					case 3:
+						image = s_circle_texture.get();
+						break;
+					case 4:
+						image = s_spark_texture.get();
+						break;
+					case 5:
+						image = s_ast_texture.get();
+						break;
+				}
+
+				stars[i].pos += stars[i].direction * ImGuiFullscreen::oldLayoutScale(speed);
 				const ImRect star_image_rect(CenterImage(
-					ImRect(stars[i].pos, ImVec2(stars[i].pos.x + stars[i].size.x, stars[i].pos.y + stars[i].size.y)), ImVec2(static_cast<float>(starImg->GetWidth()), static_cast<float>(starImg->GetHeight()))));
+					ImRect(stars[i].pos, ImVec2(stars[i].pos.x + stars[i].size.x, stars[i].pos.y + stars[i].size.y)), ImVec2(static_cast<float>(image->GetWidth()), static_cast<float>(image->GetHeight()))));
 
 				//if less than a second remaining, lower opacity
 
-				int alpha = 255; //full opacity
+				int alpha = stars[i].init_alpha; //full opacity
 				float remaining_time = stars[i].lifetime - stars[i].age;
 				if (stars[i].age < 1) //fade in
 					alpha *= stars[i].age;
 				if (remaining_time < 1)
 					alpha *= remaining_time; //fade out
 				int vert_start_idx = dl->VtxBuffer.Size;
-				dl->AddImage(reinterpret_cast<ImTextureID>(starImg->GetNativeHandle()), GameBounds(star_image_rect.Min), GameBounds(star_image_rect.Max),
+
+				dl->AddImage(reinterpret_cast<ImTextureID>(image->GetNativeHandle()), GameBounds(star_image_rect.Min), GameBounds(star_image_rect.Max),
 					ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), IM_COL32(255, 255, 255, alpha));
 				int vert_end_idx = dl->VtxBuffer.Size;
 
@@ -6132,7 +6209,7 @@ void FullscreenUI::DrawStarBg()
 
 				ImGui::ShadeVertsTransformPos(dl, vert_start_idx, vert_end_idx, GameBounds(star_image_rect.GetCenter()), cos_a, sin_a, GameBounds(star_image_rect.GetCenter()));
 				stars[i].age += deltaTime;
-				stars[i].rotation += 0.2f * rot_speed * deltaTime;
+				stars[i].rotation += 0.2f * stars[i].rot_speed * deltaTime;
 			}
 		}
 	}
@@ -6168,10 +6245,6 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 	ImDrawList* dl = ImGui::GetBackgroundDrawList();
 
 	const ImU32 text_color = IM_COL32(UIBackgroundTextColor.x * 255, UIBackgroundTextColor.y * 255, UIBackgroundTextColor.z * 255, 255);
-	
-//dim the paused game
-	dl->AddRectFilled( GameBounds(ImVec2(0.0f, 0.0f)), GameBounds(s_game_size),
-		IM_COL32(UIBackgroundColor.x * 255, UIBackgroundColor.y * 255, UIBackgroundColor.z * 255, 200));
 
 // title info, and retro achievements rich prescense thingy - not really needed for ptr2plus
 	/*
