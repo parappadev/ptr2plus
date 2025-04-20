@@ -10,9 +10,23 @@ static std::string PriorityList::GetFilename()
 	return Path::Combine(EmuFolders::Cache, "modpriority.cache");
 }
 
+static bool PriorityList::CacheFileValidation()
+{
+	const std::string modspriority_filename(GetFilename());
+	if (FileSystem::FileExists(modspriority_filename.c_str()))
+		return true;
+	else
+	{
+		u16 data = 0;
+		return FileSystem::WriteBinaryFile(modspriority_filename.c_str(), &data, 2);
+	}
+}
+
 //returns list of modnames in order from highest to lowest priority (0 first
 std::vector<std::string> PriorityList::Get()
 {
+	CacheFileValidation(); //todo: error handling
+
 	const std::string modspriority_filename(GetFilename());
 
 	auto fp = FileSystem::OpenManagedCFile(modspriority_filename.c_str(), "rb+");
@@ -45,6 +59,9 @@ std::vector<std::string> PriorityList::Get()
 }
 bool PriorityList::GetPriority(std::string modname, int& priority)
 {
+	if (!CacheFileValidation())
+		return false;
+
 	const std::string modspriority_filename(GetFilename());
 
 	auto fp = FileSystem::OpenManagedCFile(modspriority_filename.c_str(), "rb+");
@@ -77,6 +94,9 @@ bool PriorityList::GetPriority(std::string modname, int& priority)
 }
 bool PriorityList::GetModName(int priority, std::string& modname)
 {
+	if (!CacheFileValidation())
+		return false;
+
 	const std::string modspriority_filename(GetFilename());
 
 	auto fp = FileSystem::OpenManagedCFile(modspriority_filename.c_str(), "rb+");
@@ -109,6 +129,9 @@ bool PriorityList::GetModName(int priority, std::string& modname)
 }
 bool PriorityList::Save(std::vector<std::string> priority_list)
 {
+	if (!CacheFileValidation())
+		return false;
+
 	const std::string modspriority_filename(GetFilename());
 	FileSystem::DeleteFilePath(modspriority_filename.c_str());
 

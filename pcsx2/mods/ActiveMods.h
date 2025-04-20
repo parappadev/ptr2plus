@@ -4,6 +4,8 @@ namespace ActiveMods
 {
 	static std::string GetFilename();
 
+	static bool CacheFileValidation();
+
 	bool ReadOne(FILE* stream, std::pair<std::string, std::string>& entry);
 
 	bool ContainsMod(const std::string mod);

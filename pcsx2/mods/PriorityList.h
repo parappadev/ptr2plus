@@ -2,6 +2,7 @@
 namespace PriorityList
 {
 	static std::string GetFilename();
+	static bool CacheFileValidation();
 	std::vector<std::string> Get();
 	bool GetPriority(std::string modname, int& priority);
 	bool GetModName(int priority, std::string& modname);

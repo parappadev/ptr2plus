@@ -8,6 +8,18 @@ static std::string ActiveMods::GetFilename()
 {
 	return Path::Combine(EmuFolders::Cache, "activemods.cache");
 }
+
+static bool ActiveMods::CacheFileValidation()
+{
+	const std::string activemods_filename(GetFilename());
+	if (FileSystem::FileExists(activemods_filename.c_str()))
+		return true;
+	else
+	{
+		u16 data = 0;
+		return FileSystem::WriteBinaryFile(activemods_filename.c_str(), &data, 2);
+	}
+}
 	/* This would be quicker
 bool ActiveMods::ContainsMod(const std::string mod)
 {
@@ -43,6 +55,9 @@ bool ActiveMods::ContainsMod(const std::string mod)
 }
 bool ActiveMods::GetPaths(const std::string mod, std::vector<std::string>& paths)
 {
+	if (!CacheFileValidation())
+		return false;
+
 	const std::string activemods_filename(GetFilename());
 
 	const auto fp = FileSystem::OpenManagedCFile(activemods_filename.c_str(), "rb");
@@ -65,6 +80,9 @@ bool ActiveMods::GetPaths(const std::string mod, std::vector<std::string>& paths
 
 bool ActiveMods::GetMod(const std::string path, std::string& mod)
 {
+	if (!CacheFileValidation())
+		return false;
+
 	const std::string activemods_filename(GetFilename());
 
 	const auto fp = FileSystem::OpenManagedCFile(activemods_filename.c_str(), "rb");
@@ -88,6 +106,7 @@ bool ActiveMods::GetMod(const std::string path, std::string& mod)
 
 std::vector<std::pair<std::string, std::string>> ActiveMods::GetAll()
 {
+	CacheFileValidation(); //todo: error handling
 	const std::string activemods_filename(GetFilename());
 	auto fp = FileSystem::OpenManagedCFile(activemods_filename.c_str(), "rb+");
 	auto stream = fp.get();
@@ -215,6 +234,8 @@ bool ActiveMods::ReadOne(FILE* stream, std::pair<std::string, std::string>& entr
 //path, modname
 bool ActiveMods::Save(std::vector<std::pair<std::string, std::string>> activeModCache)
 {
+	if (!CacheFileValidation())
+		return false;
 	const std::string activemods_filename(GetFilename());
 
 	FileSystem::DeleteFilePath(activemods_filename.c_str());
