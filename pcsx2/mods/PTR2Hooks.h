@@ -58,6 +58,9 @@ public:
 	static void CdctrlMemIntgDecode();
 	static void intReadSub();
 
+	//try just saving a0?
+	static void CaptureReg();
+
 private:
 	u32  m_gameHash;
 	bool m_hooksInit;
