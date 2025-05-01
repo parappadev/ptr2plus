@@ -55,11 +55,11 @@ public:
 	bool RunHooks(const u32 curPC);
 
 	/* Hooks */
-	static void CdctrlMemIntgDecode();
+	static void INT_Loader();
 	static void intReadSub();
 
 	//try just saving a0?
-	static void CaptureReg();
+	static void Capture_Reg_INT_Loader();
 
 private:
 	u32  m_gameHash;
