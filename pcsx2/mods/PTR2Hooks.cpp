@@ -215,7 +215,7 @@ void PrHookManager::INT_Loader()
 		std::string mod;
 		if (ActiveMods::GetMod(path, mod))
 		{
-			path = "MOD\\" + int_title + "\\" + g_folder + "\\" + name;
+			path = "MOD\\DATA" + int_title + "\\" + g_folder + "\\" + name;
 #if defined(PCSX2_DEVBUILD)
 			Console.WriteLn(Color_Cyan, "[PTR2PLUS] INT_Loader: Using " + name + " from " + mod + " instead.");
 #endif

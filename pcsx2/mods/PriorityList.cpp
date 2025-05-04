@@ -13,13 +13,12 @@ static std::string PriorityList::GetFilename()
 static bool PriorityList::CacheFileValidation()
 {
 	const std::string modspriority_filename(GetFilename());
-	if (FileSystem::FileExists(modspriority_filename.c_str()))
-		return true;
-	else
+	if (!FileSystem::FileExists(modspriority_filename.c_str()))
 	{
 		u16 data = 0;
 		return FileSystem::WriteBinaryFile(modspriority_filename.c_str(), &data, 2);
 	}
+	return true;
 }
 
 //returns list of modnames in order from highest to lowest priority (0 first
@@ -28,8 +27,7 @@ std::vector<std::string> PriorityList::Get()
 	CacheFileValidation(); //todo: error handling
 
 	const std::string modspriority_filename(GetFilename());
-
-	auto fp = FileSystem::OpenManagedCFile(modspriority_filename.c_str(), "rb+");
+	auto fp = FileSystem::OpenManagedSharedCFile(modspriority_filename.c_str(), "rb+", FileSystem::FileShareMode::DenyNone);
 	if (!fp)
 		Console.WriteLn("Error reading modspriority list - Is something else accessing it?");;
 	u16 file_count;
@@ -64,7 +62,7 @@ bool PriorityList::GetPriority(std::string modname, int& priority)
 
 	const std::string modspriority_filename(GetFilename());
 
-	auto fp = FileSystem::OpenManagedCFile(modspriority_filename.c_str(), "rb+");
+	auto fp = FileSystem::OpenManagedSharedCFile(modspriority_filename.c_str(), "rb+", FileSystem::FileShareMode::DenyNone);
 	u16 file_count;
 	if (std::fread(&file_count, 2, 1, fp.get()) != 1)
 		Console.WriteLn("Error reading modspriority list: bad file count");
@@ -99,7 +97,7 @@ bool PriorityList::GetModName(int priority, std::string& modname)
 
 	const std::string modspriority_filename(GetFilename());
 
-	auto fp = FileSystem::OpenManagedCFile(modspriority_filename.c_str(), "rb+");
+	auto fp = FileSystem::OpenManagedSharedCFile(modspriority_filename.c_str(), "rb+", FileSystem::FileShareMode::DenyNone);
 	u16 file_count;
 	if (std::fread(&file_count, 2, 1, fp.get()) != 1)
 		Console.WriteLn("Error reading modspriority list: bad file count");
@@ -135,7 +133,7 @@ bool PriorityList::Save(std::vector<std::string> priority_list)
 	const std::string modspriority_filename(GetFilename());
 	FileSystem::DeleteFilePath(modspriority_filename.c_str());
 
-	const auto fp = FileSystem::OpenManagedCFile(modspriority_filename.c_str(), "wb");
+	const auto fp = FileSystem::OpenManagedSharedCFile(modspriority_filename.c_str(), "wb", FileSystem::FileShareMode::DenyNone);
 	u16 file_count = priority_list.size();
 	std::fwrite(&file_count, sizeof(file_count), 1, fp.get());
 	for (std::string modname : priority_list)

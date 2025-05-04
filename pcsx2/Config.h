@@ -1391,7 +1391,7 @@ namespace EmuFolders
 	extern std::string Settings;
 	extern std::string DebuggerSettings;
 	extern std::string Bios;
-	extern std::string PTR2Mods;
+	extern std::string PTR2InstalledMods;
 	extern std::string PTR2;
 	extern std::string Snapshots;
 	extern std::string Savestates;

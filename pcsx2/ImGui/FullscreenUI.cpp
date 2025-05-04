@@ -3246,6 +3246,21 @@ void FullscreenUI::DrawModsPage()
 	SettingsInterface* bsi = GetEditingSettingsInterface();
 
 	BeginMenuButtons();
+	if (MenuButton(FSUI_ICONSTR(ICON_FA_FOLDER_OPEN, "Install Mod From File"), "IDK"))
+	{
+		auto callback = [](const std::string& file_path) {
+			
+			Host::RunOnCPUThread([file_path = file_path]() { installMod(file_path); });
+			//todo: Loading screen on different thread
+
+			//Host::RunOnCPUThread(&VMManager::Internal::UpdateEmuFolders);
+			//s_cover_image_map.clear();
+
+			CloseFileSelector();
+		};
+
+		OpenFileSelector("Install Mod From File", false, std::move(callback), {"*.p2m"}, EmuFolders::DataRoot);
+	}
 
 	MenuHeading("Installed Mods");
 
@@ -3256,7 +3271,7 @@ void FullscreenUI::DrawModsPage()
 	values.push_back("");
 
 	FileSystem::FindResultsArray results;
-	FileSystem::FindFiles(EmuFolders::PTR2Mods.c_str(), "*", FILESYSTEM_FIND_FILES | FILESYSTEM_FIND_HIDDEN_FILES, &results);
+	FileSystem::FindFiles(EmuFolders::PTR2InstalledMods.c_str(), "*", FILESYSTEM_FIND_FILES | FILESYSTEM_FIND_HIDDEN_FILES, &results);
 	for (const FILESYSTEM_FIND_DATA& fd : results)
 	{
 		std::string title, author, description;
@@ -3269,19 +3284,20 @@ void FullscreenUI::DrawModsPage()
 
 		//const auto enable_it = std::find(enable_list.begin(), enable_list.end(), pi.name);
 		*/
-		bool state = PriorityList::ContainsMod(Path::GetFileName(fd.FileName).data());
-		if (ToggleButton((title + " by " + author).c_str(), description.c_str(), &state, true))
+		bool state = PriorityList::ContainsMod(Path::GetFileName(fd.FileName).data()); //why arent we using activemods tbh
+		if (g_loading == fd.FileName)
 		{
-			if (state)
+			MenuButton((title + " by " + author).c_str(), description.c_str(), true);
+		}
+		else
+		{
+			if (ToggleButton((title + " by " + author).c_str(), description.c_str(), &state, (g_loading == "")))
 			{
-				enableMod(fd.FileName);
-			}
-			else
-			{
-				disableMod(Path::GetFileName(fd.FileName).data());
-			}
+				//Host::RunOnCPUThread(&VMManager::Internal::UpdateEmuFolders);
+				Host::RunOnCPUThread([filename = fd.FileName, state = state]() { toggleMod(filename, state); });
 
-			SetSettingsChanged(bsi);
+				//SetSettingsChanged(bsi);
+			}
 		}
 		//const std::string_view filename(Path::GetFileName(fd.FileName));
 		//choices.emplace_back(fmt::format("{} ({})", description, filename), bios_selection == filename);
@@ -3314,7 +3330,7 @@ void FullscreenUI::DrawModsPriorityPage()
 	//values.push_back("");
 
 	//FileSystem::FindResultsArray results;
-	//FileSystem::FindFiles(EmuFolders::PTR2Mods.c_str(), "*", FILESYSTEM_FIND_FILES | FILESYSTEM_FIND_HIDDEN_FILES, &results);
+	//FileSystem::FindFiles(EmuFolders::PTR2InstalledMods.c_str(), "*", FILESYSTEM_FIND_FILES | FILESYSTEM_FIND_HIDDEN_FILES, &results);
 	std::vector<std::string> mods = PriorityList::Get();
 	int	mod_count = mods.size();
 	

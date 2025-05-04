@@ -12,13 +12,12 @@ static std::string ActiveMods::GetFilename()
 static bool ActiveMods::CacheFileValidation()
 {
 	const std::string activemods_filename(GetFilename());
-	if (FileSystem::FileExists(activemods_filename.c_str()))
-		return true;
-	else
+	if (!FileSystem::FileExists(activemods_filename.c_str()))
 	{
 		u16 data = 0;
 		return FileSystem::WriteBinaryFile(activemods_filename.c_str(), &data, 2);
 	}
+	return true;
 }
 	/* This would be quicker
 bool ActiveMods::ContainsMod(const std::string mod)

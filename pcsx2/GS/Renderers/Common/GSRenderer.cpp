@@ -621,11 +621,11 @@ void GSRenderer::VSync(u32 field, bool registers_written, bool idle_frame)
 		s_last_draw_rect = draw_rect;
 		g_gs_device->SetLastDrawRect(s_last_draw_rect);
 
-		//try to delete mod file cache
+		//PTR2PLUS: try to delete mod file cache
 		//might not be the best place for this... but i don't want to try more than once a frame
 		if (files_to_delete)
 		{
-			TryDeleteFiles();
+			//TryDeleteFiles();
 		}
 
 		if (GSConfig.CASMode != GSCASMode::Disabled)
