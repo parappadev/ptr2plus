@@ -47,6 +47,10 @@ namespace ImGuiFullscreen
 	extern ImFont* g_medium_font;
 	extern ImFont* g_large_font;
 
+	extern ImVec2 s_display_size;
+	extern ImVec2 s_game_size;
+	extern ImVec2 s_window_padding;
+
 	extern float g_layout_scale;
 	extern float g_rcp_layout_scale;
 	extern float g_layout_padding_left;
@@ -111,6 +115,7 @@ namespace ImGuiFullscreen
 	void UploadAsyncTextures();
 
 	void BeginLayout();
+	void DrawPopupsModals();
 	void EndLayout();
 
 	void PushResetLayout();

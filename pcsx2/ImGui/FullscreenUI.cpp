@@ -92,6 +92,9 @@ using ImGuiFullscreen::g_large_font;
 using ImGuiFullscreen::g_layout_padding_left;
 using ImGuiFullscreen::g_layout_padding_top;
 using ImGuiFullscreen::g_medium_font;
+using ImGuiFullscreen::s_display_size;
+using ImGuiFullscreen::s_game_size;
+using ImGuiFullscreen::s_window_padding;
 using ImGuiFullscreen::LAYOUT_FOOTER_HEIGHT;
 using ImGuiFullscreen::LAYOUT_LARGE_FONT_SIZE;
 using ImGuiFullscreen::LAYOUT_MEDIUM_FONT_SIZE;
@@ -277,11 +280,6 @@ namespace FullscreenUI
 	static std::string s_current_disc_serial;
 	static std::string s_current_disc_path;
 	static u32 s_current_disc_crc;
-
-	//ptr2plus display sizes, padding
-	static ImVec2 s_display_size;
-	static ImVec2 s_game_size;
-	static ImVec2 s_window_padding;
 	
 	//star types (different textures for each):
 	//0 spots - small-med, slow rot speed
@@ -960,6 +958,7 @@ void FullscreenUI::Render()
 	if (s_input_binding_type != InputBindingInfo::Type::Unknown)
 		DrawInputBindingWindow();
 
+	
 	if (s_current_main_window != MainWindowType::None || s_save_state_selector_open)
 	{
 		//draw subtitle bubble
@@ -974,6 +973,7 @@ void FullscreenUI::Render()
 		DrawSubtitleBubble(subtitle_pos, subtitle_size, bg_alpha, ImGuiFullscreen::current_summary);
 		ImGuiFullscreen::current_summary = "";
 	}
+	ImGuiFullscreen::DrawPopupsModals();
 	ImGuiFullscreen::EndLayout();
 
 	if (s_settings_changed.load(std::memory_order_relaxed))
@@ -6007,94 +6007,91 @@ static void DrawShadowedText(
 //ptr2plus - draw bottom subtitle description
 static void FullscreenUI::DrawSubtitleBubble(ImVec2 subtitle_pos, ImVec2 subtitle_size, float bg_alpha, std::string text)
 {
-	if (BeginFullscreenWindow(subtitle_pos, subtitle_size, "settings_subtitle",
-			ImVec4(0.0f, 0.0f, 0.0f, bg_alpha), 30.0f))
+	ImDrawList* dl = ImGui::GetForegroundDrawList();
+		
+	dl->AddRectFilled(GameBounds(subtitle_pos), GameBounds(subtitle_pos + subtitle_size), IM_COL32(0, 0, 0, bg_alpha * 255), 30.0f);
+	if (text == "") //if no text input, then display menu controls
 	{
-		ImDrawList* dl = ImGui::GetWindowDrawList();
-		if (text == "") //if no text input, then display menu controls
-		{
-			//this is one of the most horrific things i've ever coded
-			//but i couldn't see a good way to do it, and it's worth it to make the controls text look nice
+		//this is one of the most horrific things i've ever coded
+		//but i couldn't see a good way to do it, and it's worth it to make the controls text look nice
 
-			std::string subtitle_text1 = IsGamepadInputSource() ? ICON_PF_DPAD_UP_DOWN : ICON_PF_ARROW_UP ICON_PF_ARROW_DOWN;
-			std::string subtitle_text = subtitle_text1;
-			ImVec2 text_size1(
-				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text1.c_str()));
-			std::string subtitle_text2 = " ";
-			subtitle_text2 += FSUI_VSTR("Change Selection");
-			subtitle_text += subtitle_text2;
-			ImVec2 text_size2(
-				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text2.c_str()));
-			std::string subtitle_text3 = " ";
-			subtitle_text3 += IsGamepadInputSource() ? ICON_PF_BUTTON_CROSS : ICON_PF_ENTER;
-			subtitle_text += subtitle_text3;
-			ImVec2 text_size3(
-				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text3.c_str()));
-			std::string subtitle_text4 = " ";
-			subtitle_text4 += FSUI_VSTR("Select");
-			subtitle_text += subtitle_text4;
-			ImVec2 text_size4(
-				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text4.c_str()));
-			std::string subtitle_text5 = " ";
-			subtitle_text5 += IsGamepadInputSource() ? ICON_PF_BUTTON_CIRCLE : ICON_PF_ESC;
-			subtitle_text += subtitle_text5;
-			ImVec2 text_size5(
-				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text5.c_str()));
-			std::string subtitle_text6 = " ";
-			if (s_current_main_window != MainWindowType::PauseMenu)
-				subtitle_text6 += FSUI_VSTR("Return To Pause Menu");
-			else 
-				subtitle_text6 += FSUI_VSTR("Return To Game");
-			subtitle_text += subtitle_text6;
+		std::string subtitle_text1 = IsGamepadInputSource() ? ICON_PF_DPAD_UP_DOWN : ICON_PF_ARROW_UP ICON_PF_ARROW_DOWN;
+		std::string subtitle_text = subtitle_text1;
+		ImVec2 text_size1(
+			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text1.c_str()));
+		std::string subtitle_text2 = " ";
+		subtitle_text2 += FSUI_VSTR("Change Selection");
+		subtitle_text += subtitle_text2;
+		ImVec2 text_size2(
+			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text2.c_str()));
+		std::string subtitle_text3 = " ";
+		subtitle_text3 += IsGamepadInputSource() ? ICON_PF_BUTTON_CROSS : ICON_PF_ENTER;
+		subtitle_text += subtitle_text3;
+		ImVec2 text_size3(
+			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text3.c_str()));
+		std::string subtitle_text4 = " ";
+		subtitle_text4 += FSUI_VSTR("Select");
+		subtitle_text += subtitle_text4;
+		ImVec2 text_size4(
+			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text4.c_str()));
+		std::string subtitle_text5 = " ";
+		subtitle_text5 += IsGamepadInputSource() ? ICON_PF_BUTTON_CIRCLE : ICON_PF_ESC;
+		subtitle_text += subtitle_text5;
+		ImVec2 text_size5(
+			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text5.c_str()));
+		std::string subtitle_text6 = " ";
+		if (s_current_main_window != MainWindowType::PauseMenu)
+			subtitle_text6 += FSUI_VSTR("Return To Pause Menu");
+		else 
+			subtitle_text6 += FSUI_VSTR("Return To Game");
+		subtitle_text += subtitle_text6;
 
-			ImVec2 subtitle_text_size(
-				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text.c_str()));
+		ImVec2 subtitle_text_size(
+			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text.c_str()));
 
-			ImVec2 text_pos(0.0f + (s_game_size.x - subtitle_text_size.x) / 2, subtitle_pos.y + subtitle_size.y / 2 - (subtitle_text_size.y * 2) / 3);
+		ImVec2 text_pos(0.0f + (s_game_size.x - subtitle_text_size.x) / 2, subtitle_pos.y + subtitle_size.y / 2 - (subtitle_text_size.y * 2) / 3);
 			
-			ImU32 color = ImGui::GetColorU32(UIPrimaryColor);
-			dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text1.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
-			text_pos += ImVec2(text_size1.x, 0);
-			color = ImGui::GetColorU32(UIBackgroundTextColor);
-			dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text2.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
-			text_pos += ImVec2(text_size2.x, 0);
-			color = ImGui::GetColorU32(UIPrimaryColor);
-			dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text3.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
-			text_pos += ImVec2(text_size3.x, 0);
-			color = ImGui::GetColorU32(UIBackgroundTextColor);
-			dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text4.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
-			text_pos += ImVec2(text_size4.x, 0);
-			color = ImGui::GetColorU32(UIPrimaryColor);
-			dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text5.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
-			text_pos += ImVec2(text_size5.x, 0);
-			color = ImGui::GetColorU32(UIBackgroundTextColor);
-			dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text6.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
-		}
-		else
+		ImU32 color = ImGui::GetColorU32(UIPrimaryColor);
+		dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text1.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+		text_pos += ImVec2(text_size1.x, 0);
+		color = ImGui::GetColorU32(UIBackgroundTextColor);
+		dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text2.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+		text_pos += ImVec2(text_size2.x, 0);
+		color = ImGui::GetColorU32(UIPrimaryColor);
+		dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text3.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+		text_pos += ImVec2(text_size3.x, 0);
+		color = ImGui::GetColorU32(UIBackgroundTextColor);
+		dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text4.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+		text_pos += ImVec2(text_size4.x, 0);
+		color = ImGui::GetColorU32(UIPrimaryColor);
+		dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text5.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+		text_pos += ImVec2(text_size5.x, 0);
+		color = ImGui::GetColorU32(UIBackgroundTextColor);
+		dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text6.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+	}
+	else
+	{
+		if (text.length() > 2)
 		{
-			if (text.length() > 2)
-			{
-				const ImU32 text_color = IM_COL32(UIBackgroundTextColor.x * 255, UIBackgroundTextColor.y * 255, UIBackgroundTextColor.z * 255, 255);
-				ImVec2 text_size(
-					g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, ImGuiFullscreen::current_summary.data()));
+			const ImU32 text_color = IM_COL32(UIBackgroundTextColor.x * 255, UIBackgroundTextColor.y * 255, UIBackgroundTextColor.z * 255, 255);
+			ImVec2 text_size(
+				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, ImGuiFullscreen::current_summary.data()));
 
-				ImVec2 text_pos(0.0f + (s_game_size.x - text_size.x) / 2, subtitle_pos.y + subtitle_size.y / 2 - (text_size.y * 2) / 3);
-				if (text_size.x > subtitle_size.x - (LayoutScale(40.0f) * 2))
+			ImVec2 text_pos(0.0f + (s_game_size.x - text_size.x) / 2, subtitle_pos.y + subtitle_size.y / 2 - (text_size.y * 2) / 3);
+			if (text_size.x > subtitle_size.x - (LayoutScale(40.0f) * 2))
+			{
+				//if more than 2 lines
+				if (text_size.x > 2 * (subtitle_size.x - (LayoutScale(40.0f) * 2)))
 				{
-					//if more than 2 lines
-					if (text_size.x > 2 * (subtitle_size.x - (LayoutScale(40.0f) * 2)))
-					{
-						text_pos = ImVec2(subtitle_pos.x + LayoutScale(40.0f), subtitle_pos.y + LayoutScale(5.0f));
-					}
-					else
-						text_pos = ImVec2(subtitle_pos.x + LayoutScale(40.0f), subtitle_pos.y + subtitle_size.y / 2 - text_size.y);
+					text_pos = ImVec2(subtitle_pos.x + LayoutScale(40.0f), subtitle_pos.y + LayoutScale(5.0f));
 				}
-				//DrawShadowedText(dl, g_medium_font, ImVec2(0.0f, s_game_size.y - heading_size.y - subtitle_size.y), text_color, ImGuiFullscreen::current_summary.data());
-				dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), text_color, text.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+				else
+					text_pos = ImVec2(subtitle_pos.x + LayoutScale(40.0f), subtitle_pos.y + subtitle_size.y / 2 - text_size.y);
 			}
+			//DrawShadowedText(dl, g_medium_font, ImVec2(0.0f, s_game_size.y - heading_size.y - subtitle_size.y), text_color, ImGuiFullscreen::current_summary.data());
+			dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), text_color, text.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
 		}
 	}
-	EndFullscreenWindow();
 }
 void FullscreenUI::DrawStarBg()
 {

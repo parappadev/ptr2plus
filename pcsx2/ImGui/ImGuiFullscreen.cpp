@@ -67,6 +67,11 @@ namespace ImGuiFullscreen
 	float g_layout_padding_left = 0.0f;
 	float g_layout_padding_top = 0.0f;
 
+	//ptr2plus display sizes, padding
+	ImVec2 s_display_size;
+	ImVec2 s_game_size;
+	ImVec2 s_window_padding;
+
 	ImVec4 UIBackgroundColor;
 	ImVec4 UIBackgroundTextColor;
 	ImVec4 UIBackgroundLineColor;
@@ -509,15 +514,14 @@ void ImGuiFullscreen::BeginLayout()
 
 	PushResetLayout();
 }
-
-void ImGuiFullscreen::EndLayout()
+void ImGuiFullscreen::DrawPopupsModals()
 {
 	DrawFileSelector();
 	DrawChoiceDialog();
 	DrawInputDialog();
 	DrawMessageDialog();
 
-	DrawFullscreenFooter();
+	//DrawFullscreenFooter();
 
 	const float notification_margin = LayoutScale(10.0f);
 	const float spacing = LayoutScale(10.0f);
@@ -527,7 +531,9 @@ void ImGuiFullscreen::EndLayout()
 	DrawBackgroundProgressDialogs(position, spacing);
 	DrawNotifications(position, spacing);
 	DrawToast();
-
+}
+void ImGuiFullscreen::EndLayout()
+{
 	PopResetLayout();
 
 	s_fullscreen_footer_text.clear();
@@ -2125,28 +2131,61 @@ void ImGuiFullscreen::DrawFileSelector()
 {
 	if (!s_file_selector_open)
 		return;
+	ImVec2 win_pos = s_window_padding;
+	ImVec2 win_size = s_game_size - s_window_padding * 2;
+	//draw bg
+	
+	ImGui::SetNextWindowPos(ImVec2(g_layout_padding_left, g_layout_padding_top));
+	ImGui::SetNextWindowSize(s_game_size);
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(UIBackgroundColor.x, UIBackgroundColor.y, UIBackgroundColor.z, 0.0f));
+	
+	if (ImGui::Begin("popup_bg", nullptr,
+			ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize))
+	{
+		//ImGui::SetWindowFocus("popup_bg");
+		//ResetFocusHere();
+		ImDrawList* dl = ImGui::GetWindowDrawList();
+		ImU32 redcol = IM_COL32(158, 0, 31, 255);
+		ImU32 yellowcol = IM_COL32(255, 236, 153, 255);
 
-	ImGui::SetNextWindowSize(LayoutScale(1000.0f, 680.0f));
-	ImGui::SetNextWindowPos((ImGui::GetIO().DisplaySize - LayoutScale(0.0f, LAYOUT_FOOTER_HEIGHT)) * 0.5f,
-		ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+		dl->AddRectFilled(GameBounds(win_pos), GameBounds(win_pos + win_size), yellowcol, 30.0f);
+		dl->AddRect(GameBounds(win_pos), GameBounds(win_pos + win_size), IM_COL32(0, 0, 0, 255), 30.0f, ImDrawListFlags_AntiAliasedLines, 5.0f);
+	}
+	ImGui::End();
+	//EndFullscreenWindow();
+	ImGui::PopStyleColor();
+	
+	
+	ImGui::SetNextWindowSize(win_size); //LayoutScale(1000.0f, 680.0f));
+	ImGui::SetNextWindowPos(GameBounds(win_pos)); //(ImGui::GetIO().DisplaySize - LayoutScale(0.0f, LAYOUT_FOOTER_HEIGHT)) * 0.5f,
+		//ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 	ImGui::OpenPopup(s_file_selector_title.c_str());
 
 	FileSelectorItem* selected = nullptr;
 
 	ImGui::PushFont(g_large_font);
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, LayoutScale(10.0f));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, LayoutScale(50.0f));
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, LayoutScale(LAYOUT_MENU_BUTTON_X_PADDING, LAYOUT_MENU_BUTTON_Y_PADDING));
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 	ImGui::PushStyleColor(ImGuiCol_Text, UIPrimaryTextColor);
-	ImGui::PushStyleColor(ImGuiCol_TitleBg, UIPrimaryDarkColor);
+	ImGui::PushStyleColor(ImGuiCol_TitleBg, HEX_TO_IMVEC4(0x000000, 0x00)); //UIPrimaryDarkColor);
+	ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(UIPrimaryColor.x, UIPrimaryColor.y, UIPrimaryColor.z, 0.0f)); //HEX_TO_IMVEC4(0x000000, 0x00));
 	ImGui::PushStyleColor(ImGuiCol_TitleBgActive, UIPrimaryColor);
+
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, HEX_TO_IMVEC4(0x9e001f, 0xff));
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, HEX_TO_IMVEC4(0x000000, 0x00));
+	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, LayoutScale(20.0f));
+	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, LayoutScale(30.0f));
 
 	bool is_open = !WantsToCloseMenu();
 	bool directory_selected = false;
+	ImGui::SetNextWindowBgAlpha(0.0f);
 	if (ImGui::BeginPopupModal(
-			s_file_selector_title.c_str(), &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
+			s_file_selector_title.c_str(), &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar))
 	{
-		ImGui::PushStyleColor(ImGuiCol_Text, UIBackgroundTextColor);
+
+		//ImGui::PushStyleColor(ImGuiCol_Text, UIBackgroundTextColor);
+		ImGui::PushStyleColor(ImGuiCol_Text, HEX_TO_IMVEC4(0x9e001f, 0xff));
 
 		BeginMenuButtons();
 		ResetFocusHere();
@@ -2180,8 +2219,8 @@ void ImGuiFullscreen::DrawFileSelector()
 		is_open = false;
 	}
 
-	ImGui::PopStyleColor(3);
-	ImGui::PopStyleVar(3);
+	ImGui::PopStyleColor(6);
+	ImGui::PopStyleVar(5);
 	ImGui::PopFont();
 
 	if (is_open)
