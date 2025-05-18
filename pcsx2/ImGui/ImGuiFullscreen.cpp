@@ -2133,12 +2133,19 @@ void ImGuiFullscreen::DrawFileSelector()
 		return;
 	ImVec2 win_pos = s_window_padding;
 	ImVec2 win_size = s_game_size - s_window_padding * 2;
+
+	ImVec2 title_bar_size = ImVec2(win_size.x, LayoutScale(35.0f));
+
+	ImVec2 inner_win_pos = ImVec2(win_pos.x, win_pos.y + title_bar_size.y);
+	ImVec2 inner_win_size = ImVec2(win_size.x, win_size.y - title_bar_size.y);
+
 	//draw bg
 	
-	ImGui::SetNextWindowPos(ImVec2(g_layout_padding_left, g_layout_padding_top));
-	ImGui::SetNextWindowSize(s_game_size);
+	ImGui::SetNextWindowPos(GameBounds(win_pos));
+	ImGui::SetNextWindowSize(win_size);
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(UIBackgroundColor.x, UIBackgroundColor.y, UIBackgroundColor.z, 0.0f));
-	
+	int s_shadow_detail = 7;
+	float s_shadow_depth = title_bar_size.y * 0.2;
 	if (ImGui::Begin("popup_bg", nullptr,
 			ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize))
 	{
@@ -2147,17 +2154,41 @@ void ImGuiFullscreen::DrawFileSelector()
 		ImDrawList* dl = ImGui::GetWindowDrawList();
 		ImU32 redcol = IM_COL32(158, 0, 31, 255);
 		ImU32 yellowcol = IM_COL32(255, 236, 153, 255);
+		float rounding = LayoutScale(30.0f);
+		dl->AddRectFilled(GameBounds(ImVec2(inner_win_pos.x, inner_win_pos.y - title_bar_size.y)), GameBounds(ImVec2(inner_win_pos.x + inner_win_size.x, inner_win_size.y)), redcol, rounding);
 
-		dl->AddRectFilled(GameBounds(win_pos), GameBounds(win_pos + win_size), yellowcol, 30.0f);
-		dl->AddRect(GameBounds(win_pos), GameBounds(win_pos + win_size), IM_COL32(0, 0, 0, 255), 30.0f, ImDrawListFlags_AntiAliasedLines, 5.0f);
+		dl->AddRectFilled(GameBounds(inner_win_pos), GameBounds(inner_win_pos + inner_win_size), yellowcol, rounding);
+		//dl->AddRect(GameBounds(win_pos), GameBounds(win_pos + win_size), IM_COL32(0, 0, 0, 105), LayoutScale(30.0f), ImDrawListFlags_AntiAliasedLines, LayoutScale(5.0f));
+		dl->AddRect(GameBounds(win_pos), GameBounds(win_pos + win_size), redcol, rounding, ImDrawListFlags_AntiAliasedLines, LayoutScale(20.0f));
+
+		
+
+		for (int i = 0; i < s_shadow_detail; i++)
+		{
+			int transparency = 15 / s_shadow_detail * i;
+			float depth = s_shadow_depth / s_shadow_detail * i;
+			ImVec2 pos = ImVec2(inner_win_pos.x, inner_win_pos.y + s_shadow_depth - depth);
+			ImVec2 size = ImVec2(inner_win_size.x, inner_win_size.y - depth);
+
+			dl->AddRect(GameBounds(pos), GameBounds(pos + size), IM_COL32(0, 0, 0, transparency), rounding, ImDrawListFlags_AntiAliasedLines, LayoutScale(5.0f));
+
+		}
+		//close button
+		//cant get ImGui::CloseButton to work so doing this WIP
+		//ImGuiWindow* window = ImGui::GetCurrentWindow();
+		//window->DC.CursorPos = GameBounds(win_pos + win_size * 1.2);
+		//ActiveButton("X", "", true);
+
+
+			
+	
 	}
 	ImGui::End();
-	//EndFullscreenWindow();
 	ImGui::PopStyleColor();
 	
 	
-	ImGui::SetNextWindowSize(win_size); //LayoutScale(1000.0f, 680.0f));
-	ImGui::SetNextWindowPos(GameBounds(win_pos)); //(ImGui::GetIO().DisplaySize - LayoutScale(0.0f, LAYOUT_FOOTER_HEIGHT)) * 0.5f,
+	ImGui::SetNextWindowSize(GameBounds(inner_win_size)); //LayoutScale(1000.0f, 680.0f));
+	ImGui::SetNextWindowPos(GameBounds(inner_win_pos)); //(ImGui::GetIO().DisplaySize - LayoutScale(0.0f, LAYOUT_FOOTER_HEIGHT)) * 0.5f,
 		//ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 	ImGui::OpenPopup(s_file_selector_title.c_str());
 
