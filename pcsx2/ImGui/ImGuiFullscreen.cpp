@@ -2131,47 +2131,162 @@ void ImGuiFullscreen::DrawFileSelector()
 {
 	if (!s_file_selector_open)
 		return;
+
+	float shading_depth = LayoutScale(10.0f);
+	float bottom_bar_padding = shading_depth * 0.625;
+	float title_bar_padding = bottom_bar_padding * 3;
+	
+
+	float bottom_bar_size = bottom_bar_padding + shading_depth * 2;
+	float title_bar_size = title_bar_padding + shading_depth * 2;
+	float side_bar_size = bottom_bar_size / 1.5;
+
+	ImVec2 popup_padding = ImVec2(LayoutScale(60.0f), LayoutScale(60.0f));
 	ImVec2 win_pos = s_window_padding;
 	ImVec2 win_size = s_game_size - s_window_padding * 2;
 
-	ImVec2 title_bar_size = ImVec2(win_size.x, LayoutScale(35.0f));
+	ImVec2 inner_win_pos = ImVec2(win_pos.x + side_bar_size, win_pos.y + title_bar_size) + popup_padding;
+	ImVec2 inner_win_size = ImVec2(win_size.x - side_bar_size * 2, win_size.y - title_bar_size - bottom_bar_size) - popup_padding * 2;
 
-	ImVec2 inner_win_pos = ImVec2(win_pos.x, win_pos.y + title_bar_size.y);
-	ImVec2 inner_win_size = ImVec2(win_size.x, win_size.y - title_bar_size.y);
+	ImVec2 outer_win_pos = ImVec2(win_pos.x, win_pos.y) + popup_padding;
+	ImVec2 outer_win_size = ImVec2(win_size.x, win_size.y) - popup_padding * 2;
 
+	ImU32 redcol = IM_COL32(158, 0, 31, 255);
+	ImU32 yellowcol = IM_COL32(255, 236, 153, 255);
+	float rounding = LayoutScale(80.0f);
+	float outer_rounding = rounding * 1.8;
 	//draw bg
 	
 	ImGui::SetNextWindowPos(GameBounds(win_pos));
 	ImGui::SetNextWindowSize(win_size);
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(UIBackgroundColor.x, UIBackgroundColor.y, UIBackgroundColor.z, 0.0f));
-	int s_shadow_detail = 7;
-	float s_shadow_depth = title_bar_size.y * 0.2;
+	
 	if (ImGui::Begin("popup_bg", nullptr,
 			ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize))
 	{
 		//ImGui::SetWindowFocus("popup_bg");
 		//ResetFocusHere();
 		ImDrawList* dl = ImGui::GetWindowDrawList();
-		ImU32 redcol = IM_COL32(158, 0, 31, 255);
-		ImU32 yellowcol = IM_COL32(255, 236, 153, 255);
-		float rounding = LayoutScale(30.0f);
-		dl->AddRectFilled(GameBounds(ImVec2(inner_win_pos.x, inner_win_pos.y - title_bar_size.y)), GameBounds(ImVec2(inner_win_pos.x + inner_win_size.x, inner_win_size.y)), redcol, rounding);
-
-		dl->AddRectFilled(GameBounds(inner_win_pos), GameBounds(inner_win_pos + inner_win_size), yellowcol, rounding);
+		
+		
+		//title bar red
+		//dl->AddRectFilled(GameBounds(ImVec2(inner_win_pos.x, inner_win_pos.y - title_bar_size.y)), GameBounds(ImVec2(inner_win_pos.x + inner_win_size.x, inner_win_size.y)), redcol, rounding);
+		
+		
+		
+		
+		
 		//dl->AddRect(GameBounds(win_pos), GameBounds(win_pos + win_size), IM_COL32(0, 0, 0, 105), LayoutScale(30.0f), ImDrawListFlags_AntiAliasedLines, LayoutScale(5.0f));
-		dl->AddRect(GameBounds(win_pos), GameBounds(win_pos + win_size), redcol, rounding, ImDrawListFlags_AntiAliasedLines, LayoutScale(20.0f));
-
+		//red outline
+		//dl->AddRect(GameBounds(win_pos), GameBounds(win_pos + win_size), redcol, rounding, ImDrawListFlags_AntiAliasedLines, LayoutScale(20.0f));
+		
 		
 
+		
+		
+
+		float thickness = outer_rounding * 0.7;
+		ImVec2 thickness_pad = ImVec2(thickness, thickness);
+		ImVec2 padding = LayoutScale(ImVec2(0.0f, 1.0f));
+
+		//outer window
+		dl->AddRectFilled(GameBounds(outer_win_pos), GameBounds(outer_win_pos + outer_win_size), redcol, thickness);
+
+		int vert_start_idx = dl->VtxBuffer.Size;
+		//dl->AddRect(GameBounds(outer_win_pos + thickness_pad / 2), GameBounds(outer_win_pos + outer_win_size - thickness_pad / 2 + padding), IM_COL32(255, 255, 255, 255), thickness * 0.5, 0, thickness);
+		//dl->AddRect(GameBounds(ImVec2(inner_win_pos.x, inner_win_pos.y - title_bar_padding) + ImVec2(thickness / 2, thickness / 2)), GameBounds(ImVec2(inner_win_pos.x + inner_win_size.x, inner_win_size.y) - ImVec2(thickness / 2, thickness / 2)), IM_COL32(255, 255, 255, 255), rounding * 0.8, ImDrawListFlags_AntiAliasedLines, thickness);
+		int vert_end_idx = dl->VtxBuffer.Size;
+		ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
+			GameBounds(outer_win_pos + ImVec2(0.0f, outer_win_size.y - shading_depth)),
+			GameBounds(outer_win_pos + ImVec2(0.0f, outer_win_size.y + shading_depth)),
+			redcol,
+			IM_COL32(0, 0, 0, 255));
+
+
+		/*
+		int vert_start_idx = dl->VtxBuffer.Size;
+		float thickness = LayoutScale(15.0f);
+		dl->AddRect(GameBounds(ImVec2(inner_win_pos.x, inner_win_pos.y - title_bar_size.y) + ImVec2(thickness / 2, thickness / 2)), GameBounds(ImVec2(inner_win_pos.x + inner_win_size.x, inner_win_size.y) - ImVec2(thickness / 2, thickness / 2)), IM_COL32(255, 255, 255, 255), rounding * 0.8, ImDrawListFlags_AntiAliasedLines, thickness);
+		int vert_end_idx = dl->VtxBuffer.Size;
+
+		//const ImRect bb(inner_win_pos, inner_win_pos + inner_win_size);
+
+		ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
+			GameBounds(ImVec2(inner_win_pos.x, inner_win_pos.y - title_bar_size.y) + ImVec2(0.0f, inner_win_size.y - thickness * 3.5)),
+			GameBounds(ImVec2(inner_win_pos.x, inner_win_pos.y - title_bar_size.y) + ImVec2(0.0f, inner_win_size.y)),
+			redcol,
+			IM_COL32(255, 255, 255, 120));
+		*/
+		
+		//inner window
+		dl->AddRectFilled(GameBounds(inner_win_pos), GameBounds(inner_win_pos + inner_win_size), yellowcol, rounding);
+
+		float shadow_depth = shading_depth;
+		//shadow
+		int s_shadow_detail = LayoutScale(17.0f);
+		float shad_thick = LayoutScale(5.0f);
 		for (int i = 0; i < s_shadow_detail; i++)
 		{
-			int transparency = 15 / s_shadow_detail * i;
-			float depth = s_shadow_depth / s_shadow_detail * i;
-			ImVec2 pos = ImVec2(inner_win_pos.x, inner_win_pos.y + s_shadow_depth - depth);
-			ImVec2 size = ImVec2(inner_win_size.x, inner_win_size.y - depth);
+			int transparency = 65.0 / shad_thick * i / s_shadow_detail;
+			float depth = shadow_depth * i / s_shadow_detail;
+			
+			//shadow
+			ImVec2 pos = ImVec2(inner_win_pos.x + shad_thick / 2, (inner_win_pos.y - shadow_depth / 2) + shadow_depth - depth);
+			//ImVec2 size = ImVec2(inner_win_size.x, inner_win_size.y - depth);
+			vert_start_idx = dl->VtxBuffer.Size;
+			dl->AddRect(GameBounds(pos), GameBounds(pos + inner_win_size + ImVec2(-shad_thick, LayoutScale(1.0f))), IM_COL32(40, 30, 0, transparency), rounding, 0, shad_thick);
+			vert_end_idx = dl->VtxBuffer.Size;
+			ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
+				GameBounds(pos + ImVec2(0.0f, 0.0f)),
+				GameBounds(pos + ImVec2(0.0f, title_bar_size * 3)),
+				IM_COL32(40, 30, 0, transparency),
+				yellowcol);
+			
+			pos = ImVec2(inner_win_pos.x + shad_thick / 2, (inner_win_pos.y) + shadow_depth - depth);
+			 vert_start_idx = dl->VtxBuffer.Size;
+			dl->AddRect(GameBounds(pos), GameBounds(pos + inner_win_size + ImVec2(-shad_thick, LayoutScale(1.0f))), IM_COL32(40, 30, 0, transparency), rounding, 0, shad_thick);
+			vert_end_idx = dl->VtxBuffer.Size;
+				
+			//bottom outer shadow
 
-			dl->AddRect(GameBounds(pos), GameBounds(pos + size), IM_COL32(0, 0, 0, transparency), rounding, ImDrawListFlags_AntiAliasedLines, LayoutScale(5.0f));
+			/*
 
+			vert_start_idx = dl->VtxBuffer.Size;
+			dl->AddRect(GameBounds(outer_win_pos + ImVec2(shad_thick / 2, shad_thick / 2)), GameBounds(outer_win_pos + outer_win_size + ImVec2(0.0f, LayoutScale(3.5f)) - ImVec2(shad_thick / 2, shad_thick / 2 - shadow_depth / 2 + depth)), IM_COL32(40, 30, 0, transparency), thickness, 0, shad_thick);
+			vert_end_idx = dl->VtxBuffer.Size;
+			ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
+				GameBounds(outer_win_pos + ImVec2(0.0f, outer_win_size.y - bottom_bar_size * 3)),
+				GameBounds(outer_win_pos + ImVec2(0.0f, outer_win_size.y - shading_depth * 1)),
+				redcol,
+				IM_COL32(40, 30, 0, transparency));
+
+			//top highlight
+			pos = ImVec2(pos.x, pos.y - title_bar_size + shading_depth * 1.2);
+			//size = ImVec2(size.);
+			
+			int vert_start_idx = dl->VtxBuffer.Size;
+			dl->AddRect(GameBounds(pos), GameBounds(ImVec2(pos.x + inner_win_size.x, pos.y + inner_win_size.y + bottom_bar_size + shadow_depth)), IM_COL32(255, 255, 255, transparency), outer_rounding * 0.60, 0, shad_thick);
+			int vert_end_idx = dl->VtxBuffer.Size;
+			ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
+				GameBounds(outer_win_pos + ImVec2(0.0f, 0.0f)),
+				GameBounds(outer_win_pos + ImVec2(0.0f, title_bar_size - shading_depth * 1)),
+				IM_COL32(255, 255, 255, transparency ),
+				redcol);
+
+			//highlight bottom
+			pos = ImVec2(inner_win_pos.x, inner_win_pos.y + shadow_depth / 2 - depth);
+
+			vert_start_idx = dl->VtxBuffer.Size;
+			dl->AddRect(GameBounds(pos), GameBounds(ImVec2(pos.x + inner_win_size.x, pos.y + inner_win_size.y + bottom_bar_size * 0.4)), IM_COL32(255, 255, 255, transparency), outer_rounding * 0.60, 0, shad_thick);
+			vert_end_idx = dl->VtxBuffer.Size;
+			 ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
+				GameBounds(inner_win_pos + ImVec2(0.0f, 0.0f)),
+				GameBounds(inner_win_pos + ImVec2(0.0f, inner_win_size.y + bottom_bar_size * 0.4)),
+				redcol,
+				IM_COL32(255, 255, 255, transparency)
+			 );
+
+			 */
 		}
 		//close button
 		//cant get ImGui::CloseButton to work so doing this WIP
@@ -2179,15 +2294,16 @@ void ImGuiFullscreen::DrawFileSelector()
 		//window->DC.CursorPos = GameBounds(win_pos + win_size * 1.2);
 		//ActiveButton("X", "", true);
 
-
+		
 			
+
 	
 	}
 	ImGui::End();
 	ImGui::PopStyleColor();
 	
 	
-	ImGui::SetNextWindowSize(GameBounds(inner_win_size)); //LayoutScale(1000.0f, 680.0f));
+	ImGui::SetNextWindowSize(inner_win_size); //LayoutScale(1000.0f, 680.0f));
 	ImGui::SetNextWindowPos(GameBounds(inner_win_pos)); //(ImGui::GetIO().DisplaySize - LayoutScale(0.0f, LAYOUT_FOOTER_HEIGHT)) * 0.5f,
 		//ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 	ImGui::OpenPopup(s_file_selector_title.c_str());
@@ -2218,7 +2334,7 @@ void ImGuiFullscreen::DrawFileSelector()
 		//ImGui::PushStyleColor(ImGuiCol_Text, UIBackgroundTextColor);
 		ImGui::PushStyleColor(ImGuiCol_Text, HEX_TO_IMVEC4(0x9e001f, 0xff));
 
-		BeginMenuButtons();
+		/* BeginMenuButtons();
 		ResetFocusHere();
 
 		if (!s_file_selector_current_directory.empty())
@@ -2240,6 +2356,7 @@ void ImGuiFullscreen::DrawFileSelector()
 		}
 
 		EndMenuButtons();
+		*/
 
 		ImGui::PopStyleColor(1);
 
