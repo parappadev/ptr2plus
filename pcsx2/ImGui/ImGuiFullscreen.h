@@ -178,7 +178,7 @@ namespace ImGuiFullscreen
 		ImFont* font = g_large_font);
 	bool ActiveButtonWithRightText(const char* title, const char* right_title, bool is_active, bool enabled = true,
 		float height = LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY, ImFont* font = g_large_font);
-	bool MenuButton(const char* title, const char* summary, bool enabled = true, float height = LAYOUT_MENU_BUTTON_HEIGHT,
+	bool MenuButton(const char* title, const char* summary, bool enabled = true, float height = LAYOUT_MENU_BUTTON_HEIGHT, bool outline = true,
 		ImFont* font = g_large_font, ImFont* summary_font = g_medium_font);
 	bool MenuButtonWithoutSummary(const char* title, bool enabled = true, float height = LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY,
 		ImFont* font = g_large_font, const ImVec2& text_align = ImVec2(0.0f, 0.0f));

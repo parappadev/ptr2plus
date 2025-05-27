@@ -5704,7 +5704,7 @@ void ImGui::Render()
     }
 
     // Draw modal/window whitening backgrounds
-    //RenderDimmedBackgrounds();
+    // RenderDimmedBackgrounds();
 
     // Add ImDrawList to render
     ImGuiWindow* windows_to_render_top_most[2];
