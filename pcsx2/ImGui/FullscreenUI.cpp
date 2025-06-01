@@ -122,6 +122,7 @@ using ImGuiFullscreen::UISecondaryWeakColor;
 using ImGuiFullscreen::UITextHighlightColor;
 
 using ImGuiFullscreen::ActiveButton;
+using ImGuiFullscreen::ActiveButtonCenter;
 using ImGuiFullscreen::AddNotification;
 using ImGuiFullscreen::BeginFullscreenColumns;
 using ImGuiFullscreen::BeginFullscreenColumnWindow;
@@ -6485,42 +6486,42 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 				if (just_focused)
 					ImGui::SetFocusID(ImGui::GetID(FSUI_ICONSTR(ICON_FA_PLAY, "Resume Game")), ImGui::GetCurrentWindow());
 				
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_PLAY, "Resume Game"), false) || WantsToCloseMenu())
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_PLAY, "Resume Game"), false) || WantsToCloseMenu())
 					ClosePauseMenu();
 					
 				if (expertMode)
 				{
-					if (ActiveButton(FSUI_ICONSTR(ICON_FA_FAST_FORWARD, "Toggle Frame Limit"), false))
+					if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_FAST_FORWARD, "Toggle Frame Limit"), false))
 					{
 						ClosePauseMenu();
 						DoToggleFrameLimit();
 					}
 				}
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_UNDO, "Load State"), false, can_load_or_save_state))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_UNDO, "Load State"), false, can_load_or_save_state))
 				{
 					if (OpenSaveStateSelector(true))
 						s_current_main_window = MainWindowType::None;
 				}
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_DOWNLOAD, "Save State"), false, can_load_or_save_state))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_DOWNLOAD, "Save State"), false, can_load_or_save_state))
 				{
 					if (OpenSaveStateSelector(false))
 						s_current_main_window = MainWindowType::None;
 				}
 
-				if (ActiveButton(ICON_FA_SLIDERS_H " Mod Menu", false))
+				if (ActiveButtonCenter(ICON_FA_SLIDERS_H " Mod Menu", false))
 					SwitchToModMenu();
 
 				if (expertMode)
 				{
-					if (ActiveButton(FSUI_ICONSTR(ICON_FA_WRENCH, "Game Properties"), false, can_load_or_save_state))
+					if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_WRENCH, "Game Properties"), false, can_load_or_save_state))
 					{
 						SwitchToGameSettings();
 					}
 				}
 				
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_TROPHY, "Achievements"), false, Achievements::HasAchievementsOrLeaderboards()))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_TROPHY, "Achievements"), false, Achievements::HasAchievementsOrLeaderboards()))
 				{
 					// skip second menu and go straight to cheevos if there's no lbs
 					if (!Achievements::HasLeaderboards())
@@ -6529,13 +6530,13 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 						OpenPauseSubMenu(PauseSubMenu::Achievements);
 				}
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_CAMERA, "Save Screenshot"), false))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_CAMERA, "Save Screenshot"), false))
 				{
 					GSQueueSnapshot(std::string());
 					ClosePauseMenu();
 				}
 
-				/* if (ActiveButton(GSIsHardwareRenderer() ? (FSUI_ICONSTR(ICON_FA_PAINT_BRUSH, "Switch To Software Renderer")) :
+				/* if (ActiveButtonCenter(GSIsHardwareRenderer() ? (FSUI_ICONSTR(ICON_FA_PAINT_BRUSH, "Switch To Software Renderer")) :
 														  (FSUI_ICONSTR(ICON_FA_PAINT_BRUSH, "Switch To Hardware Renderer")),
 						false))
 				{
@@ -6544,18 +6545,18 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 				}
 				*/
 				/*
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_COMPACT_DISC, "Change Disc"), false))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_COMPACT_DISC, "Change Disc"), false))
 				{
 					s_current_main_window = MainWindowType::None;
 					RequestChangeDisc();
 				}
 				*/
-				if (ActiveButton(ICON_FA_SLIDERS_H " PTR2 Settings", false))
+				if (ActiveButtonCenter(ICON_FA_SLIDERS_H " PTR2 Settings", false))
 					SwitchToPTR2Settings();
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_SLIDERS_H, "Settings"), false))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_SLIDERS_H, "Settings"), false))
 					SwitchToSettings();
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_POWER_OFF, "Close Game"), false))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_POWER_OFF, "Close Game"), false))
 				{
 					// skip submenu when we can't save anyway
 					if (!can_load_or_save_state)
@@ -6573,18 +6574,18 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 					ImGui::SetFocusID(ImGui::GetID(FSUI_ICONSTR(ICON_FA_POWER_OFF, "Exit Without Saving")), ImGui::GetCurrentWindow());
 				}
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_PF_BACKWARD, "Back To Pause Menu"), false) || WantsToCloseMenu())
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_PF_BACKWARD, "Back To Pause Menu"), false) || WantsToCloseMenu())
 					OpenPauseSubMenu(PauseSubMenu::None);
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_SYNC, "Reset System"), false))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_SYNC, "Reset System"), false))
 				{
 					RequestReset();
 				}
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_SAVE, "Exit And Save State"), false))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_SAVE, "Exit And Save State"), false))
 					RequestShutdown(true);
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_POWER_OFF, "Exit Without Saving"), false))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_POWER_OFF, "Exit Without Saving"), false))
 					RequestShutdown(false);
 			}
 			break;
@@ -6594,13 +6595,13 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 				if (just_focused)
 					ImGui::SetFocusID(ImGui::GetID(FSUI_ICONSTR(ICON_PF_BACKWARD, "Back To Pause Menu")), ImGui::GetCurrentWindow());
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_PF_BACKWARD, "Back To Pause Menu"), false) || WantsToCloseMenu())
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_PF_BACKWARD, "Back To Pause Menu"), false) || WantsToCloseMenu())
 					OpenPauseSubMenu(PauseSubMenu::None);
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_TROPHY, "Achievements"), false))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_TROPHY, "Achievements"), false))
 					OpenAchievementsWindow();
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_STOPWATCH, "Leaderboards"), false))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_STOPWATCH, "Leaderboards"), false))
 					OpenLeaderboardsWindow();
 			}
 			break;

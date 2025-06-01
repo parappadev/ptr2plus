@@ -44,7 +44,7 @@ namespace ImGuiFullscreen
 	static std::shared_ptr<GSTexture> UploadTexture(const char* path, const RGBA8Image& image);
 	static void TextureLoaderThread();
 
-	static void DrawPTR2PopupModalBG(ImVec2 win_pos, ImVec2 win_size, ImVec2& inner_win_pos, ImVec2& inner_win_size);
+	static void DrawPTR2PopupModalBG(ImVec2 win_pos, ImVec2 win_size, const char* name, ImVec2& inner_win_pos, ImVec2& inner_win_size);
 	static void DrawFileSelector();
 	static void DrawChoiceDialog();
 	static void DrawInputDialog();
@@ -1129,13 +1129,18 @@ bool ImGuiFullscreen::MenuHeadingButton(
 	return pressed;
 }
 
+bool ImGuiFullscreen::ActiveButtonCenter(const char* title, bool is_active, bool enabled, float height, ImFont* font)
+{
+	return ActiveButtonWithRightText(title, nullptr, is_active, enabled, height, font, true);
+}
+
 bool ImGuiFullscreen::ActiveButton(const char* title, bool is_active, bool enabled, float height, ImFont* font)
 {
-	return ActiveButtonWithRightText(title, nullptr, is_active, enabled, height, font);
+	return ActiveButtonWithRightText(title, nullptr, is_active, enabled, height, font, false);
 }
 
 bool ImGuiFullscreen::ActiveButtonWithRightText(const char* title, const char* right_title, bool is_active,
-	bool enabled, float height, ImFont* font)
+	bool enabled, float height, ImFont* font, bool centered)
 {
 	
 	ImGuiWindow* window = ImGui::GetCurrentWindow();
@@ -1143,7 +1148,8 @@ bool ImGuiFullscreen::ActiveButtonWithRightText(const char* title, const char* r
 	const ImVec2 title_size(
 		font->CalcTextSizeA(font->FontSize, std::numeric_limits<float>::max(), -1.0f, title));
 	//centered
-	ImGui::SetCursorPosX(winSize / 2 - title_size.x / 2 - LayoutScale(LAYOUT_MENU_BUTTON_X_PADDING) / 2);
+	if (centered)
+		ImGui::SetCursorPosX(winSize / 2 - title_size.x / 2 - LayoutScale(LAYOUT_MENU_BUTTON_X_PADDING) / 2);
 	
 	if (is_active)
 	{
@@ -2128,13 +2134,14 @@ void ImGuiFullscreen::CloseFileSelector()
 	ImGui::CloseCurrentPopup();
 	QueueResetFocus(FocusResetType::PopupClosed);
 }
-void ImGuiFullscreen::DrawPTR2PopupModalBG(ImVec2 win_pos, ImVec2 win_size, ImVec2 &inner_win_pos, ImVec2 &inner_win_size)
+float g_shading_depth = 10.0f;
+void ImGuiFullscreen::DrawPTR2PopupModalBG(ImVec2 win_pos, ImVec2 win_size, const char* name, ImVec2& inner_win_pos, ImVec2& inner_win_size)
 {
-	const char* text_display_end = ImGui::FindRenderedTextEnd(s_file_selector_title.c_str(), nullptr);
+	const char* text_display_end = ImGui::FindRenderedTextEnd(name, nullptr);
 	ImVec2 title_text_size(
-		g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, s_file_selector_title.c_str(), text_display_end));
+		g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, name, text_display_end));
 
-	float shading_depth = oldLayoutScale(10.0f);
+	float shading_depth = oldLayoutScale(g_shading_depth);
 	float bottom_bar_padding = shading_depth * 0.625;
 	float title_bar_padding = bottom_bar_padding + title_text_size.y;
 
@@ -2282,7 +2289,7 @@ bool ImGuiFullscreen::BeginPTR2PopupModal(ImVec2 win_pos, ImVec2 win_size, const
 {
 	ImVec2 inner_win_pos;
 	ImVec2 inner_win_size;
-	DrawPTR2PopupModalBG(win_pos, win_size, inner_win_pos, inner_win_size);
+	DrawPTR2PopupModalBG(win_pos, win_size, name, inner_win_pos, inner_win_size);
 	
 	ImGui::PushFont(g_large_font);
 	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, HEX_TO_IMVEC4(0x9e001f, 0xff));
@@ -2296,11 +2303,12 @@ bool ImGuiFullscreen::BeginPTR2PopupModal(ImVec2 win_pos, ImVec2 win_size, const
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, LayoutScale(30.0f));
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, LayoutScale(LAYOUT_MENU_BUTTON_X_PADDING, LAYOUT_MENU_BUTTON_Y_PADDING));
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowTitleAlign, ImVec2(0.5f, 0.5f));
 	ImGuiContext& g = *GImGui;
 	float popup_title_height = g.FontSize + g.Style.FramePadding.y * 2.0f;
 
 	ImGui::SetNextWindowSize(inner_win_size - ImVec2(LayoutScale(40.0f), 0.0f) * 2 + ImVec2(0.0f, LayoutScale(1.5f) + popup_title_height)); //LayoutScale(1000.0f, 680.0f));
-	ImGui::SetNextWindowPos(GameBounds(inner_win_pos + ImVec2(LayoutScale(40.0f), -popup_title_height))); //(ImGui::GetIO().DisplaySize - LayoutScale(0.0f, LAYOUT_FOOTER_HEIGHT)) * 0.5f,
+	ImGui::SetNextWindowPos( GameBounds(inner_win_pos + ImVec2( LayoutScale(40.0f), -popup_title_height) ) ); //(ImGui::GetIO().DisplaySize - LayoutScale(0.0f, LAYOUT_FOOTER_HEIGHT)) * 0.5f,
 	ImGui::SetNextWindowBgAlpha(0.0f);
 	return ImGui::BeginPopupModal(name, p_open, flags);
 }
@@ -2308,7 +2316,7 @@ bool ImGuiFullscreen::BeginPTR2PopupModal(ImVec2 win_pos, ImVec2 win_size, const
 void ImGuiFullscreen::EndPTR2PopupModal()
 {
 	ImGui::PopStyleColor(4);
-	ImGui::PopStyleVar(5);
+	ImGui::PopStyleVar(6);
 	ImGui::PopFont();
 }
 
@@ -2469,12 +2477,31 @@ void ImGuiFullscreen::DrawChoiceDialog()
 	ImGui::PushStyleColor(ImGuiCol_TitleBg, UIPrimaryDarkColor);
 	ImGui::PushStyleColor(ImGuiCol_TitleBgActive, UIPrimaryColor);
 	*/
-	const float width = LayoutScale(600.0f);
-	const float title_height = g_large_font->FontSize + ImGui::GetStyle().FramePadding.y * 2.0f + ImGui::GetStyle().WindowPadding.y * 2.0f;
-	const float height = std::min(LayoutScale(480.0f), title_height + (LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY) +
-																		  LayoutScale(LAYOUT_MENU_BUTTON_Y_PADDING) * 2.0f) *
+
+	//ptr2popup calcs
+	const char* text_display_end = ImGui::FindRenderedTextEnd(s_choice_dialog_title.c_str(), nullptr);
+	ImVec2 title_text_size(
+		g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, s_choice_dialog_title.c_str(), text_display_end));
+	float bottom_bar_padding = oldLayoutScale(g_shading_depth) * 0.625;
+	float bottom_bar_size = bottom_bar_padding + oldLayoutScale(g_shading_depth) * 2;
+	float title_bar_size = bottom_bar_size + title_text_size.y;
+	float side_bar_size = bottom_bar_size / 1.5;
+
+	float longest_option_text = title_text_size.x + oldLayoutScale(40.0f);
+	for (s32 i = 0; i < static_cast<s32>(s_choice_dialog_options.size()); i++)
+	{
+		auto& option = s_choice_dialog_options[i];
+		ImVec2 option_size = g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, option.first.c_str());
+		if (option_size.x > longest_option_text)
+			longest_option_text = option_size.x;
+	}
+	const float width_pad = (side_bar_size + LayoutScale(40.0f) + LayoutScale(LAYOUT_MENU_BUTTON_X_PADDING)) * 2;
+	const float width = std::min((s_game_size.x - s_window_padding.x * 2 - LayoutScale(20.0f)), longest_option_text + width_pad); //LayoutScale(600.0f);
+	//const float title_height = g_large_font->FontSize + ImGui::GetStyle().FramePadding.y * 2.0f + ImGui::GetStyle().WindowPadding.y * 2.0f;
+	const float height_pad = (s_window_padding.y + LayoutScale(90.0f)) * 2 ;
+	const float height = std::min((s_game_size.y - height_pad), LayoutScale(5.0f) + title_bar_size + bottom_bar_size +
+																		  (LayoutScale(LAYOUT_MENU_BUTTON_Y_PADDING) * 2.0f + g_large_font->FontSize) *
 																		  static_cast<float>(s_choice_dialog_options.size()));
-	
 	
 	ImVec2 win_size = ImVec2(width, height);
 	ImVec2 win_pos = s_game_size / 2 - win_size / 2;
@@ -2491,7 +2518,8 @@ void ImGuiFullscreen::DrawChoiceDialog()
 
 	if (BeginPTR2PopupModal(win_pos, win_size, s_choice_dialog_title.c_str(), &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
 	{
-		ImGui::PushStyleColor(ImGuiCol_Text, UIBackgroundTextColor);
+		//ImGui::PushStyleColor(ImGuiCol_Text, UIBackgroundTextColor);
+		ImGui::PushStyleColor(ImGuiCol_Text, HEX_TO_IMVEC4(0x9e001f, 0xff));
 
 		BeginMenuButtons();
 		ResetFocusHere();
@@ -2501,10 +2529,9 @@ void ImGuiFullscreen::DrawChoiceDialog()
 			for (s32 i = 0; i < static_cast<s32>(s_choice_dialog_options.size()); i++)
 			{
 				auto& option = s_choice_dialog_options[i];
-
 				const SmallString title =
 					SmallString::from_format("{0} {1}", option.second ? ICON_FA_CHECK_SQUARE : ICON_FA_SQUARE, option.first);
-				if (MenuButton(title.c_str(), nullptr, true, LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY))
+				if (MenuButton(title.c_str(), nullptr, true, LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY, false))
 				{
 					choice = i;
 					option.second = !option.second;
@@ -2520,14 +2547,30 @@ void ImGuiFullscreen::DrawChoiceDialog()
 				if (option.second)
 					title += ICON_FA_CHECK " ";
 				title += option.first;
+				ImVec2 option_size = g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, option.first.c_str());
 
-				if (ActiveButtonWithRightText(option.first.c_str(), option.second ? ICON_FA_CHECK : nullptr, option.second,
-						true, LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY))
+				//only center it if it fits in the whole window
+				if (option_size.x < ImGui::GetWindowWidth())
 				{
-					choice = i;
-					for (s32 j = 0; j < static_cast<s32>(s_choice_dialog_options.size()); j++)
-						s_choice_dialog_options[j].second = (j == i);
+					if (ActiveButtonCenter /*WithRightText*/ (option.first.c_str(), /* option.second ? ICON_FA_CHECK : nullptr,*/ option.second,
+							true, LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY))
+					{
+						choice = i;
+						for (s32 j = 0; j < static_cast<s32>(s_choice_dialog_options.size()); j++)
+							s_choice_dialog_options[j].second = (j == i);
+					}
 				}
+				else
+				{
+					if (ActiveButton /*WithRightText*/ (option.first.c_str(), /* option.second ? ICON_FA_CHECK : nullptr,*/ option.second,
+							true, LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY))
+					{
+						choice = i;
+						for (s32 j = 0; j < static_cast<s32>(s_choice_dialog_options.size()); j++)
+							s_choice_dialog_options[j].second = (j == i);
+					}
+				}
+				
 			}
 		}
 
