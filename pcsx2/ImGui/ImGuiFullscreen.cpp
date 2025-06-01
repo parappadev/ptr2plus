@@ -44,8 +44,6 @@ namespace ImGuiFullscreen
 	static std::shared_ptr<GSTexture> UploadTexture(const char* path, const RGBA8Image& image);
 	static void TextureLoaderThread();
 
-	static bool BeginPTR2PopupModal(ImVec2 win_pos, ImVec2 win_size, const char* name, bool* p_open, ImGuiWindowFlags flags);
-	static void EndPTR2PopupModal();
 	static void DrawPTR2PopupModalBG(ImVec2 win_pos, ImVec2 win_size, ImVec2& inner_win_pos, ImVec2& inner_win_size);
 	static void DrawFileSelector();
 	static void DrawChoiceDialog();
@@ -2291,6 +2289,7 @@ bool ImGuiFullscreen::BeginPTR2PopupModal(ImVec2 win_pos, ImVec2 win_size, const
 	ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, HEX_TO_IMVEC4(0x000000, 0x00));
 	ImGui::PushStyleColor(ImGuiCol_TitleBg, HEX_TO_IMVEC4(0x000000, 0x00)); //UIPrimaryDarkColor);
 	ImGui::PushStyleColor(ImGuiCol_TitleBgActive, HEX_TO_IMVEC4(0x000000, 0x00));
+	
 
 	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, LayoutScale(20.0f));
 	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, LayoutScale(30.0f));
@@ -2356,7 +2355,7 @@ void ImGuiFullscreen::DrawFileSelector()
 
 		EndMenuButtons();
 
-		ImGui::PopStyleColor(1);
+		ImGui::PopStyleColor();
 
 		ImGui::EndPopup();
 	}

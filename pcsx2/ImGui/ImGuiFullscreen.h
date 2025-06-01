@@ -157,6 +157,9 @@ namespace ImGuiFullscreen
 		ImGuiWindowFlags flags = 0);
 	void EndFullscreenWindow();
 
+	bool BeginPTR2PopupModal(ImVec2 win_pos, ImVec2 win_size, const char* name, bool* p_open, ImGuiWindowFlags flags);
+	void EndPTR2PopupModal();
+
 	bool IsGamepadInputSource();
 	void CreateFooterTextString(SmallStringBase& dest, std::span<const std::pair<const char*, std::string_view>> items);
 	void SetFullscreenFooterText(std::string_view text);
