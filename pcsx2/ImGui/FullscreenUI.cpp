@@ -6838,21 +6838,22 @@ void FullscreenUI::DrawSaveStateSelector(bool is_loading)
 			if (i == 0)
 				ResetFocusHere();
 
-			if (static_cast<s32>(i) == s_save_state_selector_submenu_index)
+			//this is a popup on right click that gives option to delete save state, having issues with ptr2 popup style so just removed this feature for now, its not very important
+			/* if (static_cast<s32>(i) == s_save_state_selector_submenu_index)
 			{
 				SaveStateListEntry& entry = s_save_state_selector_slots[i];
 
 				// can't use a choice dialog here, because we're already in a modal...
-				ImGuiFullscreen::PushResetLayout();
-				/* ImGui::PushFont(g_large_font);
-				ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, LayoutScale(10.0f));
-				ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, LayoutScale(LAYOUT_MENU_BUTTON_X_PADDING, LAYOUT_MENU_BUTTON_Y_PADDING));
-				ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
-				ImGui::PushStyleColor(ImGuiCol_Text, UIPrimaryTextColor);
-				ImGui::PushStyleColor(ImGuiCol_TitleBg, UIPrimaryDarkColor);
-				ImGui::PushStyleColor(ImGuiCol_TitleBgActive, UIPrimaryColor);
-				ImGui::PushStyleColor(ImGuiCol_PopupBg, UIPopupBackgroundColor);
-				*/
+				//ImGuiFullscreen::PushResetLayout();
+				//ImGui::PushFont(g_large_font);
+				//ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, LayoutScale(10.0f));
+				//ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, LayoutScale(LAYOUT_MENU_BUTTON_X_PADDING, LAYOUT_MENU_BUTTON_Y_PADDING));
+				//ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+				//ImGui::PushStyleColor(ImGuiCol_Text, UIPrimaryTextColor);
+				//ImGui::PushStyleColor(ImGuiCol_TitleBg, UIPrimaryDarkColor);
+				//ImGui::PushStyleColor(ImGuiCol_TitleBgActive, UIPrimaryColor);
+				//ImGui::PushStyleColor(ImGuiCol_PopupBg, UIPopupBackgroundColor);
+				
 				const float width = LayoutScale(600.0f);
 				const float title_height =
 					g_large_font->FontSize + ImGui::GetStyle().FramePadding.y * 2.0f + ImGui::GetStyle().WindowPadding.y * 2.0f;
@@ -6949,7 +6950,7 @@ void FullscreenUI::DrawSaveStateSelector(bool is_loading)
 				if (closed || i >= s_save_state_selector_slots.size())
 					break;
 			}
-
+			*/
 			ImGuiWindow* window = ImGui::GetCurrentWindow();
 			if (window->SkipItems)
 			{
