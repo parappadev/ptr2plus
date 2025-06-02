@@ -1972,6 +1972,7 @@ void FullscreenUI::DrawIntRangeSetting(SettingsInterface* bsi, const char* title
 	if (MenuButtonWithValue(title, summary, value_text.c_str(), enabled, height, font, summary_font))
 		ImGui::OpenPopup(title);
 
+	/*
 	ImGui::SetNextWindowSize(LayoutScale(500.0f, 192.0f));
 	ImGui::SetNextWindowPos(ImGui::GetIO().DisplaySize * 0.5f, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 
@@ -1981,10 +1982,20 @@ void FullscreenUI::DrawIntRangeSetting(SettingsInterface* bsi, const char* title
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
 		LayoutScale(ImGuiFullscreen::LAYOUT_MENU_BUTTON_X_PADDING, ImGuiFullscreen::LAYOUT_MENU_BUTTON_Y_PADDING));
-
+	*/
 	bool is_open = true;
-	if (ImGui::BeginPopupModal(title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
+
+	ImVec2 win_size = ImVec2(LayoutScale(500.0f, 212.0f));
+	ImVec2 win_pos = s_game_size / 2 - win_size / 2;
+	//from BeginPopupModal
+	ImGuiContext& g = *GImGui;
+	ImGuiWindow* window = g.CurrentWindow;
+	const ImGuiID id = window->GetID(title);
+	if (!ImGui::IsPopupOpen(id, ImGuiPopupFlags_None))
+		return;
+	if (ImGuiFullscreen::BeginPTR2PopupModal(win_pos, win_size, title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
 	{
+		ImGui::PushStyleColor(ImGuiCol_Text, HEX_TO_IMVEC4(0x9e001f, 0xff));
 		BeginMenuButtons();
 
 		const float end = ImGui::GetCurrentWindow()->WorkRect.GetWidth();
@@ -2006,12 +2017,12 @@ void FullscreenUI::DrawIntRangeSetting(SettingsInterface* bsi, const char* title
 			ImGui::CloseCurrentPopup();
 		}
 		EndMenuButtons();
-
 		ImGui::EndPopup();
 	}
-
-	ImGui::PopStyleVar(4);
-	ImGui::PopFont();
+	ImGuiFullscreen::EndPTR2PopupModal();
+	//ImGui::PopStyleVar(4);
+	//ImGui::PopFont();
+	
 }
 
 void FullscreenUI::DrawIntSpinBoxSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section,
@@ -2032,6 +2043,7 @@ void FullscreenUI::DrawIntSpinBoxSetting(SettingsInterface* bsi, const char* tit
 		manual_input = false;
 	}
 
+	/*
 	ImGui::SetNextWindowSize(LayoutScale(500.0f, 192.0f));
 	ImGui::SetNextWindowPos(ImGui::GetIO().DisplaySize * 0.5f, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 
@@ -2041,10 +2053,21 @@ void FullscreenUI::DrawIntSpinBoxSetting(SettingsInterface* bsi, const char* tit
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
 		LayoutScale(ImGuiFullscreen::LAYOUT_MENU_BUTTON_X_PADDING, ImGuiFullscreen::LAYOUT_MENU_BUTTON_Y_PADDING));
+	*/
 
 	bool is_open = true;
-	if (ImGui::BeginPopupModal(title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
+
+	ImVec2 win_size = ImVec2(LayoutScale(500.0f, 212.0f));
+	ImVec2 win_pos = s_game_size / 2 - win_size / 2;
+	//from BeginPopupModal
+	ImGuiContext& g = *GImGui;
+	ImGuiWindow* window = g.CurrentWindow;
+	const ImGuiID id = window->GetID(title);
+	if (!ImGui::IsPopupOpen(id, ImGuiPopupFlags_None))
+		return;
+	if (ImGuiFullscreen::BeginPTR2PopupModal(win_pos, win_size, title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
 	{
+		ImGui::PushStyleColor(ImGuiCol_Text, HEX_TO_IMVEC4(0x9e001f, 0xff));
 		BeginMenuButtons();
 
 		s32 dlg_value = static_cast<s32>(value.value_or(default_value));
@@ -2125,12 +2148,13 @@ void FullscreenUI::DrawIntSpinBoxSetting(SettingsInterface* bsi, const char* tit
 			ImGui::CloseCurrentPopup();
 		}
 		EndMenuButtons();
-
+		ImGui::PopStyleColor();
 		ImGui::EndPopup();
 	}
 
-	ImGui::PopStyleVar(4);
-	ImGui::PopFont();
+	//ImGui::PopStyleVar(4);
+	//ImGui::PopFont();
+	ImGuiFullscreen::EndPTR2PopupModal();
 }
 
 #if 0
@@ -2210,7 +2234,7 @@ void FullscreenUI::DrawFloatSpinBoxSetting(SettingsInterface* bsi, const char* t
 		ImGui::OpenPopup(title);
 		manual_input = false;
 	}
-
+	/*
 	ImGui::SetNextWindowSize(LayoutScale(500.0f, 192.0f));
 	ImGui::SetNextWindowPos(ImGui::GetIO().DisplaySize * 0.5f, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 
@@ -2220,10 +2244,19 @@ void FullscreenUI::DrawFloatSpinBoxSetting(SettingsInterface* bsi, const char* t
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
 		LayoutScale(ImGuiFullscreen::LAYOUT_MENU_BUTTON_X_PADDING, ImGuiFullscreen::LAYOUT_MENU_BUTTON_Y_PADDING));
-
+	*/
 	bool is_open = true;
-	if (ImGui::BeginPopupModal(title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
+	ImVec2 win_size = ImVec2(LayoutScale(500.0f, 212.0f));
+	ImVec2 win_pos = s_game_size / 2 - win_size / 2;
+	//from BeginPopupModal
+	ImGuiContext& g = *GImGui;
+	ImGuiWindow* window = g.CurrentWindow;
+	const ImGuiID id = window->GetID(title);
+	if (!ImGui::IsPopupOpen(id, ImGuiPopupFlags_None))
+		return;
+	if (ImGuiFullscreen::BeginPTR2PopupModal(win_pos, win_size, title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
 	{
+		ImGui::PushStyleColor(ImGuiCol_Text, HEX_TO_IMVEC4(0x9e001f, 0xff));
 		BeginMenuButtons();
 
 		float dlg_value = value.value_or(default_value) * multiplier;
@@ -2311,12 +2344,13 @@ void FullscreenUI::DrawFloatSpinBoxSetting(SettingsInterface* bsi, const char* t
 			ImGui::CloseCurrentPopup();
 		}
 		EndMenuButtons();
-
+		ImGui::PopStyleColor();
 		ImGui::EndPopup();
 	}
 
-	ImGui::PopStyleVar(4);
-	ImGui::PopFont();
+	//ImGui::PopStyleVar(4);
+	//ImGui::PopFont();
+	ImGuiFullscreen::EndPTR2PopupModal();
 }
 
 void FullscreenUI::DrawIntRectSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section,
@@ -2346,7 +2380,7 @@ void FullscreenUI::DrawIntRectSetting(SettingsInterface* bsi, const char* title,
 		ImGui::OpenPopup(title);
 		manual_input = false;
 	}
-
+	/*
 	ImGui::SetNextWindowSize(LayoutScale(550.0f, 370.0f));
 	ImGui::SetNextWindowPos(ImGui::GetIO().DisplaySize * 0.5f, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 
@@ -2356,10 +2390,19 @@ void FullscreenUI::DrawIntRectSetting(SettingsInterface* bsi, const char* title,
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
 		LayoutScale(ImGuiFullscreen::LAYOUT_MENU_BUTTON_X_PADDING, ImGuiFullscreen::LAYOUT_MENU_BUTTON_Y_PADDING));
-
+	*/
 	bool is_open = true;
-	if (ImGui::BeginPopupModal(title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
+	ImVec2 win_size = ImVec2(LayoutScale(500.0f, 390.0f));
+	ImVec2 win_pos = s_game_size / 2 - win_size / 2;
+	//from BeginPopupModal
+	ImGuiContext& g = *GImGui;
+	ImGuiWindow* window = g.CurrentWindow;
+	const ImGuiID id = window->GetID(title);
+	if (!ImGui::IsPopupOpen(id, ImGuiPopupFlags_None))
+		return;
+	if (ImGuiFullscreen::BeginPTR2PopupModal(win_pos, win_size, title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
 	{
+		ImGui::PushStyleColor(ImGuiCol_Text, HEX_TO_IMVEC4(0x9e001f, 0xff));
 		static constexpr const char* labels[4] = {FSUI_NSTR("Left: "), FSUI_NSTR("Top: "), FSUI_NSTR("Right: "), FSUI_NSTR("Bottom: ")};
 		const char* keys[4] = {left_key, top_key, right_key, bottom_key};
 		int defaults[4] = {default_left, default_top, default_right, default_bottom};
@@ -2461,12 +2504,13 @@ void FullscreenUI::DrawIntRectSetting(SettingsInterface* bsi, const char* title,
 			ImGui::CloseCurrentPopup();
 		}
 		EndMenuButtons();
-
+		ImGui::PopStyleColor();
 		ImGui::EndPopup();
 	}
 
-	ImGui::PopStyleVar(4);
-	ImGui::PopFont();
+	//ImGui::PopStyleVar(4);
+	//ImGui::PopFont();
+	ImGuiFullscreen::EndPTR2PopupModal();
 }
 
 void FullscreenUI::DrawStringListSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section,
