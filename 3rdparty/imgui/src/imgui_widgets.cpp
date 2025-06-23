@@ -863,13 +863,13 @@ bool ImGui::CloseButton(ImGuiID id, const ImVec2& pos)
     // Render
     ImU32 bg_col = GetColorU32(held ? ImGuiCol_ButtonActive : ImGuiCol_ButtonHovered);
     if (hovered)
-        window->DrawList->AddRectFilled(bb.Min, bb.Max, bg_col);
-    RenderNavCursor(bb, id, ImGuiNavRenderCursorFlags_Compact);
+        window->DrawList->AddRectFilled(bb.Min, bb.Max, bg_col, g.Style.FrameRounding);
+    //RenderNavCursor(bb, id, ImGuiNavRenderCursorFlags_Compact);
     ImU32 cross_col = GetColorU32(ImGuiCol_Text);
     ImVec2 cross_center = bb.GetCenter() - ImVec2(0.5f, 0.5f);
     float cross_extent = g.FontSize * 0.5f * 0.7071f - 1.0f;
-    window->DrawList->AddLine(cross_center + ImVec2(+cross_extent, +cross_extent), cross_center + ImVec2(-cross_extent, -cross_extent), cross_col, 1.0f);
-    window->DrawList->AddLine(cross_center + ImVec2(+cross_extent, -cross_extent), cross_center + ImVec2(-cross_extent, +cross_extent), cross_col, 1.0f);
+	window->DrawList->AddLine(cross_center + ImVec2(+cross_extent, +cross_extent), cross_center + ImVec2(-cross_extent, -cross_extent), cross_col, g.FontSize * 0.1);
+	window->DrawList->AddLine(cross_center + ImVec2(+cross_extent, -cross_extent), cross_center + ImVec2(-cross_extent, +cross_extent), cross_col, g.FontSize * 0.1);
 
     return pressed;
 }

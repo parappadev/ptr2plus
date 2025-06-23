@@ -92,6 +92,9 @@ using ImGuiFullscreen::g_large_font;
 using ImGuiFullscreen::g_layout_padding_left;
 using ImGuiFullscreen::g_layout_padding_top;
 using ImGuiFullscreen::g_medium_font;
+using ImGuiFullscreen::s_display_size;
+using ImGuiFullscreen::s_game_size;
+using ImGuiFullscreen::s_window_padding;
 using ImGuiFullscreen::LAYOUT_FOOTER_HEIGHT;
 using ImGuiFullscreen::LAYOUT_LARGE_FONT_SIZE;
 using ImGuiFullscreen::LAYOUT_MEDIUM_FONT_SIZE;
@@ -119,6 +122,7 @@ using ImGuiFullscreen::UISecondaryWeakColor;
 using ImGuiFullscreen::UITextHighlightColor;
 
 using ImGuiFullscreen::ActiveButton;
+using ImGuiFullscreen::ActiveButtonCenter;
 using ImGuiFullscreen::AddNotification;
 using ImGuiFullscreen::BeginFullscreenColumns;
 using ImGuiFullscreen::BeginFullscreenColumnWindow;
@@ -277,11 +281,6 @@ namespace FullscreenUI
 	static std::string s_current_disc_serial;
 	static std::string s_current_disc_path;
 	static u32 s_current_disc_crc;
-
-	//ptr2plus display sizes, padding
-	static ImVec2 s_display_size;
-	static ImVec2 s_game_size;
-	static ImVec2 s_window_padding;
 	
 	//star types (different textures for each):
 	//0 spots - small-med, slow rot speed
@@ -960,6 +959,7 @@ void FullscreenUI::Render()
 	if (s_input_binding_type != InputBindingInfo::Type::Unknown)
 		DrawInputBindingWindow();
 
+	
 	if (s_current_main_window != MainWindowType::None || s_save_state_selector_open)
 	{
 		//draw subtitle bubble
@@ -974,6 +974,7 @@ void FullscreenUI::Render()
 		DrawSubtitleBubble(subtitle_pos, subtitle_size, bg_alpha, ImGuiFullscreen::current_summary);
 		ImGuiFullscreen::current_summary = "";
 	}
+	ImGuiFullscreen::DrawPopupsModals();
 	ImGuiFullscreen::EndLayout();
 
 	if (s_settings_changed.load(std::memory_order_relaxed))
@@ -1971,6 +1972,7 @@ void FullscreenUI::DrawIntRangeSetting(SettingsInterface* bsi, const char* title
 	if (MenuButtonWithValue(title, summary, value_text.c_str(), enabled, height, font, summary_font))
 		ImGui::OpenPopup(title);
 
+	/*
 	ImGui::SetNextWindowSize(LayoutScale(500.0f, 192.0f));
 	ImGui::SetNextWindowPos(ImGui::GetIO().DisplaySize * 0.5f, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 
@@ -1980,10 +1982,20 @@ void FullscreenUI::DrawIntRangeSetting(SettingsInterface* bsi, const char* title
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
 		LayoutScale(ImGuiFullscreen::LAYOUT_MENU_BUTTON_X_PADDING, ImGuiFullscreen::LAYOUT_MENU_BUTTON_Y_PADDING));
-
+	*/
 	bool is_open = true;
-	if (ImGui::BeginPopupModal(title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
+
+	ImVec2 win_size = ImVec2(LayoutScale(500.0f, 212.0f));
+	ImVec2 win_pos = s_game_size / 2 - win_size / 2;
+	//from BeginPopupModal
+	ImGuiContext& g = *GImGui;
+	ImGuiWindow* window = g.CurrentWindow;
+	const ImGuiID id = window->GetID(title);
+	if (!ImGui::IsPopupOpen(id, ImGuiPopupFlags_None))
+		return;
+	if (ImGuiFullscreen::BeginPTR2PopupModal(win_pos, win_size, title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
 	{
+		ImGui::PushStyleColor(ImGuiCol_Text, HEX_TO_IMVEC4(0x9e001f, 0xff));
 		BeginMenuButtons();
 
 		const float end = ImGui::GetCurrentWindow()->WorkRect.GetWidth();
@@ -2005,12 +2017,12 @@ void FullscreenUI::DrawIntRangeSetting(SettingsInterface* bsi, const char* title
 			ImGui::CloseCurrentPopup();
 		}
 		EndMenuButtons();
-
 		ImGui::EndPopup();
 	}
-
-	ImGui::PopStyleVar(4);
-	ImGui::PopFont();
+	ImGuiFullscreen::EndPTR2PopupModal();
+	//ImGui::PopStyleVar(4);
+	//ImGui::PopFont();
+	
 }
 
 void FullscreenUI::DrawIntSpinBoxSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section,
@@ -2031,6 +2043,7 @@ void FullscreenUI::DrawIntSpinBoxSetting(SettingsInterface* bsi, const char* tit
 		manual_input = false;
 	}
 
+	/*
 	ImGui::SetNextWindowSize(LayoutScale(500.0f, 192.0f));
 	ImGui::SetNextWindowPos(ImGui::GetIO().DisplaySize * 0.5f, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 
@@ -2040,10 +2053,21 @@ void FullscreenUI::DrawIntSpinBoxSetting(SettingsInterface* bsi, const char* tit
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
 		LayoutScale(ImGuiFullscreen::LAYOUT_MENU_BUTTON_X_PADDING, ImGuiFullscreen::LAYOUT_MENU_BUTTON_Y_PADDING));
+	*/
 
 	bool is_open = true;
-	if (ImGui::BeginPopupModal(title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
+
+	ImVec2 win_size = ImVec2(LayoutScale(500.0f, 212.0f));
+	ImVec2 win_pos = s_game_size / 2 - win_size / 2;
+	//from BeginPopupModal
+	ImGuiContext& g = *GImGui;
+	ImGuiWindow* window = g.CurrentWindow;
+	const ImGuiID id = window->GetID(title);
+	if (!ImGui::IsPopupOpen(id, ImGuiPopupFlags_None))
+		return;
+	if (ImGuiFullscreen::BeginPTR2PopupModal(win_pos, win_size, title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
 	{
+		ImGui::PushStyleColor(ImGuiCol_Text, HEX_TO_IMVEC4(0x9e001f, 0xff));
 		BeginMenuButtons();
 
 		s32 dlg_value = static_cast<s32>(value.value_or(default_value));
@@ -2124,12 +2148,13 @@ void FullscreenUI::DrawIntSpinBoxSetting(SettingsInterface* bsi, const char* tit
 			ImGui::CloseCurrentPopup();
 		}
 		EndMenuButtons();
-
+		ImGui::PopStyleColor();
 		ImGui::EndPopup();
 	}
 
-	ImGui::PopStyleVar(4);
-	ImGui::PopFont();
+	//ImGui::PopStyleVar(4);
+	//ImGui::PopFont();
+	ImGuiFullscreen::EndPTR2PopupModal();
 }
 
 #if 0
@@ -2209,7 +2234,7 @@ void FullscreenUI::DrawFloatSpinBoxSetting(SettingsInterface* bsi, const char* t
 		ImGui::OpenPopup(title);
 		manual_input = false;
 	}
-
+	/*
 	ImGui::SetNextWindowSize(LayoutScale(500.0f, 192.0f));
 	ImGui::SetNextWindowPos(ImGui::GetIO().DisplaySize * 0.5f, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 
@@ -2219,10 +2244,19 @@ void FullscreenUI::DrawFloatSpinBoxSetting(SettingsInterface* bsi, const char* t
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
 		LayoutScale(ImGuiFullscreen::LAYOUT_MENU_BUTTON_X_PADDING, ImGuiFullscreen::LAYOUT_MENU_BUTTON_Y_PADDING));
-
+	*/
 	bool is_open = true;
-	if (ImGui::BeginPopupModal(title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
+	ImVec2 win_size = ImVec2(LayoutScale(500.0f, 212.0f));
+	ImVec2 win_pos = s_game_size / 2 - win_size / 2;
+	//from BeginPopupModal
+	ImGuiContext& g = *GImGui;
+	ImGuiWindow* window = g.CurrentWindow;
+	const ImGuiID id = window->GetID(title);
+	if (!ImGui::IsPopupOpen(id, ImGuiPopupFlags_None))
+		return;
+	if (ImGuiFullscreen::BeginPTR2PopupModal(win_pos, win_size, title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
 	{
+		ImGui::PushStyleColor(ImGuiCol_Text, HEX_TO_IMVEC4(0x9e001f, 0xff));
 		BeginMenuButtons();
 
 		float dlg_value = value.value_or(default_value) * multiplier;
@@ -2310,12 +2344,13 @@ void FullscreenUI::DrawFloatSpinBoxSetting(SettingsInterface* bsi, const char* t
 			ImGui::CloseCurrentPopup();
 		}
 		EndMenuButtons();
-
+		ImGui::PopStyleColor();
 		ImGui::EndPopup();
 	}
 
-	ImGui::PopStyleVar(4);
-	ImGui::PopFont();
+	//ImGui::PopStyleVar(4);
+	//ImGui::PopFont();
+	ImGuiFullscreen::EndPTR2PopupModal();
 }
 
 void FullscreenUI::DrawIntRectSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section,
@@ -2345,7 +2380,7 @@ void FullscreenUI::DrawIntRectSetting(SettingsInterface* bsi, const char* title,
 		ImGui::OpenPopup(title);
 		manual_input = false;
 	}
-
+	/*
 	ImGui::SetNextWindowSize(LayoutScale(550.0f, 370.0f));
 	ImGui::SetNextWindowPos(ImGui::GetIO().DisplaySize * 0.5f, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 
@@ -2355,10 +2390,19 @@ void FullscreenUI::DrawIntRectSetting(SettingsInterface* bsi, const char* title,
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
 		LayoutScale(ImGuiFullscreen::LAYOUT_MENU_BUTTON_X_PADDING, ImGuiFullscreen::LAYOUT_MENU_BUTTON_Y_PADDING));
-
+	*/
 	bool is_open = true;
-	if (ImGui::BeginPopupModal(title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
+	ImVec2 win_size = ImVec2(LayoutScale(500.0f, 390.0f));
+	ImVec2 win_pos = s_game_size / 2 - win_size / 2;
+	//from BeginPopupModal
+	ImGuiContext& g = *GImGui;
+	ImGuiWindow* window = g.CurrentWindow;
+	const ImGuiID id = window->GetID(title);
+	if (!ImGui::IsPopupOpen(id, ImGuiPopupFlags_None))
+		return;
+	if (ImGuiFullscreen::BeginPTR2PopupModal(win_pos, win_size, title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
 	{
+		ImGui::PushStyleColor(ImGuiCol_Text, HEX_TO_IMVEC4(0x9e001f, 0xff));
 		static constexpr const char* labels[4] = {FSUI_NSTR("Left: "), FSUI_NSTR("Top: "), FSUI_NSTR("Right: "), FSUI_NSTR("Bottom: ")};
 		const char* keys[4] = {left_key, top_key, right_key, bottom_key};
 		int defaults[4] = {default_left, default_top, default_right, default_bottom};
@@ -2460,12 +2504,13 @@ void FullscreenUI::DrawIntRectSetting(SettingsInterface* bsi, const char* title,
 			ImGui::CloseCurrentPopup();
 		}
 		EndMenuButtons();
-
+		ImGui::PopStyleColor();
 		ImGui::EndPopup();
 	}
 
-	ImGui::PopStyleVar(4);
-	ImGui::PopFont();
+	//ImGui::PopStyleVar(4);
+	//ImGui::PopFont();
+	ImGuiFullscreen::EndPTR2PopupModal();
 }
 
 void FullscreenUI::DrawStringListSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section,
@@ -6007,94 +6052,91 @@ static void DrawShadowedText(
 //ptr2plus - draw bottom subtitle description
 static void FullscreenUI::DrawSubtitleBubble(ImVec2 subtitle_pos, ImVec2 subtitle_size, float bg_alpha, std::string text)
 {
-	if (BeginFullscreenWindow(subtitle_pos, subtitle_size, "settings_subtitle",
-			ImVec4(0.0f, 0.0f, 0.0f, bg_alpha), 30.0f))
+	ImDrawList* dl = ImGui::GetForegroundDrawList();
+		
+	dl->AddRectFilled(GameBounds(subtitle_pos), GameBounds(subtitle_pos + subtitle_size), IM_COL32(0, 0, 0, bg_alpha * 255), 30.0f);
+	if (text == "") //if no text input, then display menu controls
 	{
-		ImDrawList* dl = ImGui::GetWindowDrawList();
-		if (text == "") //if no text input, then display menu controls
-		{
-			//this is one of the most horrific things i've ever coded
-			//but i couldn't see a good way to do it, and it's worth it to make the controls text look nice
+		//this is one of the most horrific things i've ever coded
+		//but i couldn't see a good way to do it, and it's worth it to make the controls text look nice
 
-			std::string subtitle_text1 = IsGamepadInputSource() ? ICON_PF_DPAD_UP_DOWN : ICON_PF_ARROW_UP ICON_PF_ARROW_DOWN;
-			std::string subtitle_text = subtitle_text1;
-			ImVec2 text_size1(
-				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text1.c_str()));
-			std::string subtitle_text2 = " ";
-			subtitle_text2 += FSUI_VSTR("Change Selection");
-			subtitle_text += subtitle_text2;
-			ImVec2 text_size2(
-				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text2.c_str()));
-			std::string subtitle_text3 = " ";
-			subtitle_text3 += IsGamepadInputSource() ? ICON_PF_BUTTON_CROSS : ICON_PF_ENTER;
-			subtitle_text += subtitle_text3;
-			ImVec2 text_size3(
-				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text3.c_str()));
-			std::string subtitle_text4 = " ";
-			subtitle_text4 += FSUI_VSTR("Select");
-			subtitle_text += subtitle_text4;
-			ImVec2 text_size4(
-				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text4.c_str()));
-			std::string subtitle_text5 = " ";
-			subtitle_text5 += IsGamepadInputSource() ? ICON_PF_BUTTON_CIRCLE : ICON_PF_ESC;
-			subtitle_text += subtitle_text5;
-			ImVec2 text_size5(
-				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text5.c_str()));
-			std::string subtitle_text6 = " ";
-			if (s_current_main_window != MainWindowType::PauseMenu)
-				subtitle_text6 += FSUI_VSTR("Return To Pause Menu");
-			else 
-				subtitle_text6 += FSUI_VSTR("Return To Game");
-			subtitle_text += subtitle_text6;
+		std::string subtitle_text1 = IsGamepadInputSource() ? ICON_PF_DPAD_UP_DOWN : ICON_PF_ARROW_UP ICON_PF_ARROW_DOWN;
+		std::string subtitle_text = subtitle_text1;
+		ImVec2 text_size1(
+			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text1.c_str()));
+		std::string subtitle_text2 = " ";
+		subtitle_text2 += FSUI_VSTR("Change Selection");
+		subtitle_text += subtitle_text2;
+		ImVec2 text_size2(
+			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text2.c_str()));
+		std::string subtitle_text3 = " ";
+		subtitle_text3 += IsGamepadInputSource() ? ICON_PF_BUTTON_CROSS : ICON_PF_ENTER;
+		subtitle_text += subtitle_text3;
+		ImVec2 text_size3(
+			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text3.c_str()));
+		std::string subtitle_text4 = " ";
+		subtitle_text4 += FSUI_VSTR("Select");
+		subtitle_text += subtitle_text4;
+		ImVec2 text_size4(
+			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text4.c_str()));
+		std::string subtitle_text5 = " ";
+		subtitle_text5 += IsGamepadInputSource() ? ICON_PF_BUTTON_CIRCLE : ICON_PF_ESC;
+		subtitle_text += subtitle_text5;
+		ImVec2 text_size5(
+			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text5.c_str()));
+		std::string subtitle_text6 = " ";
+		if (s_current_main_window != MainWindowType::PauseMenu)
+			subtitle_text6 += FSUI_VSTR("Return To Pause Menu");
+		else 
+			subtitle_text6 += FSUI_VSTR("Return To Game");
+		subtitle_text += subtitle_text6;
 
-			ImVec2 subtitle_text_size(
-				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text.c_str()));
+		ImVec2 subtitle_text_size(
+			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text.c_str()));
 
-			ImVec2 text_pos(0.0f + (s_game_size.x - subtitle_text_size.x) / 2, subtitle_pos.y + subtitle_size.y / 2 - (subtitle_text_size.y * 2) / 3);
+		ImVec2 text_pos(0.0f + (s_game_size.x - subtitle_text_size.x) / 2, subtitle_pos.y + subtitle_size.y / 2 - (subtitle_text_size.y * 2) / 3);
 			
-			ImU32 color = ImGui::GetColorU32(UIPrimaryColor);
-			dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text1.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
-			text_pos += ImVec2(text_size1.x, 0);
-			color = ImGui::GetColorU32(UIBackgroundTextColor);
-			dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text2.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
-			text_pos += ImVec2(text_size2.x, 0);
-			color = ImGui::GetColorU32(UIPrimaryColor);
-			dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text3.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
-			text_pos += ImVec2(text_size3.x, 0);
-			color = ImGui::GetColorU32(UIBackgroundTextColor);
-			dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text4.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
-			text_pos += ImVec2(text_size4.x, 0);
-			color = ImGui::GetColorU32(UIPrimaryColor);
-			dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text5.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
-			text_pos += ImVec2(text_size5.x, 0);
-			color = ImGui::GetColorU32(UIBackgroundTextColor);
-			dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text6.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
-		}
-		else
+		ImU32 color = ImGui::GetColorU32(UIPrimaryColor);
+		dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text1.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+		text_pos += ImVec2(text_size1.x, 0);
+		color = ImGui::GetColorU32(UIBackgroundTextColor);
+		dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text2.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+		text_pos += ImVec2(text_size2.x, 0);
+		color = ImGui::GetColorU32(UIPrimaryColor);
+		dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text3.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+		text_pos += ImVec2(text_size3.x, 0);
+		color = ImGui::GetColorU32(UIBackgroundTextColor);
+		dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text4.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+		text_pos += ImVec2(text_size4.x, 0);
+		color = ImGui::GetColorU32(UIPrimaryColor);
+		dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text5.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+		text_pos += ImVec2(text_size5.x, 0);
+		color = ImGui::GetColorU32(UIBackgroundTextColor);
+		dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text6.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+	}
+	else
+	{
+		if (text.length() > 2)
 		{
-			if (text.length() > 2)
-			{
-				const ImU32 text_color = IM_COL32(UIBackgroundTextColor.x * 255, UIBackgroundTextColor.y * 255, UIBackgroundTextColor.z * 255, 255);
-				ImVec2 text_size(
-					g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, ImGuiFullscreen::current_summary.data()));
+			const ImU32 text_color = IM_COL32(UIBackgroundTextColor.x * 255, UIBackgroundTextColor.y * 255, UIBackgroundTextColor.z * 255, 255);
+			ImVec2 text_size(
+				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, ImGuiFullscreen::current_summary.data()));
 
-				ImVec2 text_pos(0.0f + (s_game_size.x - text_size.x) / 2, subtitle_pos.y + subtitle_size.y / 2 - (text_size.y * 2) / 3);
-				if (text_size.x > subtitle_size.x - (LayoutScale(40.0f) * 2))
+			ImVec2 text_pos(0.0f + (s_game_size.x - text_size.x) / 2, subtitle_pos.y + subtitle_size.y / 2 - (text_size.y * 2) / 3);
+			if (text_size.x > subtitle_size.x - (LayoutScale(40.0f) * 2))
+			{
+				//if more than 2 lines
+				if (text_size.x > 2 * (subtitle_size.x - (LayoutScale(40.0f) * 2)))
 				{
-					//if more than 2 lines
-					if (text_size.x > 2 * (subtitle_size.x - (LayoutScale(40.0f) * 2)))
-					{
-						text_pos = ImVec2(subtitle_pos.x + LayoutScale(40.0f), subtitle_pos.y + LayoutScale(5.0f));
-					}
-					else
-						text_pos = ImVec2(subtitle_pos.x + LayoutScale(40.0f), subtitle_pos.y + subtitle_size.y / 2 - text_size.y);
+					text_pos = ImVec2(subtitle_pos.x + LayoutScale(40.0f), subtitle_pos.y + LayoutScale(5.0f));
 				}
-				//DrawShadowedText(dl, g_medium_font, ImVec2(0.0f, s_game_size.y - heading_size.y - subtitle_size.y), text_color, ImGuiFullscreen::current_summary.data());
-				dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), text_color, text.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+				else
+					text_pos = ImVec2(subtitle_pos.x + LayoutScale(40.0f), subtitle_pos.y + subtitle_size.y / 2 - text_size.y);
 			}
+			//DrawShadowedText(dl, g_medium_font, ImVec2(0.0f, s_game_size.y - heading_size.y - subtitle_size.y), text_color, ImGuiFullscreen::current_summary.data());
+			dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), text_color, text.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
 		}
 	}
-	EndFullscreenWindow();
 }
 void FullscreenUI::DrawStarBg()
 {
@@ -6488,42 +6530,42 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 				if (just_focused)
 					ImGui::SetFocusID(ImGui::GetID(FSUI_ICONSTR(ICON_FA_PLAY, "Resume Game")), ImGui::GetCurrentWindow());
 				
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_PLAY, "Resume Game"), false) || WantsToCloseMenu())
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_PLAY, "Resume Game"), false) || WantsToCloseMenu())
 					ClosePauseMenu();
 					
 				if (expertMode)
 				{
-					if (ActiveButton(FSUI_ICONSTR(ICON_FA_FAST_FORWARD, "Toggle Frame Limit"), false))
+					if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_FAST_FORWARD, "Toggle Frame Limit"), false))
 					{
 						ClosePauseMenu();
 						DoToggleFrameLimit();
 					}
 				}
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_UNDO, "Load State"), false, can_load_or_save_state))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_UNDO, "Load State"), false, can_load_or_save_state))
 				{
 					if (OpenSaveStateSelector(true))
 						s_current_main_window = MainWindowType::None;
 				}
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_DOWNLOAD, "Save State"), false, can_load_or_save_state))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_DOWNLOAD, "Save State"), false, can_load_or_save_state))
 				{
 					if (OpenSaveStateSelector(false))
 						s_current_main_window = MainWindowType::None;
 				}
 
-				if (ActiveButton(ICON_FA_SLIDERS_H " Mod Menu", false))
+				if (ActiveButtonCenter(ICON_FA_SLIDERS_H " Mod Menu", false))
 					SwitchToModMenu();
 
 				if (expertMode)
 				{
-					if (ActiveButton(FSUI_ICONSTR(ICON_FA_WRENCH, "Game Properties"), false, can_load_or_save_state))
+					if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_WRENCH, "Game Properties"), false, can_load_or_save_state))
 					{
 						SwitchToGameSettings();
 					}
 				}
 				
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_TROPHY, "Achievements"), false, Achievements::HasAchievementsOrLeaderboards()))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_TROPHY, "Achievements"), false, Achievements::HasAchievementsOrLeaderboards()))
 				{
 					// skip second menu and go straight to cheevos if there's no lbs
 					if (!Achievements::HasLeaderboards())
@@ -6532,13 +6574,13 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 						OpenPauseSubMenu(PauseSubMenu::Achievements);
 				}
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_CAMERA, "Save Screenshot"), false))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_CAMERA, "Save Screenshot"), false))
 				{
 					GSQueueSnapshot(std::string());
 					ClosePauseMenu();
 				}
 
-				/* if (ActiveButton(GSIsHardwareRenderer() ? (FSUI_ICONSTR(ICON_FA_PAINT_BRUSH, "Switch To Software Renderer")) :
+				/* if (ActiveButtonCenter(GSIsHardwareRenderer() ? (FSUI_ICONSTR(ICON_FA_PAINT_BRUSH, "Switch To Software Renderer")) :
 														  (FSUI_ICONSTR(ICON_FA_PAINT_BRUSH, "Switch To Hardware Renderer")),
 						false))
 				{
@@ -6547,18 +6589,18 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 				}
 				*/
 				/*
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_COMPACT_DISC, "Change Disc"), false))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_COMPACT_DISC, "Change Disc"), false))
 				{
 					s_current_main_window = MainWindowType::None;
 					RequestChangeDisc();
 				}
 				*/
-				if (ActiveButton(ICON_FA_SLIDERS_H " PTR2 Settings", false))
+				if (ActiveButtonCenter(ICON_FA_SLIDERS_H " PTR2 Settings", false))
 					SwitchToPTR2Settings();
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_SLIDERS_H, "Settings"), false))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_SLIDERS_H, "Settings"), false))
 					SwitchToSettings();
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_POWER_OFF, "Close Game"), false))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_POWER_OFF, "Close Game"), false))
 				{
 					// skip submenu when we can't save anyway
 					if (!can_load_or_save_state)
@@ -6576,18 +6618,18 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 					ImGui::SetFocusID(ImGui::GetID(FSUI_ICONSTR(ICON_FA_POWER_OFF, "Exit Without Saving")), ImGui::GetCurrentWindow());
 				}
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_PF_BACKWARD, "Back To Pause Menu"), false) || WantsToCloseMenu())
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_PF_BACKWARD, "Back To Pause Menu"), false) || WantsToCloseMenu())
 					OpenPauseSubMenu(PauseSubMenu::None);
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_SYNC, "Reset System"), false))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_SYNC, "Reset System"), false))
 				{
 					RequestReset();
 				}
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_SAVE, "Exit And Save State"), false))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_SAVE, "Exit And Save State"), false))
 					RequestShutdown(true);
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_POWER_OFF, "Exit Without Saving"), false))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_POWER_OFF, "Exit Without Saving"), false))
 					RequestShutdown(false);
 			}
 			break;
@@ -6597,13 +6639,13 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 				if (just_focused)
 					ImGui::SetFocusID(ImGui::GetID(FSUI_ICONSTR(ICON_PF_BACKWARD, "Back To Pause Menu")), ImGui::GetCurrentWindow());
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_PF_BACKWARD, "Back To Pause Menu"), false) || WantsToCloseMenu())
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_PF_BACKWARD, "Back To Pause Menu"), false) || WantsToCloseMenu())
 					OpenPauseSubMenu(PauseSubMenu::None);
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_TROPHY, "Achievements"), false))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_TROPHY, "Achievements"), false))
 					OpenAchievementsWindow();
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_STOPWATCH, "Leaderboards"), false))
+				if (ActiveButtonCenter(FSUI_ICONSTR(ICON_FA_STOPWATCH, "Leaderboards"), false))
 					OpenLeaderboardsWindow();
 			}
 			break;
@@ -6736,30 +6778,43 @@ void FullscreenUI::CloseSaveStateSelector()
 
 void FullscreenUI::DrawSaveStateSelector(bool is_loading)
 {
+	ImVec2 win_pos = s_window_padding;
+	ImVec2 win_size = s_game_size - s_window_padding * 2 - ImVec2(LayoutScale(0.0f), LayoutScale(110.0f));
 	ImGuiIO& io = ImGui::GetIO();
 
-	ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
-	ImGui::SetNextWindowSize(io.DisplaySize - LayoutScale(0.0f, LAYOUT_FOOTER_HEIGHT));
+	//ImGui::SetNextWindowPos(GameBounds(ImVec2(0.0f, 0.0f)));
+	//ImGui::SetNextWindowSize(s_game_size);
 
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.0f);
+	//ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+	//ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+	//ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+	//ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
+	//ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.0f);
 
 	const char* window_title = is_loading ? FSUI_CSTR("Load State") : FSUI_CSTR("Save State");
 	ImGui::OpenPopup(window_title);
-
+	ImU32 yellowcol = IM_COL32(255, 236, 153, 255);
 	bool is_open = true;
-	const bool valid = ImGui::BeginPopupModal(window_title, &is_open,
+	/* const bool valid = ImGui::BeginPopupModal(window_title, &is_open,
 		ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar |
 			ImGuiWindowFlags_NoBackground);
+	*/
+	const bool valid = ImGuiFullscreen::BeginPTR2PopupModal(win_pos, win_size, window_title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+	ImGui::PushStyleColor(ImGuiCol_Text, HEX_TO_IMVEC4(0x9e001f, 0xff));
+	ImGuiContext& g = *GImGui;
+	float popup_title_height = g.FontSize + g.Style.FramePadding.y * 2.0f;
+	float scrollbar_width = g.Style.ScrollbarSize * 1.3;
+	ImVec2 inner_win_size = ImGui::GetWindowSize() - ImVec2(scrollbar_width, popup_title_height);
 	if (!valid || !is_open)
 	{
 		if (valid)
-			ImGui::EndPopup();
-
-		ImGui::PopStyleVar(5);
+		{
+			//ImGuiFullscreen::EndPTR2PopupModal();
+			//ImGui::EndPopup();
+		}
+		//ImGui::PopStyleVar(5);
+		ImGui::PopStyleColor();
+		ImGuiFullscreen::EndPTR2PopupModal();
 		if (!is_open)
 		{
 			CloseSaveStateSelector();
@@ -6767,11 +6822,12 @@ void FullscreenUI::DrawSaveStateSelector(bool is_loading)
 		}
 		return;
 	}
-
+	//ImGuiFullscreen::EndPTR2PopupModal();
 	const ImVec2 heading_size =
-		ImVec2(io.DisplaySize.x, LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY) +
+		ImVec2(s_game_size.x, LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY) +
 									 (LayoutScale(LAYOUT_MENU_BUTTON_Y_PADDING) * 2.0f) + LayoutScale(2.0f));
 
+	/*
 	ImGui::PushStyleColor(ImGuiCol_ChildBg, ModAlpha(UIPrimaryColor, 0.9f));
 
 	if (ImGui::BeginChild("state_titlebar", heading_size, ImGuiChildFlags_NavFlattened, 0))
@@ -6787,24 +6843,27 @@ void FullscreenUI::DrawSaveStateSelector(bool is_loading)
 		EndNavBar();
 		ImGui::EndChild();
 	}
-
 	ImGui::PopStyleColor();
-	ImGui::PushStyleColor(ImGuiCol_ChildBg, ModAlpha(UIBackgroundColor, 0.9f));
-	ImGui::SetCursorPos(ImVec2(0.0f, heading_size.y));
-
+	*/
 	bool close_handled = false;
+	
+	//ImGui::PushStyleColor(ImGuiCol_ChildBg, ModAlpha(UIBackgroundColor, 0.0f));
+	ImGui::SetCursorPos(ImVec2(0.0f, popup_title_height));//heading_size.y));
+
+	/*
 	if (s_save_state_selector_open &&
-		ImGui::BeginChild("state_list", ImVec2(io.DisplaySize.x, io.DisplaySize.y - LayoutScale(LAYOUT_FOOTER_HEIGHT) - heading_size.y),
+		ImGui::BeginChild("state_list", ImVec2(inner_win_size.x, inner_win_size.y),  //- heading_size.y),
 			ImGuiChildFlags_NavFlattened, 0))
 	{
+	*/
 		BeginMenuButtons();
 
 		const ImGuiStyle& style = ImGui::GetStyle();
 
 		const float title_spacing = LayoutScale(10.0f);
 		const float summary_spacing = LayoutScale(4.0f);
-		const float item_spacing = LayoutScale(20.0f);
-		const float item_width_with_spacing = std::floor(LayoutScale(LAYOUT_SCREEN_WIDTH / 4.0f));
+		const float item_spacing = LayoutScale(0.0f);
+		const float item_width_with_spacing = std::floor(inner_win_size.x / 3.0f);
 		const float item_width = item_width_with_spacing - item_spacing;
 		const float image_width = item_width - (style.FramePadding.x * 2.0f);
 		const float image_height = image_width / 1.33f;
@@ -6812,39 +6871,43 @@ void FullscreenUI::DrawSaveStateSelector(bool is_loading)
 		const float item_height = (style.FramePadding.y * 2.0f) + image_height + title_spacing + g_large_font->FontSize + summary_spacing +
 								  g_medium_font->FontSize;
 		const ImVec2 item_size(item_width, item_height);
-		const u32 grid_count_x = std::floor(ImGui::GetWindowWidth() / item_width_with_spacing);
-		const float start_x =
-			(static_cast<float>(ImGui::GetWindowWidth()) - (item_width_with_spacing * static_cast<float>(grid_count_x))) * 0.5f;
+		const u32 grid_count_x = std::floor(inner_win_size.x / item_width_with_spacing);
+		//const float start_x =
+		//	(static_cast<float>(ImGui::GetWindowWidth()) - (item_width_with_spacing * static_cast<float>(grid_count_x))) * 0.5f;
 
 		u32 grid_x = 0;
-		ImGui::SetCursorPos(ImVec2(start_x, 0.0f));
+
+		//ImGui::SetCursorPos(ImVec2(start_x > 0? start_x : 0.0f, popup_title_height));
 		for (u32 i = 0; i < s_save_state_selector_slots.size();)
 		{
 			if (i == 0)
 				ResetFocusHere();
 
-			if (static_cast<s32>(i) == s_save_state_selector_submenu_index)
+			//this is a popup on right click that gives option to delete save state, having issues with ptr2 popup style so just removed this feature for now, its not very important
+			/* if (static_cast<s32>(i) == s_save_state_selector_submenu_index)
 			{
 				SaveStateListEntry& entry = s_save_state_selector_slots[i];
 
 				// can't use a choice dialog here, because we're already in a modal...
-				ImGuiFullscreen::PushResetLayout();
-				ImGui::PushFont(g_large_font);
-				ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, LayoutScale(10.0f));
-				ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, LayoutScale(LAYOUT_MENU_BUTTON_X_PADDING, LAYOUT_MENU_BUTTON_Y_PADDING));
-				ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
-				ImGui::PushStyleColor(ImGuiCol_Text, UIPrimaryTextColor);
-				ImGui::PushStyleColor(ImGuiCol_TitleBg, UIPrimaryDarkColor);
-				ImGui::PushStyleColor(ImGuiCol_TitleBgActive, UIPrimaryColor);
-				ImGui::PushStyleColor(ImGuiCol_PopupBg, UIPopupBackgroundColor);
-
+				//ImGuiFullscreen::PushResetLayout();
+				//ImGui::PushFont(g_large_font);
+				//ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, LayoutScale(10.0f));
+				//ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, LayoutScale(LAYOUT_MENU_BUTTON_X_PADDING, LAYOUT_MENU_BUTTON_Y_PADDING));
+				//ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+				//ImGui::PushStyleColor(ImGuiCol_Text, UIPrimaryTextColor);
+				//ImGui::PushStyleColor(ImGuiCol_TitleBg, UIPrimaryDarkColor);
+				//ImGui::PushStyleColor(ImGuiCol_TitleBgActive, UIPrimaryColor);
+				//ImGui::PushStyleColor(ImGuiCol_PopupBg, UIPopupBackgroundColor);
+				
 				const float width = LayoutScale(600.0f);
 				const float title_height =
 					g_large_font->FontSize + ImGui::GetStyle().FramePadding.y * 2.0f + ImGui::GetStyle().WindowPadding.y * 2.0f;
 				const float height =
 					title_height + LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY + (LAYOUT_MENU_BUTTON_Y_PADDING * 2.0f)) * 3.0f;
-				ImGui::SetNextWindowSize(ImVec2(width, height));
-				ImGui::SetNextWindowPos(ImGui::GetIO().DisplaySize * 0.5f, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+				//ImGui::SetNextWindowSize();
+				ImVec2 size = ImVec2(width, height);
+				ImVec2 pos = s_game_size / 2 - size / 2;
+				ImGui::SetNextWindowPos(GameBounds(s_game_size * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 				ImGui::OpenPopup(entry.title.c_str());
 
 				// don't let the back button flow through to the main window
@@ -6852,7 +6915,7 @@ void FullscreenUI::DrawSaveStateSelector(bool is_loading)
 				close_handled ^= submenu_open;
 
 				bool closed = false;
-				if (ImGui::BeginPopupModal(
+				if (ImGuiFullscreen::BeginPTR2PopupModal(pos, size,
 						entry.title.c_str(), &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
 				{
 					ImGui::PushStyleColor(ImGuiCol_Text, UIBackgroundTextColor);
@@ -6923,16 +6986,16 @@ void FullscreenUI::DrawSaveStateSelector(bool is_loading)
 					if (!closed)
 						QueueResetFocus(FocusResetType::WindowChanged);
 				}
-
-				ImGui::PopStyleColor(4);
-				ImGui::PopStyleVar(3);
-				ImGui::PopFont();
+				ImGuiFullscreen::EndPTR2PopupModal();
+				//ImGui::PopStyleColor(4);
+				//ImGui::PopStyleVar(3);
+				//ImGui::PopFont();
 				ImGuiFullscreen::PopResetLayout();
 
 				if (closed || i >= s_save_state_selector_slots.size())
 					break;
 			}
-
+			*/
 			ImGuiWindow* window = ImGui::GetCurrentWindow();
 			if (window->SkipItems)
 			{
@@ -6969,8 +7032,10 @@ void FullscreenUI::DrawSaveStateSelector(bool is_loading)
 				const ImRect image_rect(CenterImage(ImRect(bb.Min, bb.Min + image_size),
 					ImVec2(static_cast<float>(screenshot->GetWidth()), static_cast<float>(screenshot->GetHeight()))));
 
-				ImGui::GetWindowDrawList()->AddImage(reinterpret_cast<ImTextureID>(screenshot->GetNativeHandle()),
-					image_rect.Min, image_rect.Max, ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), IM_COL32(255, 255, 255, 255));
+				ImGui::GetWindowDrawList()->AddImageRounded(reinterpret_cast<ImTextureID>(screenshot->GetNativeHandle()),
+					image_rect.Min, image_rect.Max, ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), IM_COL32(255, 255, 255, 255), LayoutScale(15.0f));
+
+				//ImGui::GetWindowDrawList()->AddRect(image_rect.Min, image_rect.Max, yellowcol, LayoutScale(15.0), 0, LayoutScale(15.0));
 
 				const ImVec2 title_pos(bb.Min.x, bb.Min.y + image_height + title_spacing);
 				const ImRect title_bb(title_pos, ImVec2(bb.Max.x, title_pos.y + g_large_font->FontSize));
@@ -7005,30 +7070,30 @@ void FullscreenUI::DrawSaveStateSelector(bool is_loading)
 					s_save_state_selector_submenu_index = static_cast<s32>(i);
 				}
 			}
-
 			grid_x++;
 			if (grid_x == grid_count_x)
 			{
 				grid_x = 0;
-				ImGui::SetCursorPosX(start_x);
+				ImGui::SetCursorPosX(0.0f);//start_x > 0 ? start_x : 0.0f);
 				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + item_spacing);
 			}
 			else
 			{
-				ImGui::SameLine(start_x + static_cast<float>(grid_x) * (item_width + item_spacing));
+				ImGui::SameLine(/* start_x + */ static_cast<float>(grid_x) * (item_width + item_spacing));
 			}
 
 			i++;
 		}
 
 		EndMenuButtons();
-		ImGui::EndChild();
-	}
+		//ImGui::EndChild();
+	
 
 	ImGui::PopStyleColor();
 
+	ImGuiFullscreen::EndPTR2PopupModal();
 	ImGui::EndPopup();
-	ImGui::PopStyleVar(5);
+	//ImGui::PopStyleVar(5);
 
 	if (!close_handled && WantsToCloseMenu())
 	{

@@ -47,6 +47,10 @@ namespace ImGuiFullscreen
 	extern ImFont* g_medium_font;
 	extern ImFont* g_large_font;
 
+	extern ImVec2 s_display_size;
+	extern ImVec2 s_game_size;
+	extern ImVec2 s_window_padding;
+
 	extern float g_layout_scale;
 	extern float g_rcp_layout_scale;
 	extern float g_layout_padding_left;
@@ -111,6 +115,7 @@ namespace ImGuiFullscreen
 	void UploadAsyncTextures();
 
 	void BeginLayout();
+	void DrawPopupsModals();
 	void EndLayout();
 
 	void PushResetLayout();
@@ -152,6 +157,9 @@ namespace ImGuiFullscreen
 		ImGuiWindowFlags flags = 0);
 	void EndFullscreenWindow();
 
+	bool BeginPTR2PopupModal(ImVec2 win_pos, ImVec2 win_size, const char* name, bool* p_open, ImGuiWindowFlags flags);
+	void EndPTR2PopupModal();
+
 	bool IsGamepadInputSource();
 	void CreateFooterTextString(SmallStringBase& dest, std::span<const std::pair<const char*, std::string_view>> items);
 	void SetFullscreenFooterText(std::string_view text);
@@ -171,9 +179,11 @@ namespace ImGuiFullscreen
 	bool MenuHeadingButton(const char* title, const char* value = nullptr, bool enabled = true, bool draw_line = true);
 	bool ActiveButton(const char* title, bool is_active, bool enabled = true, float height = LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY,
 		ImFont* font = g_large_font);
+	bool ActiveButtonCenter(const char* title, bool is_active, bool enabled = true, float height = LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY,
+		ImFont* font = g_large_font);
 	bool ActiveButtonWithRightText(const char* title, const char* right_title, bool is_active, bool enabled = true,
-		float height = LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY, ImFont* font = g_large_font);
-	bool MenuButton(const char* title, const char* summary, bool enabled = true, float height = LAYOUT_MENU_BUTTON_HEIGHT,
+		float height = LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY, ImFont* font = g_large_font, bool centered = false);
+	bool MenuButton(const char* title, const char* summary, bool enabled = true, float height = LAYOUT_MENU_BUTTON_HEIGHT, bool outline = true,
 		ImFont* font = g_large_font, ImFont* summary_font = g_medium_font);
 	bool MenuButtonWithoutSummary(const char* title, bool enabled = true, float height = LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY,
 		ImFont* font = g_large_font, const ImVec2& text_align = ImVec2(0.0f, 0.0f));
