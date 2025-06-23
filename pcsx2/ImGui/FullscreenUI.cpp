@@ -2017,6 +2017,7 @@ void FullscreenUI::DrawIntRangeSetting(SettingsInterface* bsi, const char* title
 			ImGui::CloseCurrentPopup();
 		}
 		EndMenuButtons();
+		ImGui::PopStyleColor();
 		ImGui::EndPopup();
 	}
 	ImGuiFullscreen::EndPTR2PopupModal();
