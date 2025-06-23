@@ -1699,8 +1699,10 @@ void FullscreenUI::DrawInputBindingButton(
 
 		ImGui::RenderTextClipped(title_bb.Min, title_bb.Max, show_type ? title.c_str() : display_name, nullptr, nullptr,
 			ImVec2(0.0f, 0.0f), &title_bb);
+		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetColorU32(ImGuiCol_Tab));
 		ImGui::RenderTextClipped(bb.Min, bb.Max, value.empty() ? FSUI_CSTR("-") : value.c_str(), nullptr, &value_size,
 			ImVec2(1.0f, 0.5f), &bb);
+		ImGui::PopStyleColor();
 		ImGui::PopFont();
 	}
 	else
@@ -1717,8 +1719,10 @@ void FullscreenUI::DrawInputBindingButton(
 		ImGui::PopFont();
 
 		ImGui::PushFont(g_medium_font);
+		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetColorU32(ImGuiCol_Tab));
 		ImGui::RenderTextClipped(summary_bb.Min, summary_bb.Max, value.empty() ? FSUI_CSTR("No Binding") : value.c_str(),
 			nullptr, nullptr, ImVec2(0.0f, 0.0f), &summary_bb);
+		ImGui::PopStyleColor();
 		ImGui::PopFont();
 	}
 
