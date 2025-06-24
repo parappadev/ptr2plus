@@ -196,6 +196,10 @@ void MainWindow::setupAdditionalUi()
 	makeIconsMasks(menuBar());
 	updateAdvancedSettingsVisibility();
 
+	//ptr2plus - hide menubar, make it a togglable setting
+	const bool menubar_visible = Host::GetBaseBoolSettingValue("UI", "ShowMenubar", false);
+	m_ui.menuBar->setVisible(menubar_visible);
+
 	const bool toolbar_visible = Host::GetBaseBoolSettingValue("UI", "ShowToolbar", false);
 	m_ui.actionViewToolbar->setChecked(toolbar_visible);
 	m_ui.toolBar->setVisible(toolbar_visible);

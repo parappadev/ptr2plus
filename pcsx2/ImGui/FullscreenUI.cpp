@@ -4187,7 +4187,10 @@ void FullscreenUI::DrawInterfaceSettingsPage()
 	BeginMenuButtons();
 
 	MenuHeading(FSUI_CSTR("Behaviour"));
-
+	//todo figure out how to not make restart required
+	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_INFO, "Show Menu Bar (Restart Required)"),
+		FSUI_CSTR("Shows the PCSX2 menu bar. (In windowed mode only)"), "UI",
+		"ShowMenubar", false);
 	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_PF_SNOOZE, "Inhibit Screensaver"),
 		FSUI_CSTR("Prevents the screen saver from activating and the host from sleeping while emulation is running."), "EmuCore",
 		"InhibitScreensaver", true);
