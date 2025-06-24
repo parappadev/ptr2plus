@@ -264,6 +264,7 @@ bool GameListWidget::getShowGridCoverTitles() const
 
 void GameListWidget::refresh(bool invalidate_cache)
 {
+	/*
 	cancelRefresh();
 
 	m_refresh_thread = new GameListRefreshThread(invalidate_cache);
@@ -272,10 +273,12 @@ void GameListWidget::refresh(bool invalidate_cache)
 	connect(m_refresh_thread, &GameListRefreshThread::refreshComplete, this, &GameListWidget::onRefreshComplete,
 		Qt::QueuedConnection);
 	m_refresh_thread->start();
+	*/
 }
 
 void GameListWidget::cancelRefresh()
 {
+	/*
 	if (!m_refresh_thread)
 		return;
 
@@ -285,6 +288,7 @@ void GameListWidget::cancelRefresh()
 	// Cancelling might not be instant if we're say, scanning a gzip dump. Wait until it's done.
 	while (m_refresh_thread)
 		QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 1);
+	*/
 }
 
 void GameListWidget::reloadThemeSpecificImages()

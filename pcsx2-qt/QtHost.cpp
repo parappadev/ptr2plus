@@ -2326,7 +2326,12 @@ int main(int argc, char* argv[])
 	// Bail out if we can't find any config.
 	if (!QtHost::InitializeConfig())
 		return EXIT_FAILURE;
-
+	
+	// ptr2plus - setup to boot ptr2
+	std::shared_ptr<VMBootParameters> ptr2_params = std::make_shared<VMBootParameters>();
+	ptr2_params->fast_boot = true;
+	ptr2_params->source_type = CDVD_SourceType::NoDisc;
+	ptr2_params->elf_override = Path::Combine(EmuFolders::PTR2, "SCPS_150.17");
 	// Are we just setting up the configuration?
 	if (s_test_config_and_exit)
 		return EXIT_SUCCESS;
@@ -2357,11 +2362,13 @@ int main(int argc, char* argv[])
 	g_main_window = new MainWindow();
 	g_main_window->initialize();
 
+	/*
 	// When running in batch mode, ensure game list is loaded, but don't scan for any new files.
 	if (!s_batch_mode)
 		g_main_window->refreshGameList(false);
 	else
 		GameList::Refresh(false, true);
+	*/
 
 	// Don't bother showing the window in no-gui mode.
 	if (!s_nogui_mode)
@@ -2380,6 +2387,9 @@ int main(int argc, char* argv[])
 		DebugInterface::setPauseOnEntry(true);
 		g_main_window->openDebugger();
 	}
+
+	//ptr2plus - start ptr2
+	g_emu_thread->startVM(std::move(ptr2_params));
 
 	// Skip the update check if we're booting a game directly.
 	if (autoboot)
