@@ -208,7 +208,7 @@ void MainWindow::setupAdditionalUi()
 	const bool status_bar_visible = Host::GetBaseBoolSettingValue("UI", "ShowStatusBar", true);
 	m_ui.actionViewStatusBar->setChecked(status_bar_visible);
 	m_ui.statusBar->setVisible(status_bar_visible);
-	/*
+	
 	m_game_list_widget = new GameListWidget(getContentParent());
 	m_game_list_widget->initialize();
 	m_ui.actionGridViewShowTitles->setChecked(m_game_list_widget->getShowGridCoverTitles());
@@ -221,7 +221,7 @@ void MainWindow::setupAdditionalUi()
 	{
 		m_ui.mainContainer->addWidget(m_game_list_widget);
 	}
-	*/
+	m_game_list_widget->setVisible(false);
 	m_status_progress_widget = new QProgressBar(m_ui.statusBar);
 	m_status_progress_widget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 	m_status_progress_widget->setFixedSize(140, 16);
@@ -912,7 +912,7 @@ void MainWindow::updateEmulationActions(bool starting, bool running, bool stoppi
 		m_ui.actionVideoCapture->setChecked(false);
 	}
 
-	//m_game_list_widget->setDisabled(starting && !running);
+	m_game_list_widget->setDisabled(starting && !running);
 
 	if (!starting && !running)
 	{
