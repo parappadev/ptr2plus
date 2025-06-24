@@ -1270,8 +1270,10 @@ void Host::RequestVMShutdown(bool allow_confirm, bool allow_save_state, bool def
 
 		// This will probably call shutdownVM() again, but by the time it runs, we'll have already shut down
 		// and it'll be a noop.
-		if (QtHost::InBatchMode())
-			QMetaObject::invokeMethod(g_main_window, "requestExit", Qt::QueuedConnection, Q_ARG(bool, false));
+
+		//ptr2plus - comment this out so that we always exit window when closing game
+		//if (QtHost::InBatchMode()) 
+		QMetaObject::invokeMethod(g_main_window, "requestExit", Qt::QueuedConnection, Q_ARG(bool, false));
 	}
 }
 

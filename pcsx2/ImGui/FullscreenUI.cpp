@@ -1211,7 +1211,7 @@ void FullscreenUI::RequestShutdown(bool save_state)
 		if (result)
 			DoShutdown(save_state);
 
-		ClosePauseMenu();
+		//ClosePauseMenu(); //ptr2plus - dont close pause menu that we don't flick back to gameplay when exiting
 	});
 }
 
