@@ -3,6 +3,7 @@
 
 #include "Achievements.h"
 #include "GS.h"
+#include "GS/Renderers/Common/GSDevice.h"
 #include "Host.h"
 #include "IconsFontAwesome5.h"
 #include "ImGui/FullscreenUI.h"
@@ -85,10 +86,13 @@ static bool CanPause()
 {
 	static constexpr const float PAUSE_INTERVAL = 3.0f;
 	static Common::Timer::Value s_last_pause_time = 0;
-
+	//ptr2plus pause UI uses GS draw rect dimensions, so only allow pausing when the draw rect isnt 0 in either dimension
+	//stops crashing when pausing on startup
+	GSVector2i dRectSize = g_gs_device->GetDrawRectSize();
+	if (dRectSize.x == 0 || dRectSize.y == 0)
+		return false;
 	if (!Achievements::IsHardcoreModeActive() || VMManager::GetState() == VMState::Paused)
 		return true;
-
 	const Common::Timer::Value time = Common::Timer::GetCurrentValue();
 	const float delta = static_cast<float>(Common::Timer::ConvertValueToSeconds(time - s_last_pause_time));
 	if (delta < PAUSE_INTERVAL)
