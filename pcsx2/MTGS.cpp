@@ -962,9 +962,11 @@ void MTGS::ResizeDisplayWindow(int width, int height, float scale)
 
 		// If we're paused, re-present the current frame at the new window size.
 		if (VMManager::GetState() == VMState::Paused)
+		{
 			GSPresentCurrentFrame();
 			//New drawrect calculated in GSPresentCurrentFrame(), so resize imgui
 			GSResizeImGUIOnly(false);
+		}
 		
 	});
 }
