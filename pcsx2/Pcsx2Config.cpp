@@ -639,7 +639,7 @@ void Pcsx2Config::CpuOptions::LoadSave(SettingsWrapper& wrap)
 }
 
 const char* Pcsx2Config::GSOptions::AspectRatioNames[] = {
-	"Stretch",
+	//"Stretch", //ptr2plus, I'm hiding this option because I don't want to rework the imgui UI to be responsive without visual issues
 	"Auto 4:3/3:2",
 	"4:3",
 	"16:9",
