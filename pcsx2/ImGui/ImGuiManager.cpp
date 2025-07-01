@@ -257,7 +257,7 @@ void ImGuiManager::UpdateScale()
 
 	if (!g_gs_device->UpdateImGuiFontTexture())
 		pxFailRel("Failed to recreate font texture after scale+resize");
-	NewFrame();
+	//NewFrame();
 }
 
 void ImGuiManager::NewFrame()
