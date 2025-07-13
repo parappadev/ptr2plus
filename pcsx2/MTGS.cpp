@@ -964,10 +964,9 @@ void MTGS::ResizeDisplayWindow(int width, int height, float scale)
 		if (VMManager::GetState() == VMState::Paused)
 		{
 			GSPresentCurrentFrame();
-			//New drawrect calculated in GSPresentCurrentFrame(), so resize imgui
-			GSResizeImGUIOnly(false);
 		}
-		
+		//ptr2plus - resize imgui
+		GSResizeImGUIOnly(false);
 	});
 }
 
