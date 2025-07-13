@@ -890,7 +890,9 @@ void FullscreenUI::Render()
 	{
 		//ImGuiFullscreen::UpdateLayoutScale();
 		//float old_scale = ImGuiManager::s_global_scale;
+		ImGui::EndFrame(); // can't do this in the middle of a frame
 		ImGuiManager::UpdateScale();
+		ImGuiManager::NewFrame();
 		ImGuiManager::s_need_layout_update = false;
 	}
 	ImGuiFullscreen::BeginLayout();

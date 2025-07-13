@@ -250,14 +250,13 @@ void ImGuiManager::UpdateScale()
 	s_global_scale = scale;
 	SetStyle();
 
-	// can't do this in the middle of a frame
-	ImGui::EndFrame();
+	
 	if (!AddImGuiFonts(HasFullscreenFonts()))
 		pxFailRel("Failed to create ImGui font text");
 
 	if (!g_gs_device->UpdateImGuiFontTexture())
 		pxFailRel("Failed to recreate font texture after scale+resize");
-	//NewFrame();
+	
 }
 
 void ImGuiManager::NewFrame()
