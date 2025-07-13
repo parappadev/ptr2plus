@@ -532,7 +532,7 @@ bool ImGuiManager::AddIconFonts(float size)
 
 bool ImGuiManager::AddImGuiFonts(bool fullscreen_fonts)
 {
-	const float standard_font_size = std::ceil(6.0f * s_global_scale);
+	const float standard_font_size = std::ceil(15.0f * s_global_scale);
 
 	ImGuiIO& io = ImGui::GetIO();
 	io.Fonts->Clear();
