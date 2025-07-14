@@ -3072,7 +3072,8 @@ void FullscreenUI::SwitchToPTR2Settings()
 {
 	if (s_current_disc_serial.empty() || s_current_disc_crc == 0)
 		return;
-
+	SwitchToPTR2Settings(s_current_disc_serial, s_current_disc_crc);
+	return;
 	auto lock = GameList::GetLock();
 	const GameList::Entry* entry = GameList::GetEntryForPath(s_current_disc_path.c_str());
 	if (!entry)
@@ -3080,6 +3081,7 @@ void FullscreenUI::SwitchToPTR2Settings()
 
 	if (entry)
 		SwitchToPTR2Settings(entry);
+	
 }
 void FullscreenUI::SwitchToGameSettings()
 {

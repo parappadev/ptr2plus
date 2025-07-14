@@ -232,11 +232,11 @@ enum class DebugFunctionScanMode
 
 enum class AspectRatioType : u8
 {
-	Stretch,
 	RAuto4_3_3_2,
 	R4_3,
 	R16_9,
 	R10_7,
+	Stretch,
 	MaxCount
 };
 
