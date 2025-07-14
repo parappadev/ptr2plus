@@ -217,7 +217,6 @@ namespace FullscreenUI
 	{
 		Mods,
 		ModPriority,
-		Textures,
 		Quick,
 		Summary,
 		Interface,
@@ -3519,7 +3518,7 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 		static constexpr float ITEM_WIDTH = 25.0f;
 
 		static constexpr const char* pcsx2_settings_icons[] = {ICON_FA_TV, ICON_PF_MICROCHIP, ICON_PF_GEARS_OPTIONS_SETTINGS,
-			ICON_PF_PICTURE, ICON_PF_SOUND, ICON_PF_MEMORY_CARD, ICON_PF_GAMEPAD_ALT, ICON_PF_KEYBOARD_ALT, ICON_FA_TROPHY,
+			ICON_PF_SOUND, ICON_PF_MEMORY_CARD, ICON_PF_GAMEPAD_ALT, ICON_PF_KEYBOARD_ALT, ICON_FA_TROPHY,
 			ICON_FA_FOLDER_OPEN, ICON_FA_EXCLAMATION_TRIANGLE};
 		//static constexpr const char* per_game_icons[] = {ICON_FA_PARAGRAPH, ICON_FA_SLIDERS_H, ICON_FA_MICROCHIP,
 		//	ICON_FA_FROWN, ICON_FA_MAGIC, ICON_FA_HEADPHONES, ICON_FA_SD_CARD, ICON_FA_GAMEPAD, ICON_FA_BAN};
@@ -3539,10 +3538,9 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 		static constexpr SettingsPage ptr2_pages[] = { SettingsPage::Quick,
 			SettingsPage::Patches, SettingsPage::Cheats, SettingsPage::Controller};
 
-		static constexpr SettingsPage mods_pages[] = {SettingsPage::Mods, SettingsPage::ModPriority,
-			SettingsPage::Textures};
+		static constexpr SettingsPage mods_pages[] = {SettingsPage::Mods, SettingsPage::ModPriority};
 
-		static constexpr const char* titles[] = {"Mods", "Mod Priority", "Texture Packs", "Quick Settings", FSUI_NSTR("Summary"), FSUI_NSTR("Interface Settings"), FSUI_NSTR("BIOS Settings"),
+		static constexpr const char* titles[] = {"Mods", "Mod Priority", "Quick Settings", FSUI_NSTR("Summary"), FSUI_NSTR("Interface Settings"), FSUI_NSTR("BIOS Settings"),
 			FSUI_NSTR("Emulation Settings"), FSUI_NSTR("Graphics Settings"), FSUI_NSTR("Audio Settings"), FSUI_NSTR("Memory Card Settings"),
 			FSUI_NSTR("Controller Settings"), FSUI_NSTR("Hotkey Settings"), FSUI_NSTR("Achievements Settings"),
 			FSUI_NSTR("Folder Settings"), FSUI_NSTR("Advanced Settings"), FSUI_NSTR("Patches"), FSUI_NSTR("Cheats"),
@@ -3701,10 +3699,6 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 				break;
 			case SettingsPage::ModPriority:
 				DrawModsPriorityPage();
-				break;
-
-			case SettingsPage::Textures:
-				DrawTexturePacksPage();
 				break;
 
 			case SettingsPage::Quick:
