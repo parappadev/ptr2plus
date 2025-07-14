@@ -3133,8 +3133,8 @@ void VMManager::WarnAboutUnsafeSettings()
 		messages += '\n';
 	};
 
-	if (EmuConfig.Speedhacks.fastCDVD)
-		append(ICON_FA_COMPACT_DISC, TRANSLATE_SV("VMManager", "Fast CDVD is enabled, this may break games."));
+	//if (EmuConfig.Speedhacks.fastCDVD)
+	//	append(ICON_FA_COMPACT_DISC, TRANSLATE_SV("VMManager", "Fast CDVD is enabled, this may break games."));
 	if (EmuConfig.Speedhacks.EECycleRate != 0 || EmuConfig.Speedhacks.EECycleSkip != 0)
 	{
 		append(ICON_FA_TACHOMETER_ALT,
@@ -3150,11 +3150,11 @@ void VMManager::WarnAboutUnsafeSettings()
 			append(ICON_FA_TV,
 				TRANSLATE_SV("VMManager", "Upscale multiplier is below native, this will break rendering."));
 		}
-		if (EmuConfig.GS.TriFilter != TriFiltering::Automatic)
+		/* if (EmuConfig.GS.TriFilter != TriFiltering::Automatic)
 		{
 			append(ICON_FA_PAGER,
 				TRANSLATE_SV("VMManager", "Trilinear filtering is not set to automatic. This may break rendering in some games."));
-		}
+		}*/
 		if (EmuConfig.GS.AccurateBlendingUnit <= AccBlendLevel::Minimum)
 		{
 			append(ICON_FA_PAINT_BRUSH,
@@ -3190,7 +3190,7 @@ void VMManager::WarnAboutUnsafeSettings()
 			append(ICON_FA_IMAGES,
 				TRANSLATE_SV("VMManager", "Mipmapping is disabled. This may break rendering in some games."));
 		}
-		static bool render_change_warn = false;
+		/*static bool render_change_warn = false;
 		if (EmuConfig.GS.Renderer != GSRendererType::Auto && EmuConfig.GS.Renderer != GSRendererType::SW && !render_change_warn)
 		{
 			// show messagesbox
@@ -3198,14 +3198,14 @@ void VMManager::WarnAboutUnsafeSettings()
 
 			append(ICON_FA_EXCLAMATION_CIRCLE,
 				TRANSLATE_SV("VMManager", "Renderer is not set to Automatic. This may cause performance problems and graphical issues."));
-		}
+		}*/
 	}
-	if (EmuConfig.GS.TextureFiltering != BiFiltering::PS2)
+	/* if (EmuConfig.GS.TextureFiltering != BiFiltering::PS2)
 	{
 		append(ICON_FA_FILTER,
 			TRANSLATE_SV("VMManager",
 				"Texture filtering is not set to Bilinear (PS2). This will break rendering in some games."));
-	}
+	}*/
 	if (EmuConfig.Cpu.FPUFPCR.GetRoundMode() != FPRoundMode::ChopZero)
 	{
 		append(ICON_PF_MICROCHIP,
@@ -3239,7 +3239,7 @@ void VMManager::WarnAboutUnsafeSettings()
 		append(ICON_PF_MICROCHIP,
 			TRANSLATE_SV("VMManager", "128MB RAM is enabled. Compatibility with some games may be affected."));
 	}
-	if (!EmuConfig.EnableGameFixes)
+	/* if (!EmuConfig.EnableGameFixes)
 	{
 		append(ICON_FA_GAMEPAD,
 			TRANSLATE_SV("VMManager", "Game Fixes are not enabled. Compatibility with some games may be affected."));
@@ -3249,7 +3249,7 @@ void VMManager::WarnAboutUnsafeSettings()
 		append(ICON_FA_GAMEPAD,
 			TRANSLATE_SV(
 				"VMManager", "Compatibility Patches are not enabled. Compatibility with some games may be affected."));
-	}
+	}*/
 	if (EmuConfig.GS.FramerateNTSC != Pcsx2Config::GSOptions::DEFAULT_FRAME_RATE_NTSC)
 		append(ICON_FA_TV, TRANSLATE_SV("VMManager", "Frame rate for NTSC is not default. This may break some games."));
 	if (EmuConfig.GS.FrameratePAL != Pcsx2Config::GSOptions::DEFAULT_FRAME_RATE_PAL)
