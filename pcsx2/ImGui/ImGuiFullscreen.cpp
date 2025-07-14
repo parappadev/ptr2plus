@@ -428,9 +428,103 @@ void ImGuiFullscreen::TextureLoaderThread()
 	s_texture_load_queue.clear();
 }
 
+//adapted from CalculateDrawDstRect in GSRenderer.cpp
+GSVector2i ImGuiFullscreen::EstimateGameRect()
+{
+	const float f_width = static_cast<float>(g_gs_device->GetWindowWidth());
+	const float f_height = static_cast<float>(g_gs_device->GetWindowHeight());
+	const float clientAr = f_width / f_height;
+
+	float targetAr = clientAr;
+	if (EmuConfig.CurrentAspectRatio == AspectRatioType::RAuto4_3_3_2)
+	{
+		//if (is_progressive)
+		//	targetAr = 3.0f / 2.0f;
+		//else
+		targetAr = 4.0f / 3.0f;
+	}
+	else if (EmuConfig.CurrentAspectRatio == AspectRatioType::R4_3)
+	{
+		targetAr = 4.0f / 3.0f;
+	}
+	else if (EmuConfig.CurrentAspectRatio == AspectRatioType::R16_9)
+	{
+		targetAr = 16.0f / 9.0f;
+	}
+	else if (EmuConfig.CurrentAspectRatio == AspectRatioType::R10_7)
+	{
+		targetAr = 10.0f / 7.0f;
+	}
+
+	const double arr = targetAr / clientAr;
+	float target_width = f_width;
+	float target_height = f_height;
+	if (arr < 1)
+		target_width = std::floor(f_width * arr + 0.5f);
+	else if (arr > 1)
+		target_height = std::floor(f_height / arr + 0.5f);
+
+	target_height *= GSConfig.StretchY / 100.0f;
+
+	float target_x, target_y;
+	if (target_width >= f_width)
+	{
+		target_x = -((target_width - f_width) * 0.5f);
+	}
+	else
+	{
+		target_x = (f_width - target_width) * 0.5f;
+		/*
+		switch (alignment)
+		{
+			case GSDisplayAlignment::Center:
+				
+				break;
+			case GSDisplayAlignment::RightOrBottom:
+				target_x = (f_width - target_width);
+				break;
+			case GSDisplayAlignment::LeftOrTop:
+			default:
+				
+				break;
+		}
+		*/
+	}
+	if (target_height >= f_height)
+	{
+		target_y = -((target_height - f_height) * 0.5f);
+	}
+	else
+	{
+		target_y = (f_height - target_height) * 0.5f;
+		/*
+		switch (alignment)
+		{
+			case GSDisplayAlignment::Center:
+				break;
+			case GSDisplayAlignment::RightOrBottom:
+				target_y = (f_height - target_height);
+				break;
+			case GSDisplayAlignment::LeftOrTop:
+			default:
+				
+				break;
+		}
+		*/
+	}
+
+	GSVector4 ret(target_x, target_y, target_x + target_width, target_y + target_height);
+
+	return GSVector2i(static_cast<s32>(ret.z - ret.x), static_cast<s32>(ret.w - ret.y));
+	
+}
+
 bool ImGuiFullscreen::UpdateLayoutScale()
 {
 	GSVector2i dRectSize = g_gs_device->GetDrawRectSize();
+	if (dRectSize == GSVector2i(0, 0))
+		dRectSize = EstimateGameRect();
+
 	ImVec2 gameSize;
 	gameSize.x = static_cast<float>(dRectSize.x);
 	gameSize.y = static_cast<float>(dRectSize.y);

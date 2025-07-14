@@ -53,8 +53,8 @@ namespace ImGuiManager
 {
 	static void FormatProcessorStat(SmallStringBase& text, double usage, double time);
 	static void DrawPerformanceOverlay(float& position_y, float scale, float margin, float spacing);
-	static void DrawSettingsOverlay(float scale, float margin, float spacing);
-	static void DrawInputsOverlay(float scale, float margin, float spacing);
+	static void DrawSettingsOverlay(float scale, float margin, float margin_y, float spacing);
+	static void DrawInputsOverlay(float position_y, float scale, float margin, float spacing);
 	static void DrawInputRecordingOverlay(float& position_y, float scale, float margin, float spacing);
 	static void DrawVideoCaptureOverlay(float& position_y, float scale, float margin, float spacing);
 } // namespace ImGuiManager
@@ -369,7 +369,7 @@ __ri void ImGuiManager::DrawPerformanceOverlay(float& position_y, float scale, f
 #undef DRAW_LINE
 }
 
-__ri void ImGuiManager::DrawSettingsOverlay(float scale, float margin, float spacing)
+__ri void ImGuiManager::DrawSettingsOverlay(float scale, float margin, float margin_y, float spacing)
 {
 	if (!GSConfig.OsdShowSettings ||
 		FullscreenUI::HasActiveWindow())
@@ -492,7 +492,7 @@ __ri void ImGuiManager::DrawSettingsOverlay(float scale, float margin, float spa
 
 	const float shadow_offset = std::ceil(scale);
 	ImFont* font = ImGuiManager::GetFixedFont();
-	const float position_y = GetWindowHeight() - margin - font->FontSize;
+	const float position_y = GetWindowHeight() - margin_y - font->FontSize;
 
 	ImDrawList* dl = ImGui::GetBackgroundDrawList();
 	ImVec2 text_size =
@@ -504,7 +504,7 @@ __ri void ImGuiManager::DrawSettingsOverlay(float scale, float margin, float spa
 		text.c_str(), text.c_str() + text.length());
 }
 
-__ri void ImGuiManager::DrawInputsOverlay(float scale, float margin, float spacing)
+__ri void ImGuiManager::DrawInputsOverlay(float position_y, float scale, float margin, float spacing)
 {
 	// Technically this is racing the CPU thread.. but it doesn't really matter, at worst, the inputs get displayed onscreen late.
 	if (!GSConfig.OsdShowInputs ||
@@ -535,8 +535,8 @@ __ri void ImGuiManager::DrawInputsOverlay(float scale, float margin, float spaci
 	}
 
 	float current_x = ImFloor(margin);
-	float current_y = ImFloor(display_size.y - margin - ((static_cast<float>(num_ports) * (font->FontSize + spacing)) - spacing));
-	const ImVec4 clip_rect(current_x, current_y, display_size.x - margin, display_size.y);
+	float current_y = ImFloor(display_size.y - position_y - ((static_cast<float>(num_ports) * (font->FontSize + spacing)) - spacing));
+	const ImVec4 clip_rect(current_x, current_y, display_size.x - margin, display_size.y - position_y);
 
 	SmallString text;
 
@@ -1136,16 +1136,17 @@ void SaveStateSelectorUI::ShowSlotOSDMessage()
 void ImGuiManager::RenderOverlays()
 {
 	const float scale = ImGuiManager::GetGlobalScale();
-	const float margin = std::ceil(10.0f * scale);
+	const float margin = std::ceil(10.0f * scale) + ImGuiFullscreen::g_layout_padding_left;
+	const float margin_y = std::ceil(10.0f * scale) + ImGuiFullscreen::g_layout_padding_top;
 	const float spacing = std::ceil(5.0f * scale);
-	float position_y = margin;
+	float position_y = margin_y;
 
 	DrawVideoCaptureOverlay(position_y, scale, margin, spacing);
 	DrawInputRecordingOverlay(position_y, scale, margin, spacing);
 	if (GSConfig.OsdPerformancePos != OsdOverlayPos::None)
 		DrawPerformanceOverlay(position_y, scale, margin, spacing);
-	DrawSettingsOverlay(scale, margin, spacing);
-	DrawInputsOverlay(scale, margin, spacing);
+	DrawSettingsOverlay(scale, margin, margin_y, spacing);
+	DrawInputsOverlay(margin_y, scale, margin, spacing);
 	if (SaveStateSelectorUI::s_open)
 		SaveStateSelectorUI::Draw();
 }

@@ -158,8 +158,8 @@ bool ImGuiManager::Initialize()
 
 	const bool add_fullscreen_fonts = s_fullscreen_ui_was_initialized;
 	pxAssertRel(!FullscreenUI::IsInitialized(), "Fullscreen UI is not initialized on ImGui init");
-	if (add_fullscreen_fonts)
-		ImGuiFullscreen::UpdateLayoutScale();
+	//if (add_fullscreen_fonts)
+	ImGuiFullscreen::UpdateLayoutScale();
 
 	if (!AddImGuiFonts(add_fullscreen_fonts) || !g_gs_device->UpdateImGuiFontTexture())
 	{
@@ -244,7 +244,7 @@ void ImGuiManager::UpdateScale()
 	const float window_scale = g_gs_device ? g_gs_device->GetWindowScale() : 1.0f;
 	const float scale = std::max(window_scale * (EmuConfig.GS.OsdScale / 100.0f), 0.5f);
 
-	if ((!HasFullscreenFonts() || !ImGuiFullscreen::UpdateLayoutScale()) && scale == s_global_scale)
+	if ((!ImGuiFullscreen::UpdateLayoutScale()) && scale == s_global_scale)
 		return;
 
 	s_global_scale = scale;
@@ -532,7 +532,9 @@ bool ImGuiManager::AddIconFonts(float size)
 
 bool ImGuiManager::AddImGuiFonts(bool fullscreen_fonts)
 {
-	const float standard_font_size = std::ceil(15.0f * s_global_scale);
+	float standard_font_size = std::ceil(ImGuiFullscreen::LayoutScale(15.0f * s_global_scale));
+	if (standard_font_size < 9.0f)
+		standard_font_size = 9.0f;
 
 	ImGuiIO& io = ImGui::GetIO();
 	io.Fonts->Clear();
@@ -726,12 +728,12 @@ void ImGuiManager::DrawOSDMessages(Common::Timer::Value current_time)
 	ImFont* const font = ImGui::GetFont();
 	const float scale = s_global_scale;
 	const float spacing = std::ceil(5.0f * scale);
-	const float margin = std::ceil(10.0f * scale);
+	const float margin = std::ceil(10.0f * scale) + ImGuiFullscreen::g_layout_padding_left;
 	const float padding = std::ceil(8.0f * scale);
 	const float rounding = std::ceil(5.0f * scale);
 	const float max_width = s_window_width - (margin + padding) * 2.0f;
 	float position_x = GSConfig.OsdMessagesPos == OsdOverlayPos::TopRight ? GetWindowWidth() - margin : margin;
-	float position_y = margin;
+	float position_y = std::ceil(10.0f * scale) + ImGuiFullscreen::g_layout_padding_top;
 
 	auto iter = s_osd_active_messages.begin();
 	while (iter != s_osd_active_messages.end())

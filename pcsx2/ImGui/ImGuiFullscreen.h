@@ -102,6 +102,7 @@ namespace ImGuiFullscreen
 	void SetTheme(bool light);
 	void SetFonts(ImFont* standard_font, ImFont* medium_font, ImFont* large_font);
 	bool UpdateLayoutScale();
+	GSVector2i EstimateGameRect();
 
 	/// Shuts down, optionally clearing all state (including notifications).
 	void Shutdown(bool clear_state);
