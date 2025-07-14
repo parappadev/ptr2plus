@@ -24,4 +24,5 @@ extern bool StartUpApplyActiveMods();
 extern bool toggleMod(std::string filename, bool state);
 extern bool installMod(std::string filename);
 
+extern bool IsP2M(const char* filename);
 extern bool IsP2M(const char* filename, std::string& title, std::string& author, std::string& description, bool& enabled);

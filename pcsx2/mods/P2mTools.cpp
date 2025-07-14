@@ -16,6 +16,8 @@
 #include "common/SettingsInterface.h"
 using namespace PTR2;
 
+bool IsP2M(const char* filename);
+
 bool files_to_delete;
 std::string g_loading = "";
 #pragma pack(push, 1)
@@ -376,13 +378,17 @@ bool parseP2MHeader(FILE* stream, p2m_header& hd)
 
 	u32 p2m_magic;
 	std::fread(&p2m_magic, 4, 1, stream);
-	if (p2m_magic != 290271824) //its not a p2m file!!!
+	if (p2m_magic != 290271824)
+	{ //its not a p2m file!!!
+		Host::AddKeyedOSDMessage("bad_p2m_warning", "Invalid P2M file.", Host::OSD_WARNING_DURATION);
 		return false;
+	}
 	u16 p2m_version;
 	std::fread(&p2m_version, 2, 1, stream);
 
 	if (p2m_version < 3) //backwards compatibility
 	{
+		Host::AddKeyedOSDMessage("bad_p2m_warning", "Unsupported P2M version. Please use a v3 P2M.", Host::OSD_WARNING_DURATION);
 		return false;
 		//p2m v1, v2 have a bug where all file.type are put down as 0
 		//a workaround could be made with manually reading the file extensions from the path
@@ -399,6 +405,7 @@ bool parseP2MHeader(FILE* stream, p2m_header& hd)
 	}
 	else if (p2m_version > 3) //FUTURE! FUUTUUURE! FUUUUTUUUURE!
 	{
+		Host::AddKeyedOSDMessage("bad_p2m_warning", "Unsupported P2M version. Please use a v3 P2M.", Host::OSD_WARNING_DURATION);
 		return false;
 	}
 	else
@@ -448,9 +455,10 @@ mod_file GetP2MFile(FILE* stream, p2m_header& hd, int index)
 }
 std::vector<mod_file> GetP2MFiles(FILE* stream, p2m_header& hd)
 {
-	parseP2MHeader(stream, hd);
-
+	
 	std::vector<mod_file> files;
+	if (!parseP2MHeader(stream, hd))
+		return files;
 
 	for (int i = 0; i < hd.file_count; i++)
 	{
@@ -1064,6 +1072,7 @@ bool disableModEntry(std::string path)
 	UnPatchELFPath(path); 
 	return true;
 }
+
 bool installMod(std::string file_path)
 {
 	g_loading = file_path;
@@ -1072,13 +1081,22 @@ bool installMod(std::string file_path)
 	std::string p2m_dest_path = Path::Combine(EmuFolders::PTR2InstalledMods, mod);
 	if (FileSystem::FileExists(p2m_dest_path.c_str()))
 	{
-		return false; //todo error mod with that name already exists...
+		if ( IsP2M(file_path.c_str()) )
+		{
+			Host::AddKeyedOSDMessage("bad", "Error: A mod with that name has already been installed.", Host::OSD_WARNING_DURATION);
+		}
+		g_loading = "";
+		return false;
 	}
 	//todo: available space on disk error handle or check
 	
 	//Copy .P2M to installed mods folder
 	if (!FileSystem::CopyFilePath(file_path.c_str(), p2m_dest_path.c_str(), false))
+	{
+		Host::AddKeyedOSDMessage("bad_copy", "Error copying P2M to /mods, does it already exist?", Host::OSD_WARNING_DURATION);
+		g_loading = "";
 		return false;
+	}
 
 	const auto fp = FileSystem::OpenManagedCFile(p2m_dest_path.c_str(), "rb");
 
@@ -1086,12 +1104,22 @@ bool installMod(std::string file_path)
 
 	//get files of mod
 	std::vector<mod_file> files = GetP2MFiles(fp.get(), hd);
-
+	if (files.empty())
+	{
+		g_loading = "";
+		return false;
+	}
+		
 	/// extract mod files
 	for (mod_file file : files)
 	{
 		//extract file to install folder at mods/[modname]
-		CopyModFileFromP2M(fp.get(), file, mod, false);
+		if (!CopyModFileFromP2M(fp.get(), file, mod, false))
+		{
+			Host::AddKeyedOSDMessage("bad_p2m_extract", "Error extracting file from P2M to /mods, does it already exist?", Host::OSD_WARNING_DURATION);
+			g_loading = "";
+			return false;
+		}
 	}
 
 	//if there are texture replacements
@@ -1138,14 +1166,22 @@ bool toggleMod(std::string filename, bool enable)
 			FileSystem::EnsureDirectoryExists(dest_dir.c_str(), true);
 
 			if (!FileSystem::RenamePath(fd.FileName.c_str(), dest_path.c_str()))
-				return false; //todo error handling
-
+			{
+				Host::AddKeyedOSDMessage("error_enable", "Unable to enable mod - leave the stage first.", Host::OSD_WARNING_DURATION);
+				g_loading = "";
+				return false;
+			}
 
 			//std::string extension = StringUtil::toUpper(Path::GetExtension(rel_path));
 			//if (extension != "WP2" && extension != "INT" && extension != "OLM" && extension != "XTR")
 			if (!isIntAssetCheap(rel_path))
 			{
-				PatchELFPath(rel_path, false, false);
+				if (!PatchELFPath(rel_path, false, false))
+				{
+					Host::AddKeyedOSDMessage("error_enable", "Critical Error: Unable to patch ELF memory.", Host::OSD_WARNING_DURATION);
+					g_loading = "";
+					return false;
+				}
 			}
 			std::pair<std::string, std::string> entry(rel_path, mod);
 			//ActiveMods::Add(entry);
@@ -1214,12 +1250,22 @@ bool toggleMod(std::string filename, bool enable)
 			{
 				//addDeleteEntry(file.path);
 				//files_to_delete = true;
+				{
+					Host::AddKeyedOSDMessage("error_disable", "Unable to disable mod - leave the stage first.", Host::OSD_WARNING_DURATION);
+					g_loading = "";
+					return false;
+				}
 			}
 
 			//if (file.type == isoFile)
 			if (!isIntAssetCheap(path))
 			{
-				UnPatchELFPath(path);
+				if (!UnPatchELFPath(path))
+				{
+					Host::AddKeyedOSDMessage("error_enable", "Critical Error: Unable to unpatch ELF memory.", Host::OSD_WARNING_DURATION);
+					g_loading = "";
+					return false;
+				}
 			}
 		}
 
@@ -1321,7 +1367,38 @@ bool AdjustModPriority(std::string modname, int newIndex)
 	PriorityAdd(modname, newIndex);
 	return RefreshMods();
 }
+bool IsP2M(const char* filename)
+{
+	const auto fp = FileSystem::OpenManagedCFile(filename, "rb");
+	if (!fp)
+	{
+		Host::AddKeyedOSDMessage("bad_open", "Error opening: " + std::string(filename), Host::OSD_WARNING_DURATION);
+		return false;
+	}
 
+	std::string filename_dir = (std::string)Path::StripExtension(filename);
+
+	//e.g if user dumped the p2m in the mods folder when (they shouldn't
+	if (!FileSystem::DirectoryExists(filename_dir.c_str()))
+	{
+		Host::AddKeyedOSDMessage("bad_open", "Error: p2m file already exists: " + std::string(filename), Host::OSD_WARNING_DURATION);
+		return false;
+	}
+
+	//e.g if user dumped the p2m in the mods folder and made an empty folder with the modname (they shouldn't
+	if (FileSystem::DirectoryIsEmpty(filename_dir.c_str()) && !PriorityList::ContainsMod((std::string)Path::GetFileName(filename)))
+	{
+		Host::AddKeyedOSDMessage("bad_open", "Error: invalid install already in " + filename_dir, Host::OSD_WARNING_DURATION);
+		return false;
+	}
+
+	p2m_header hd;
+
+	if (!parseP2MHeader(fp.get(), hd))
+		return false;
+
+	return true;
+}
 bool IsP2M(const char* filename, std::string& title, std::string& author, std::string& description, bool& enabled)
 {
 	const auto fp = FileSystem::OpenManagedCFile(filename, "rb");
