@@ -4117,7 +4117,7 @@ void FullscreenUI::DrawQuickSettingsPage()
 		"0"
 	};
 
-	SettingsInterface* bsi = GetEditingSettingsInterface();
+	SettingsInterface* bsi = Host::Internal::GetBaseSettingsLayer();
 
 	const GSRendererType renderer =
 		static_cast<GSRendererType>(GetEffectiveIntSetting(bsi, "EmuCore/GS", "Renderer", static_cast<int>(GSRendererType::Auto)));
