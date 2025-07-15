@@ -157,11 +157,13 @@ void PrHookManager::INT_Loader()
 		Console.WriteLn("[PTR2PLUS] Writing FOLDER: " + g_folder + " to: " + fmt::format("{:#08x}", regs.n.a1.UD[0] + g_cur_address_pp));
 #endif
 	}
+#if defined(PCSX2_DEVBUILD)
 	else
 	{
-#if defined(PCSX2_DEVBUILD)
 		Console.WriteLn(Color_Green, "[PTR2PLUS] RESUMED 'INT_Loader' hook");
 	}
+#endif
+#if defined(PCSX2_DEVBUILD)
 	Console.WriteLn("[PTR2PLUS] INT_Loader: g_current_file: %i", g_current_file);
 	Console.WriteLn("[PTR2PLUS] INT_Loader: g_total_copied: %i", g_total_copied);
 	Console.WriteLn("[PTR2PLUS] INT_Loader: g_cur_address_pp: %i", g_cur_address_pp);
