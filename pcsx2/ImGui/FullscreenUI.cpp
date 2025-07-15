@@ -6498,7 +6498,10 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 	dl->AddImage(reinterpret_cast<ImTextureID>(pausedLogo->GetNativeHandle()), GameBounds(pause_image_rect.Min), GameBounds(pause_image_rect.Max));
 
 //draw ptr2plus version text at top
-	std::string ptr2plus_text = "PTR2 Plus DEV";
+	std::string ptr2plus_text = "PTR2 Plus Alpha 1.0";
+#if defined(PCSX2_DEVBUILD)
+	ptr2plus_text = "PTR2 Plus DEV";
+#endif
 	ImVec2 ptr2plus_text_size(
 		g_large_font->CalcTextSizeA(g_large_font->FontSize - 2, std::numeric_limits<float>::max(), -1.0f, "PTR2 Plus DEV"));
 	ImVec2 ptr2plus_text_pos(s_game_size.x / 2 - ptr2plus_text_size.x / 2, s_window_padding.y);

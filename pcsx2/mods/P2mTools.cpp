@@ -1179,8 +1179,9 @@ bool toggleMod(std::string filename, bool enable)
 				if (!PatchELFPath(rel_path, false, false))
 				{
 					Host::AddKeyedOSDMessage("error_enable", "Critical Error: Unable to patch ELF memory.", Host::OSD_WARNING_DURATION);
-					g_loading = "";
-					return false;
+					//g_loading = "";
+					//return false;
+					//somethings up here
 				}
 			}
 			std::pair<std::string, std::string> entry(rel_path, mod);
@@ -1263,8 +1264,8 @@ bool toggleMod(std::string filename, bool enable)
 				if (!UnPatchELFPath(path))
 				{
 					Host::AddKeyedOSDMessage("error_enable", "Critical Error: Unable to unpatch ELF memory.", Host::OSD_WARNING_DURATION);
-					g_loading = "";
-					return false;
+					//g_loading = "";
+					//return false;
 				}
 			}
 		}
