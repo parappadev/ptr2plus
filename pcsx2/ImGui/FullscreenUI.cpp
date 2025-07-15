@@ -3518,13 +3518,13 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 		static constexpr float ITEM_WIDTH = 25.0f;
 
 		static constexpr const char* pcsx2_settings_icons[] = {ICON_FA_TV, ICON_PF_MICROCHIP, ICON_PF_GEARS_OPTIONS_SETTINGS,
-			ICON_PF_SOUND, ICON_PF_MEMORY_CARD, ICON_PF_GAMEPAD_ALT, ICON_PF_KEYBOARD_ALT, ICON_FA_TROPHY,
+			ICON_PF_PICTURE, ICON_PF_SOUND, ICON_PF_MEMORY_CARD, ICON_PF_GAMEPAD_ALT, ICON_PF_KEYBOARD_ALT, ICON_FA_TROPHY,
 			ICON_FA_FOLDER_OPEN, ICON_FA_EXCLAMATION_TRIANGLE};
 		//static constexpr const char* per_game_icons[] = {ICON_FA_PARAGRAPH, ICON_FA_SLIDERS_H, ICON_FA_MICROCHIP,
 		//	ICON_FA_FROWN, ICON_FA_MAGIC, ICON_FA_HEADPHONES, ICON_FA_SD_CARD, ICON_FA_GAMEPAD, ICON_FA_BAN};
 		static constexpr const char* ptr2_icons[] = {ICON_PF_STAR, ICON_FA_BAND_AID, ICON_FA_INFINITY,
 			ICON_FA_GAMEPAD};
-		static constexpr const char* mods_icons[] = {ICON_FA_SLIDERS_H, ICON_FA_LIST, ICON_FA_IMAGES};
+		static constexpr const char* mods_icons[] = {ICON_FA_SLIDERS_H, ICON_FA_LIST};
 
 		static constexpr SettingsPage pcsx2_settings_pages[] = {SettingsPage::Interface, SettingsPage::BIOS,
 			SettingsPage::Emulation, SettingsPage::Graphics, SettingsPage::Audio, SettingsPage::MemoryCard,
