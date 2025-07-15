@@ -1,6 +1,48 @@
 #include <pcsx2/Config.h>
 #include <pcsx2/vtlb.h>
 #include "GS/Renderers/Common/GSDevice.h"
+#include <common/Path.h>
+#include <common/FileSystem.h>
+
+//hostfs loading patch
+void HostFSPatch()
+{
+	const std::string patch_filename = Path::Combine(EmuFolders::Resources, "hostfspatch.bin");
+	const auto fp = FileSystem::OpenManagedCFile(patch_filename.c_str(), "rb");
+	if (!fp)
+		return;
+	FILE* stream = fp.get();
+	std::fseek(stream, 0, SEEK_SET);
+
+	char buf[368] = {};
+	std::fread(&buf, 368, 1, stream);
+
+	char buf2[3264] = {};
+	std::fread(&buf2, 3264, 1, stream);
+
+	vtlb_memSafeWriteBytes(0x0038fb70, &buf, 368);
+	vtlb_memSafeWriteBytes(0x0038fdd0, &buf2, 3264);
+
+	//bnel v0,s2 -> beq zero zero //force this branch
+	char buf3[4] = {0x09, 0x00, 0x00, 0x10};
+	vtlb_memSafeWriteBytes(0x00105240, &buf3, 4);
+
+	//bne v1,v0 -> beq zero zero //force this branch
+	char buf4[4] = {0x22, 0x00, 0x00, 0x10};
+	vtlb_memSafeWriteBytes(0x001052F4, &buf4, 4);
+
+	//bne v1,zero -> nop
+	char buf5[4] = {0x00, 0x00, 0x00, 0x00};
+	vtlb_memSafeWriteBytes(0x00105E9C, &buf5, 4);
+
+	//bnel v1,zero -> nop
+	char buf6[4] = {0x00, 0x00, 0x00, 0x00};
+	vtlb_memSafeWriteBytes(0x00106048, &buf6, 4);
+
+	//bne v1,zero -> nop
+	char buf7[4] = {0x00, 0x00, 0x00, 0x00};
+	vtlb_memSafeWriteBytes(0x0010663C, &buf7, 4);
+}
 
 // Reactive Aspect Ratio Patch
 // This one won't be visible in UI
@@ -105,6 +147,7 @@ void createAsyncFunc()
 
 void ReloadEmuPatches()
 {
+	HostFSPatch();
 	createAsyncFunc();
 	PTR2AspectRatioSet();
 }
