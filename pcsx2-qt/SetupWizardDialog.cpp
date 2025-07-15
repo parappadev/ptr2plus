@@ -770,7 +770,7 @@ void SetupWizardDialog::extractPTR2Files()
 	}
 	IsoReader isor;
 	//Hardcode as this is const
-	const int iso_filedb_count = 4;
+	const int iso_filedb_count = 144;
 
 	std::string extract_path = m_ui.ptr2Directory->text().toStdString();
 
