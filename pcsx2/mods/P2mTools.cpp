@@ -561,6 +561,7 @@ bool ELFfilenameFound(u32 mem, std::string filename)
 	std::string str(dst);
 
 	filename = StringUtil::toUpper(filename);
+	str = StringUtil::toUpper(str);
 
 	if (str.find(filename) != std::string::npos)
 	{
