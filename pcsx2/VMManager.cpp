@@ -3307,6 +3307,7 @@ void VMManager::WarnAboutUnsafeSettings()
 	if (!EmuConfig.Cpu.Recompiler.EnableFastmem)
 		append(ICON_FA_EXCLAMATION_CIRCLE, TRANSLATE_SV("VMManager", "Fastmem is not enabled, this will reduce performance."));
 	if (!EmuConfig.Speedhacks.vu1Instant)
+	if (EmuConfig.Speedhacks.vuThread)
 	{
 		append(ICON_FA_EXCLAMATION_CIRCLE,
 			TRANSLATE_SV("VMManager", "MTVU (Multi-Threaded VU1) is enabled, this will break visuals in PaRappa 2 (black box, noodles)"));
@@ -3315,6 +3316,7 @@ void VMManager::WarnAboutUnsafeSettings()
 	{
 		append(ICON_FA_EXCLAMATION_CIRCLE,
 			TRANSLATE_SV("VMManager", "Instant VU! is enabled, this will break visuals in PaRappa 2 (black box, noodles)"));
+			TRANSLATE_SV("VMManager", "Instant VU1 is enabled, this will break visuals in PaRappa 2 (black box, noodles)"));
 	}
 	if (!EmuConfig.Speedhacks.vuFlagHack)
 	{
