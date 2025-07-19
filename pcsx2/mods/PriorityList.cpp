@@ -131,7 +131,6 @@ bool PriorityList::Save(std::vector<std::string> priority_list)
 		return false;
 
 	const std::string modspriority_filename(GetFilename());
-	FileSystem::DeleteFilePath(modspriority_filename.c_str());
 
 	const auto fp = FileSystem::OpenManagedSharedCFile(modspriority_filename.c_str(), "wb", FileSystem::FileShareMode::DenyNone);
 	u16 file_count = priority_list.size();

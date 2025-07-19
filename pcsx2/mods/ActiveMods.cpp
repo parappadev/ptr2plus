@@ -161,8 +161,6 @@ bool ActiveMods::Save(std::vector<std::pair<std::string, std::string>> activeMod
 
 	const std::string activemods_filename(GetFilename());
 
-	FileSystem::DeleteFilePath(activemods_filename.c_str());
-
 	auto fp = FileSystem::OpenManagedCFile(activemods_filename.c_str(), "wb");
 
 	u16 file_count = activeModCache.size();
