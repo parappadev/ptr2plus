@@ -1,6 +1,6 @@
 #p2m author by pips
-#version 3.-
-#version format = [p2m_version].[p2mauthor_update] e.g 3.2 = second version of p2mauthor for p2m version 3
+#version 4.0
+#version format = [p2m_version].[p2mauthor_update] e.g 3.1 = second version of p2mauthor for p2m version 3
 import os
 import re
 
@@ -60,7 +60,7 @@ if (texInputDir != ""):
     print(texFiles)
 
 p2m_magic = b"\x50\x32\x4D\x11"
-p2m_version = 3
+p2m_version = 4
 
 title_size = len(title)
 author_size = len(author)
@@ -104,12 +104,12 @@ with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), filename), "
     meta_chunk = bytearray(meta_size);
     
     pos = 0;
+    pos = add_bytes(meta_chunk, pos, title_size.to_bytes(1,"little") )
     pos = add_bytes(meta_chunk, pos, str.encode(title))
-    pos = add_bytes(meta_chunk, pos, b"\x00")
+    pos = add_bytes(meta_chunk, pos, author_size.to_bytes(1,"little") )
     pos = add_bytes(meta_chunk, pos, str.encode(author))
-    pos = add_bytes(meta_chunk, pos, b"\x00")
+    pos = add_bytes(meta_chunk, pos, desc_size.to_bytes(1,"little") )
     pos = add_bytes(meta_chunk, pos, str.encode(desc))
-    pos = add_bytes(meta_chunk, pos, b"\x00")
     pos = add_bytes(meta_chunk, pos, (0).to_bytes(padding,"little") )
     
     #create path chunk
@@ -126,8 +126,8 @@ with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), filename), "
     for file in files:
         path = os.path.relpath(file, inputDir)
         path = (path.decode('UTF-8')).replace("/", "\\") #ptr2 uses forward slashes
+        path_pos = add_bytes(path_chunk, path_pos, (len(path)).to_bytes(1,"little"))
         path_pos = add_bytes(path_chunk, path_pos, path.encode())
-        path_pos = add_bytes(path_chunk, path_pos, b"\x00")
     path_pos = add_bytes(path_chunk, path_pos, (0).to_bytes(padding,"little"))
     
     #create type chunk
@@ -198,8 +198,8 @@ with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), filename), "
     for file in texFiles:
         path = os.path.relpath(file, texInputDir)
        #path = (path.decode('UTF-8')).replace("/", "\\") #ptr2 uses forward slashes
+        path_pos = add_bytes(texpath_chunk, path_pos, (len(path)).to_bytes(1,"little"))
         path_pos = add_bytes(texpath_chunk, path_pos, path)
-        path_pos = add_bytes(texpath_chunk, path_pos, b"\x00")
     path_pos = add_bytes(texpath_chunk, path_pos, (0).to_bytes(padding,"little"))
     
     #create tex_sizepos chunk

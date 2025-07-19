@@ -19,57 +19,24 @@ static bool ActiveMods::CacheFileValidation()
 	}
 	return true;
 }
-	/* This would be quicker
+
 bool ActiveMods::ContainsMod(const std::string mod)
 {
-	const std::string activemods_filename(GetFilename());
-
-	const auto fp = FileSystem::OpenManagedCFile(activemods_filename.c_str(), "rb");
-	u16 file_count;
-	if (std::fread(&file_count, 2, 1, fp.get()) != 1)
-		return false;
-
-	//int file_off = sizeof(file_count);
-	for (int i = 0; i < file_count; i++)
+	for (std::pair<std::string, std::string> entry : activeModCache)
 	{
-		std::pair<std::string, std::string> entry;
-		ReadOne(fp.get(), entry);
-
-		if (entry.second == mod)
+		if (StringUtil::compareNoCase(entry.second, mod))
 		{
 			return true;
 		}
 	}
 	return false;
 }
-*/
-bool ActiveMods::ContainsMod(const std::string mod)
-{
-	std::vector<std::string> paths;
-	GetPaths(mod, paths);
-	if (paths.size() > 0)
-		return true;
-	else
-		return false;
-}
+
 bool ActiveMods::GetPaths(const std::string mod, std::vector<std::string>& paths)
 {
-	if (!CacheFileValidation())
-		return false;
-
-	const std::string activemods_filename(GetFilename());
-
-	const auto fp = FileSystem::OpenManagedCFile(activemods_filename.c_str(), "rb");
-	u16 file_count;
-	if (std::fread(&file_count, 2, 1, fp.get()) != 1)
-		return false;
-
-	for (int i = 0; i < file_count; i++)
+	for (std::pair<std::string, std::string> entry : activeModCache)
 	{
-		std::pair<std::string, std::string> entry;
-		ReadOne(fp.get(), entry);
-
-		if(StringUtil::compareNoCase(entry.second, mod))
+		if (StringUtil::compareNoCase(entry.second, mod))
 		{
 			paths.push_back(entry.first);
 		}
@@ -79,21 +46,8 @@ bool ActiveMods::GetPaths(const std::string mod, std::vector<std::string>& paths
 
 bool ActiveMods::GetMod(const std::string path, std::string& mod)
 {
-	if (!CacheFileValidation())
-		return false;
-
-	const std::string activemods_filename(GetFilename());
-
-	const auto fp = FileSystem::OpenManagedCFile(activemods_filename.c_str(), "rb");
-	u16 file_count;
-	if (std::fread(&file_count, 2, 1, fp.get()) != 1)
-		return false;
-
-	for (int i = 0; i < file_count; i++)
+	for (std::pair<std::string, std::string> entry : activeModCache)
 	{
-		std::pair<std::string, std::string> entry;
-		ReadOne(fp.get(), entry);
-
 		if (StringUtil::compareNoCase(entry.first, path))
 		{
 			mod = entry.second;
@@ -103,7 +57,12 @@ bool ActiveMods::GetMod(const std::string path, std::string& mod)
 	return false;
 }
 
-std::vector<std::pair<std::string, std::string>> ActiveMods::GetAll()
+std::vector<std::pair<std::string, std::string>> ActiveMods::Get()
+{
+	return activeModCache;
+}
+
+std::vector<std::pair<std::string, std::string>> ActiveMods::GetFromFile()
 {
 	CacheFileValidation(); //todo: error handling
 	const std::string activemods_filename(GetFilename());
@@ -113,7 +72,8 @@ std::vector<std::pair<std::string, std::string>> ActiveMods::GetAll()
 
 	std::fread(&file_count, sizeof(u16), 1, stream);
 
-	std::vector<std::pair<std::string, std::string>> activeModCache;
+	activeModCache.clear();
+
 	for (int i = 0; i < file_count; i++)
 	{
 		std::pair<std::string, std::string> entry;
@@ -126,40 +86,32 @@ std::vector<std::pair<std::string, std::string>> ActiveMods::GetAll()
 
 bool ActiveMods::RemoveEntry(std::string path)
 {
-	std::vector<std::pair<std::string, std::string>> activeModCache = GetAll();
-	std::vector<std::pair<std::string, std::string>> newActiveModCache;
+	std::erase_if(activeModCache, [path](std::pair<std::string, std::string> x) {
+		if (StringUtil::compareNoCase(x.first, path))
+			return true;
+		else
+			return false;
+	});
 
-	int length = activeModCache.size();
-	for (int i = 0; i < length; i++){
-		if (!StringUtil::compareNoCase(activeModCache[i].first, path))
-		{
-			newActiveModCache.push_back(activeModCache[i]);
-		}
-	}
-	Save(newActiveModCache);
+	Save(activeModCache);
 	return true;
 }
 
 bool ActiveMods::RemoveMod(std::string modname)
 {
-	std::vector<std::pair<std::string, std::string>> activeModCache = GetAll();
-	std::vector<std::pair<std::string, std::string>> newActiveModCache;
+	std::erase_if(activeModCache, [modname](std::pair<std::string, std::string> x) {
+		if (StringUtil::compareNoCase(x.second, modname))
+			return true;
+		else
+			return false;
+	});
 
-	int length = activeModCache.size();
-	for (int i = 0; i < length; i++)
-	{
-		if (!StringUtil::compareNoCase(activeModCache[i].second, modname))
-		{
-			newActiveModCache.push_back(activeModCache[i]);
-		}
-	}
-	Save(newActiveModCache);
+	Save(activeModCache);
 	return true;
 }
 
 bool ActiveMods::AddMultiple(std::vector<std::pair<std::string, std::string>> entries)
 {
-	std::vector<std::pair<std::string, std::string>> activeModCache = GetAll();
 	for (std::pair<std::string, std::string> entry : entries)
 	{
 		activeModCache.push_back(entry);
@@ -170,60 +122,27 @@ bool ActiveMods::AddMultiple(std::vector<std::pair<std::string, std::string>> en
 
 bool ActiveMods::Add(std::pair<std::string, std::string> entry)
 {
-	std::vector<std::pair<std::string, std::string>> activeModCache = GetAll();
 	activeModCache.push_back(entry);
+
 	Save(activeModCache);
 	return true;
 }
-/*  This would be quicker
-bool Add(std::string filename, std::vector<std::string> paths)
-{
-	const std::string activemods_filename(GetFilename());
-
-	const auto fp = FileSystem::OpenManagedCFile(activemods_filename.c_str(), "rb+");
-	u16 file_count;
-	if (std::fread(&file_count, 2, 1, fp.get()) != 1)
-		return false;
-
-	std::fseek(fp.get(), 0, SEEK_END);
-	for (std::string path : paths)
-	{
-		fputs(path.c_str(), fp.get());
-		fputc('\0', fp.get());
-		fputs(filename.c_str(), fp.get());
-		fputc('\0', fp.get());
-
-		file_count++;
-	}
-	
-	std::fseek(fp.get(), 0, SEEK_SET);
-	std::fwrite(&file_count, sizeof(file_count), 1, fp.get());
-
-	return true;
-}
-*/
 
 
 //read a single activemod file chunk (path, modname) and return
 bool ActiveMods::ReadOne(FILE* stream, std::pair<std::string, std::string>& entry)
 {
-	long off = ftell(stream);
+	u8 len;
 
-	char buf[900];
-	if (fgets(buf, sizeof(buf), stream) == nullptr)
-		return false;
-	entry.first = buf;
+	std::fread(&len, sizeof(len), 1, stream);
+	std::string path(len, '\0');
+	std::fread(&path[0], 1, len, stream);
+	entry.first = path;
 
-	//fgets puts file offset at end for some reason, so reset it:
-	off += entry.first.length() + 1;
-	std::fseek(stream, off, SEEK_SET);
-
-	char buf2[900];
-	if (fgets(buf2, sizeof(buf2), stream) == nullptr)
-		return false;
-	entry.second = buf2;
-
-	std::fseek(stream, off + entry.second.length() + 1, SEEK_SET);
+	std::fread(&len, sizeof(len), 1, stream);
+	std::string mod(len, '\0');
+	std::fread(&mod[0], 1, len, stream);
+	entry.second = mod;
 
 	return true;
 }
@@ -235,6 +154,11 @@ bool ActiveMods::Save(std::vector<std::pair<std::string, std::string>> activeMod
 {
 	if (!CacheFileValidation())
 		return false;
+
+	//std::sort(activeModCache.begin(), activeModCache.end(), [](auto& left, auto& right) {
+	//	return left.first > right.first;
+	//});
+
 	const std::string activemods_filename(GetFilename());
 
 	FileSystem::DeleteFilePath(activemods_filename.c_str());
@@ -246,10 +170,13 @@ bool ActiveMods::Save(std::vector<std::pair<std::string, std::string>> activeMod
 	std::fwrite(&file_count, sizeof(file_count), 1, fp.get());
 	for (int i = 0; i < file_count; i++)
 	{
+		u8 len = activeModCache[i].first.length();
+		std::fwrite(&len, sizeof(len), 1, fp.get());
 		fputs(activeModCache[i].first.c_str(), fp.get());
-		fputc('\0', fp.get());
+
+		len = activeModCache[i].second.length();
+		std::fwrite(&len, sizeof(len), 1, fp.get());
 		fputs(activeModCache[i].second.c_str(), fp.get());
-		fputc('\0', fp.get());
 	}
 	return true;
 }

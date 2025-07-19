@@ -22,7 +22,7 @@ bool files_to_delete;
 std::string g_loading = "";
 #pragma pack(push, 1)
 
-//backwards compatiblity
+//backwards compatiblity - not enabled
 struct p2m_header_v1 //v1, v2
 {
 	char p2m_magic[4];
@@ -42,7 +42,7 @@ struct p2m_header_v1 //v1, v2
 	char reserved2[8]; 
 };
 
-struct p2m_header //v3
+struct p2m_header //v3, v4
 {
 	char p2m_magic[4];
 	u16 version;
@@ -190,7 +190,7 @@ static std::string GetTexReplacementDirectory(std::string modname)
 	int priority;
 	PriorityList::GetPriority(modname, priority);
 	std::string folder_name = std::to_string(priority) + "_" + modname;
-	return Path::Combine(Path::Combine(EmuFolders::Textures, "/ptr2real/replacements"), folder_name);
+	return Path::Combine(Path::Combine(EmuFolders::Textures, "/SCPS_150/replacements"), folder_name);
 }
 static std::string GetTexUnloadDirectory(std::string modname)
 {
@@ -259,7 +259,7 @@ bool LoadTexFiles(std::string modname)
 		return true;
 
 	//ensure texture replacements game directory exists
-	std::string replacementsPath = Path::Combine(EmuFolders::Textures, "/ptr2real/replacements");
+	std::string replacementsPath = Path::Combine(EmuFolders::Textures, "/SCPS_150/replacements");
 	FileSystem::EnsureDirectoryExists(replacementsPath.c_str(), true);
 
 	FileSystem::RenamePath(source_folder.c_str(), destination_folder.c_str());
@@ -279,12 +279,13 @@ bool UnloadTexFiles(std::string modname)
 	if (FileSystem::DirectoryExists(destination_folder.c_str())) //already unloaded
 		return true;
 
-	std::string unloadedPath = Path::Combine(EmuFolders::Textures, "/ptr2real/unloaded");
-	FileSystem::EnsureDirectoryExists(unloadedPath.c_str(), true);
+	//std::string unloadedPath = Path::Combine(EmuFolders::Textures, "/SCPS_150/unloaded");
+	//FileSystem::EnsureDirectoryExists(unloadedPath.c_str(), true);
 	FileSystem::RenamePath(source_folder.c_str(), destination_folder.c_str());
+	//todo error handling
 	
 	//if all textures are unloaded, turn texture replacements off
-	if (FileSystem::DirectoryIsEmpty(Path::Combine(EmuFolders::Textures, "/ptr2real/replacements").c_str()))
+	if (FileSystem::DirectoryIsEmpty(Path::Combine(EmuFolders::Textures, "/SCPS_150/replacements").c_str()))
 	{
 		toggleTexReplacementSetting(false);
 	}
@@ -386,10 +387,14 @@ bool parseP2MHeader(FILE* stream, p2m_header& hd)
 	u16 p2m_version;
 	std::fread(&p2m_version, 2, 1, stream);
 
-	if (p2m_version < 3) //backwards compatibility
+	if (p2m_version < 4) //backwards compatibility
 	{
-		Host::AddKeyedOSDMessage("bad_p2m_warning", "Unsupported P2M version. Please use a v3 P2M.", Host::OSD_WARNING_DURATION);
+		Host::AddKeyedOSDMessage("bad_p2m_warning", "Unsupported P2M version. Please use a v4 P2M.", Host::OSD_WARNING_DURATION);
 		return false;
+
+		//p2m v3 and below stored strings as null terminated instead of length prefixed, which resulted
+		//in much worse performance on reads. Unsupported for this reason.
+
 		//p2m v1, v2 have a bug where all file.type are put down as 0
 		//a workaround could be made with manually reading the file extensions from the path
 		//however v1,v2 are indev p2m versions so supporting these isnt necessary
@@ -403,9 +408,9 @@ bool parseP2MHeader(FILE* stream, p2m_header& hd)
 		parseP2Mv1(hd_v1, hd);
 		*/
 	}
-	else if (p2m_version > 3) //FUTURE! FUUTUUURE! FUUUUTUUUURE!
+	else if (p2m_version > 4) //FUTURE! FUUTUUURE! FUUUUTUUUURE!
 	{
-		Host::AddKeyedOSDMessage("bad_p2m_warning", "Unsupported P2M version. Please use a v3 P2M.", Host::OSD_WARNING_DURATION);
+		Host::AddKeyedOSDMessage("bad_p2m_warning", "Unsupported P2M version - too new. Consider updating, or use a v4 P2M.", Host::OSD_WARNING_DURATION);
 		return false;
 	}
 	else
@@ -422,16 +427,18 @@ mod_file GetP2MFile(FILE* stream, p2m_header& hd, int index)
 
 	//read
 	int off = 0; //ftell(stream);
-	std::string path;
-	for (int i = 0; i < index + 1; i++)
+	u8 len;
+	for (int i = 0; i < index; i++)
 	{
-		char buf[999];
 		std::fseek(stream, hd.path_offset + off, SEEK_SET);
-		fgets(buf, sizeof(buf), stream);
-		path = buf;
-		//fgets puts fp to end, so keep track ourselves
-		off += path.length() + 1;
+		std::fread(&len, sizeof(len), 1, stream);
+		off += len + 1;
 	}
+	std::fseek(stream, hd.path_offset + off, SEEK_SET);
+	std::fread(&len, sizeof(len), 1, stream);
+	std::string path(len, '\0');
+	std::fread(&path[0], 1, len, stream);
+
 	file.path = path;
 
 	//read type
@@ -489,22 +496,14 @@ mod_file GetP2MFile(FILE* stream, p2m_header& hd, std::string path)
 {
 	std::fseek(stream, hd.path_offset, SEEK_SET);
 
-	long off = ftell(stream);
 	int i = 0;
+	u8 len;
 	for (i; i < hd.file_count; i++)
 	{
-		char buf[999];
-		if (fgets(buf, sizeof(buf), stream) != nullptr)
-		{
-			std::string found_path = buf;
-			if (StringUtil::compareNoCase(found_path, path))
-			{
-				break;
-			}
-			//fgets puts fp to end, so reset it;
-			off += found_path.length() + 1;
-			std::fseek(stream, off, SEEK_SET);
-		}
+		std::fread(&len, sizeof(len), 1, stream);
+		std::string found_path(len, '\0');
+		std::fread(&found_path[0], 1, len, stream);
+		if (StringUtil::compareNoCase(found_path, path)) break;
 	}
 
 	return GetP2MFile(stream, hd, i);
@@ -528,16 +527,18 @@ std::vector<tex_file> GetP2MTexFiles(FILE* stream, p2m_header& hd)
 		tex_file tex_file;
 		//read
 		int off = 0; //ftell(stream);
-		std::string path;
-		for (int i2 = 0; i2 < i + 1; i2++)
+		u8 len;
+		for (int i2 = 0; i2 < i; i2++)
 		{
-			char buf[999];
 			std::fseek(stream, hd.tex_path_offset + off, SEEK_SET);
-			fgets(buf, sizeof(buf), stream);
-			path = buf;
-			//fgets puts fp to end, so keep track ourselves
-			off += path.length() + 1;
+			std::fread(&len, sizeof(len), 1, stream);
+			off += len + 1;
 		}
+		std::fseek(stream, hd.tex_path_offset + off, SEEK_SET);
+		std::fread(&len, sizeof(len), 1, stream);
+		std::string path(len, '\0');
+		std::fread(&path[0], 1, len, stream);
+
 		tex_file.path = path;
 
 		//read size/pos
@@ -711,7 +712,7 @@ bool ApplyModFile(mod_file file)
 
 bool StartUpApplyActiveMods()
 {
-	std::vector<std::pair<std::string, std::string>> activeModCache = ActiveMods::GetAll();
+	std::vector<std::pair<std::string, std::string>> activeModCache = ActiveMods::GetFromFile();
 	int file_count = activeModCache.size();
 
 	//try and load textures for all mods
@@ -729,7 +730,7 @@ bool StartUpApplyActiveMods()
 	}
 	return true;
 }
-
+/* unused atm
 bool isInDeleteCache(std::string path)
 {
 	const std::string deletecache_filename(Path::Combine(EmuFolders::Cache, "deletefile.cache"));
@@ -781,7 +782,6 @@ bool addDeleteEntry(std::string path)
 	return true;
 }
 
-/* unused
 bool removeDeleteEntry(std::string path)
 {
 	const std::string deletecache_filename(Path::Combine(EmuFolders::Cache, "deletefile.cache"));
@@ -1076,6 +1076,9 @@ bool disableModEntry(std::string path)
 
 bool installMod(std::string file_path)
 {
+	if (file_path.length() == 0)
+		return false;
+
 	g_loading = file_path;
 	std::string mod = Path::GetFileName(file_path).data();
 
@@ -1332,7 +1335,7 @@ bool RefreshMods()
 	}
 
 	//remove entries already applied
-	std::vector<std::pair<std::string, std::string>> cache = ActiveMods::GetAll();
+	std::vector<std::pair<std::string, std::string>> cache = ActiveMods::Get();
 	for (std::pair<std::string, std::string> entry : cache)
 	{
 		if (entry.first == "textureREPLACEMENTS") //leave texture replacement entries in
@@ -1428,31 +1431,24 @@ bool IsP2M(const char* filename, std::string& title, std::string& author, std::s
 
 	//read title, author, description
 
-	//change this to fgets probably
+	//change this to fgets probably. no dont lol fgets has terrible perforamnce. ifstream is fine and good.
 	std::ifstream file;
 	file.open(filename);
 	if (!file.is_open()) return false;
 	file.seekg(hd.meta_offset, file.beg);
 
-	for (int i = 1; i <= 3; i++)
-	{
-		char letter;
-		while (file.get(letter) && letter != '\0')
-		{
-			switch (i)
-			{
-				case 1:
-					title += letter;
-					break;
-				case 2:
-					author += letter;
-					break;
-				case 3:
-					description += letter;
-					break;
-			}
-		}
-	}
+	u8 len;
+	file.read((char*)&len, sizeof(len));
+	title = std::string(len, '\0');
+	file.read(&title[0], len);
+
+	file.read((char*)&len, sizeof(len));
+	author = std::string(len, '\0');
+	file.read(&author[0], len);
+
+	file.read((char*)&len, sizeof(len));
+	description = std::string(len, '\0');
+	file.read(&description[0], len);
 	
 	return true;
 }
@@ -1518,7 +1514,7 @@ bool SaveStateBase::activeModsFreeze()
 		}
 
 		//remove entries already applied
-		std::vector<std::pair<std::string, std::string>> cache = ActiveMods::GetAll();
+		std::vector<std::pair<std::string, std::string>> cache = ActiveMods::Get();
 		for (std::pair<std::string, std::string> entry : cache)
 		{
 			//if current file in new files
@@ -1537,6 +1533,8 @@ bool SaveStateBase::activeModsFreeze()
 
 				if (!FileSystem::RenamePath(mod_file.c_str(), GetDisabledActiveModFilePath(entry.first).c_str()))
 				{
+					//todo error handling ??
+					
 					//addDeleteEntry(entry.first);
 					//files_to_delete = true;
 				}
