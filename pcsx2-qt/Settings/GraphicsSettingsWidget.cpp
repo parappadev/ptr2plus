@@ -63,14 +63,14 @@ GraphicsSettingsWidget::GraphicsSettingsWidget(SettingsWindow* dialog, QWidget* 
 
 	m_ui.setupUi(this);
 
-#ifndef PCSX2_DEVBUILD
+ /* #ifndef PCSX2_DEVBUILD
 	if (!m_dialog->isPerGameSettings())
 	{
 		// We removed hardware fixes from global settings, but people in the past did set this stuff globally.
 		// So, just reset it all. We can remove this code at some point in the future.
 		resetManualHardwareFixes();
 	}
-#endif
+ #endif */
 
 	//////////////////////////////////////////////////////////////////////////
 	// Global Settings
@@ -311,7 +311,7 @@ GraphicsSettingsWidget::GraphicsSettingsWidget(SettingsWindow* dialog, QWidget* 
 	m_ui.exclusiveFullscreenControl = nullptr;
 #endif
 
-#ifndef PCSX2_DEVBUILD
+ /* ifndef PCSX2_DEVBUILD
 	if (!m_dialog->isPerGameSettings())
 	{
 		// Only allow disabling readbacks for per-game settings, it's too dangerous.
@@ -324,7 +324,7 @@ GraphicsSettingsWidget::GraphicsSettingsWidget(SettingsWindow* dialog, QWidget* 
 		delete m_ui.enableHWFixes;
 		m_ui.enableHWFixes = nullptr;
 	}
-#endif
+#endif*/
 
 	// Get rid of widescreen/no-interlace checkboxes from per-game settings, and migrate them to Patches if necessary.
 	if (m_dialog->isPerGameSettings())

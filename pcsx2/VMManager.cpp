@@ -1098,7 +1098,7 @@ void VMManager::UpdateDiscDetails(bool booting)
 				title = TRANSLATE_STR("VMManager", "Unknown Game");
 		}
 
-		s_title = std::move(title);
+		s_title = "PaRappa The Rapper 2 Plus"; //std::move(title);
 	}
 
 	Console.WriteLn(Color_StrongGreen,

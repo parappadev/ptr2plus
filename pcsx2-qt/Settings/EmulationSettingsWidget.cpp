@@ -46,13 +46,14 @@ EmulationSettingsWidget::EmulationSettingsWidget(SettingsWindow* dialog, QWidget
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.fastCDVD, "EmuCore/Speedhacks", "fastCDVD", false);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.precacheCDVD, "EmuCore", "CdvdPrecache", false);
 
+	SettingWidgetBinder::BindWidgetToDateTimeSetting(sif, m_ui.rtcDateTime, "EmuCore");
+	m_ui.rtcDateTime->setDateRange(QDate(2000, 1, 1), QDate(2099, 12, 31));
+	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.manuallySetRealTimeClock, "EmuCore", "ManuallySetRealTimeClock", false);
+	connect(m_ui.manuallySetRealTimeClock, &QCheckBox::checkStateChanged, this, &EmulationSettingsWidget::onManuallySetRealTimeClockChanged);
+	EmulationSettingsWidget::onManuallySetRealTimeClockChanged();
+
 	if (m_dialog->isPerGameSettings())
 	{
-		SettingWidgetBinder::BindWidgetToDateTimeSetting(sif, m_ui.rtcDateTime, "EmuCore");
-		m_ui.rtcDateTime->setDateRange(QDate(2000, 1, 1), QDate(2099, 12, 31));
-		SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.manuallySetRealTimeClock, "EmuCore", "ManuallySetRealTimeClock", false);
-		connect(m_ui.manuallySetRealTimeClock, &QCheckBox::checkStateChanged, this, &EmulationSettingsWidget::onManuallySetRealTimeClockChanged);
-		EmulationSettingsWidget::onManuallySetRealTimeClockChanged();
 
 		m_ui.eeCycleRate->insertItem(
 			0, tr("Use Global Setting [%1]")

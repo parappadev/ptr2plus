@@ -68,16 +68,8 @@
       <iconset theme="floppy-in-line"/>
      </property>
     </widget>
-    <addaction name="actionStartFile"/>
-    <addaction name="actionStartDisc"/>
-    <addaction name="actionStartBios"/>
-    <addaction name="actionStartFullscreenUI"/>
-    <addaction name="separator"/>
-    <addaction name="actionPowerOff"/>
-    <addaction name="actionPowerOffWithoutSaving"/>
     <addaction name="actionReset"/>
     <addaction name="actionPause"/>
-    <addaction name="menuChangeDisc"/>
     <addaction name="separator"/>
     <addaction name="actionScreenshot"/>
     <addaction name="actionVideoCapture"/>
@@ -92,10 +84,7 @@
     <property name="title">
      <string>Setti&amp;ngs</string>
     </property>
-    <addaction name="actionViewGameProperties"/>
-    <addaction name="separator"/>
     <addaction name="actionInterfaceSettings"/>
-    <addaction name="actionGameListSettings"/>
     <addaction name="actionBIOSSettings"/>
     <addaction name="actionEmulationSettings"/>
     <addaction name="actionGraphicsSettings"/>
@@ -106,22 +95,13 @@
     <addaction name="actionControllerSettings"/>
     <addaction name="actionHotkeySettings"/>
     <addaction name="actionAchievementSettings"/>
-    <addaction name="separator"/>
-    <addaction name="actionAddGameDirectory"/>
-    <addaction name="actionScanForNewGames"/>
-    <addaction name="actionRescanAllGames"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
      <string>&amp;Help</string>
     </property>
     <addaction name="actionGitHubRepository"/>
-    <addaction name="actionSupportForums"/>
-    <addaction name="actionWiki"/>
-    <addaction name="actionDocumentation"/>
     <addaction name="actionDiscordServer"/>
-    <addaction name="separator"/>
-    <addaction name="actionCheckForUpdates"/>
     <addaction name="separator"/>
     <addaction name="actionAboutQt"/>
     <addaction name="actionAbout"/>
@@ -165,17 +145,8 @@
     <addaction name="actionViewStatusBar"/>
     <addaction name="actionViewStatusBarVerbose"/>
     <addaction name="separator"/>
-    <addaction name="actionViewGameList"/>
-    <addaction name="actionViewGameGrid"/>
-    <addaction name="actionViewSystemDisplay"/>
-    <addaction name="separator"/>
     <addaction name="actionFullscreen"/>
     <addaction name="menuWindowSize"/>
-    <addaction name="separator"/>
-    <addaction name="actionGridViewShowTitles"/>
-    <addaction name="actionGridViewZoomIn"/>
-    <addaction name="actionGridViewZoomOut"/>
-    <addaction name="actionGridViewRefreshCovers"/>
    </widget>
    <widget class="QMenu" name="menuTools">
     <property name="title">
@@ -198,7 +169,6 @@
      <addaction name="actionInputRecControllerLogs"/>
     </widget>
     <addaction name="actionOpenDataDirectory"/>
-    <addaction name="actionCoverDownloader"/>
     <addaction name="actionToggleSoftwareRendering"/>
     <addaction name="separator"/>
     <addaction name="actionEditCheats"/>
@@ -246,15 +216,8 @@
    <attribute name="toolBarBreak">
     <bool>false</bool>
    </attribute>
-   <addaction name="actionToolbarStartFile"/>
-   <addaction name="actionToolbarStartDisc"/>
-   <addaction name="actionToolbarStartBios"/>
-   <addaction name="actionToolbarStartFullscreenUI"/>
-   <addaction name="separator"/>
-   <addaction name="actionToolbarPowerOff"/>
    <addaction name="actionToolbarReset"/>
    <addaction name="actionToolbarPause"/>
-   <addaction name="actionToolbarChangeDisc"/>
    <addaction name="separator"/>
    <addaction name="actionToolbarScreenshot"/>
    <addaction name="actionVideoCapture"/>
