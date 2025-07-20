@@ -624,13 +624,6 @@ namespace R3000A
 					}
 				}
 				IOManFile* fd = getfd<IOManFile>(v0);
-				
-				fileHandle handle;
-				handle.fd_index = v0 - firstfd;
-				handle.flags = flags;
-				handle.full_path = path;
-				handle.mode = mode;
-				handles.push_back(handle);
 
 				pc = ra;
 				return 1;
