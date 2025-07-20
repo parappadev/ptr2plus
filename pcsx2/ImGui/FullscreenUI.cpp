@@ -6498,7 +6498,7 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 	dl->AddImage(reinterpret_cast<ImTextureID>(pausedLogo->GetNativeHandle()), GameBounds(pause_image_rect.Min), GameBounds(pause_image_rect.Max));
 
 //draw ptr2plus version text at top
-	std::string ptr2plus_text = "PTR2 Plus Alpha 1.0";
+	std::string ptr2plus_text = "PTR2+ Alpha 1.1";
 #if defined(PCSX2_DEVBUILD)
 	ptr2plus_text = "PTR2 Plus DEV";
 #endif
