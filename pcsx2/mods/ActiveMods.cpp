@@ -46,6 +46,22 @@ bool ActiveMods::GetPaths(const std::string mod, std::vector<std::string>& paths
 
 bool ActiveMods::GetMod(const std::string path, std::string& mod)
 {
+	std::sort(activeModCache.begin(), activeModCache.end(), [](auto& left, auto& right) {
+		return left.first < right.first;
+	});
+
+	auto it = std::lower_bound(activeModCache.begin(), activeModCache.end(), std::make_pair(path, ""),
+		[](auto& left, auto& right) {
+			return left.first < right.first;
+		}
+	);
+
+	if (it != activeModCache.end() && StringUtil::compareNoCase(it->first, path))
+	{
+		mod = it->second;
+		return true;
+	}
+	/*
 	for (std::pair<std::string, std::string> entry : activeModCache)
 	{
 		if (StringUtil::compareNoCase(entry.first, path))
@@ -54,6 +70,7 @@ bool ActiveMods::GetMod(const std::string path, std::string& mod)
 			return true;
 		}
 	}
+	*/
 	return false;
 }
 
@@ -154,10 +171,6 @@ bool ActiveMods::Save(std::vector<std::pair<std::string, std::string>> activeMod
 {
 	if (!CacheFileValidation())
 		return false;
-
-	//std::sort(activeModCache.begin(), activeModCache.end(), [](auto& left, auto& right) {
-	//	return left.first > right.first;
-	//});
 
 	const std::string activemods_filename(GetFilename());
 
