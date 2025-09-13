@@ -21,6 +21,7 @@
 #include <common/Path.h>
 #include <common/StringUtil.h>
 #include <pcsx2-qt/SetupWizardDialog.h>
+#include <common/Console.h>
 
 bool SetupWizardDialog::askOverwrite(const std::string dest_path, bool& overwrite_set, bool& overwrite)
 {
@@ -747,70 +748,82 @@ void SetupWizardDialog::DisplayErrorMessage(std::string error, std::string path)
 //Because It was going to validate each file's via a hash, but I can't be bothered to add the hash calculation yet
 void SetupWizardDialog::extractPTR2Files()
 {
-	//DisplayErrorMessage("Could not write file to extract directory. (Check space/permissions?)", "C:\\Users\\Owner\\Owner\\yeah\\true\\real moding game\\moderfile.int");			
-	bool overwrite_set = false;
-	bool overwrite = false;
-	std::string iso_path = m_ui.isoDirectory->text().toStdString();
-	if (iso_path == "") {
-		QMessageBox::information(QtUtils::GetRootWidget(m_ui.isoDirectory), tr("Error"), "Please select a PaRappa 2 ISO.");
-		return;
-	}
-	if (!FileSystem::FileExists(iso_path.c_str())) {
-		DisplayErrorMessage("Invalid input ISO path.", iso_path);
-		return;
-	}
-	//setup cdvd to read iso
-	CDVDsys_ClearFiles();
-	CDVDsys_SetFile(CDVD_SourceType::Iso, iso_path);
-	CDVDsys_ChangeSource(CDVD_SourceType::Iso);
-	Error error;
-	if (!DoCDVDopen(&error)){
-		DisplayErrorMessage("Could not open input ISO file. (Check permissions?)", iso_path);
-		return;
-	}
-	IsoReader isor;
-	//Hardcode as this is const
-	const int iso_filedb_count = 146;
-
-	std::string extract_path = m_ui.ptr2Directory->text().toStdString();
-
-	//open db file
-	const std::string ptr2filedb_filename = Path::Combine(EmuFolders::Resources, "iso_extract_db.txt");
-	auto fp = FileSystem::OpenManagedCFile(ptr2filedb_filename.c_str(), "rb+");
-	if (!fp) {
-		DisplayErrorMessage("Could not open iso extract database resource. (Check permissions?)", ptr2filedb_filename);
-		return;
-	}
-	auto stream = fp.get();
-	double progress_increment = 100 / iso_filedb_count;
-	m_ui.progressBar->setValue(0);
-	for (int i = 0; i < iso_filedb_count; i++)
-	{
-		file_entry entry;
-		if (!ReadOneFile(stream, entry)) {
-			DisplayErrorMessage("Could not read iso extract database resource. (Check permissions?)", ptr2filedb_filename);
-			return;
-		}
-		
-		std::string dest_path = Path::Combine(extract_path, entry.path);
-		std::string dest_dir = std::string(Path::GetDirectory(dest_path));
-		if (!FileSystem::EnsureDirectoryExists(dest_dir.c_str(), true)) {
-			DisplayErrorMessage("Could not create folder in extract directory. (Check permissions?)", dest_dir);
-			return;
-		}
-
-		if (!extractFileFromISO(isor, entry.path, dest_path.c_str(), overwrite_set, overwrite))
-			return;
-
-		//extract int archives
-		if (StringUtil::compareNoCase(Path::GetExtension(entry.path.c_str()), "INT"))
+	m_ui.ExtractFiles->setDisabled(true);
+	Host::RunOnCPUThread([this]() {
+		//DisplayErrorMessage("Could not write file to extract directory. (Check space/permissions?)", "C:\\Users\\Owner\\Owner\\yeah\\true\\real moding game\\moderfile.int");
+		bool overwrite_set = false;
+		bool overwrite = false;
+		std::string iso_path = m_ui.isoDirectory->text().toStdString();
+		if (iso_path == "")
 		{
-			if (!extractINTArchive(dest_path.c_str(), overwrite_set, overwrite))
-				return;
+			QMessageBox::information(QtUtils::GetRootWidget(m_ui.isoDirectory), tr("Error"), "Please select a PaRappa 2 ISO.");
+			return;
 		}
-		m_ui.progressBar->setValue(progress_increment * (i + 1));
-	}
-	m_ui.progressBar->setValue(100);
+		if (!FileSystem::FileExists(iso_path.c_str()))
+		{
+			SetupWizardDialog::DisplayErrorMessage("Invalid input ISO path.", iso_path);
+			return;
+		}
+		//setup cdvd to read iso
+		CDVDsys_ClearFiles();
+		CDVDsys_SetFile(CDVD_SourceType::Iso, iso_path);
+		CDVDsys_ChangeSource(CDVD_SourceType::Iso);
+		Error error;
+		if (!DoCDVDopen(&error))
+		{
+			DisplayErrorMessage("Could not open input ISO file. (Check permissions?)", iso_path);
+			return;
+		}
+		IsoReader isor;
+		//Hardcode as this is const
+		const int iso_filedb_count = 146;
+
+		std::string extract_path = m_ui.ptr2Directory->text().toStdString();
+
+		//open db file
+		const std::string ptr2filedb_filename = Path::Combine(EmuFolders::Resources, "iso_extract_db.txt");
+		auto fp = FileSystem::OpenManagedCFile(ptr2filedb_filename.c_str(), "rb+");
+		if (!fp)
+		{
+			DisplayErrorMessage("Could not open iso extract database resource. (Check permissions?)", ptr2filedb_filename);
+			return;
+		}
+		auto stream = fp.get();
+		const double progress_increment = 100.0 / iso_filedb_count;
+		//Console.WriteLn("progress_increment initial: %f", progress_increment);
+		m_ui.progressBar->setValue(0);
+		for (int i = 0; i < iso_filedb_count; i++)
+		{
+			file_entry entry;
+			if (!ReadOneFile(stream, entry))
+			{
+				DisplayErrorMessage("Could not read iso extract database resource. (Check permissions?)", ptr2filedb_filename);
+				return;
+			}
+
+			std::string dest_path = Path::Combine(extract_path, entry.path);
+			std::string dest_dir = std::string(Path::GetDirectory(dest_path));
+			if (!FileSystem::EnsureDirectoryExists(dest_dir.c_str(), true))
+			{
+				DisplayErrorMessage("Could not create folder in extract directory. (Check permissions?)", dest_dir);
+				return;
+			}
+			//Host::RunOnCPUThread([&isor = isor, entry = entry, dest_path = dest_path, &overwrite_set = overwrite_set, &overwrite = overwrite]() { extractFileFromISO(isor, entry.path, dest_path.c_str(), overwrite_set, overwrite); });
+			if (!extractFileFromISO(isor, entry.path, dest_path.c_str(), overwrite_set, overwrite))
+				return;
+
+			//extract int archives
+			if (StringUtil::compareNoCase(Path::GetExtension(entry.path.c_str()), "INT"))
+			{
+				if (!extractINTArchive(dest_path.c_str(), overwrite_set, overwrite))
+					return;
+			}
+			//Console.WriteLn("progress_increment: %f", progress_increment * (i + 1));
+			m_ui.progressBar->setValue(progress_increment * (i + 1));
+		}
+		m_ui.progressBar->setValue(100);
+		m_ui.ExtractFiles->setDisabled(false);
+	});
 }
 
 /*
