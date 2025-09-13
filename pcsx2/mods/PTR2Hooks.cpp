@@ -179,6 +179,16 @@ void PrHookManager::INT_Loader()
 
 	for (i; i < g_packFile_fnum; i++)
 	{
+		auto end = high_resolution_clock::now();
+		auto duration = duration_cast<milliseconds>(end - beg);
+		if (duration.count() > g_frametime_ms)
+		{
+#if defined(PCSX2_DEVBUILD)
+			Console.WriteLn("[PTR2PLUS] INT_Loader: %i milliseconds passed, breaking at point A", duration);
+#endif
+			async_break = true;
+			break;
+		}
 		//get file size and name pointer
 		//mods can have different file sizes so we don't actually use this value... commented out for now
 		/* int file_size = 0;
@@ -245,7 +255,7 @@ void PrHookManager::INT_Loader()
 			if (duration.count() > g_frametime_ms)
 			{
 #if defined(PCSX2_DEVBUILD)
-				Console.WriteLn("[PTR2PLUS] INT_Loader: %i milliseconds passed, breaking", duration);
+				Console.WriteLn("[PTR2PLUS] INT_Loader: %i milliseconds passed, breaking at point B", duration);
 #endif
 				async_break = true;
 				break;
@@ -276,6 +286,16 @@ void PrHookManager::INT_Loader()
 	}
 
 	g_current_file = i;
+
+	auto end = high_resolution_clock::now();
+	auto duration = duration_cast<milliseconds>(end - beg);
+	if (!async_break && duration.count() > g_frametime_ms)
+	{
+#if defined(PCSX2_DEVBUILD)
+		Console.WriteLn("[PTR2PLUS] INT_Loader: %i milliseconds passed, breaking at point C", duration);
+#endif
+		async_break = true;
+	}
 	if (!async_break && g_current_file == g_packFile_fnum) // If we have finished loading the INT folder
 	{
 		//delete[] name_chunk; //free up heap memory
