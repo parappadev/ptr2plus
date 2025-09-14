@@ -789,7 +789,7 @@ void SetupWizardDialog::extractPTR2Files()
 			return;
 		}
 		auto stream = fp.get();
-		const double progress_increment = 100.0 / iso_filedb_count;
+		const double progress_increment = 99.0 / iso_filedb_count;
 		//Console.WriteLn("progress_increment initial: %f", progress_increment);
 		m_ui.progressBar->setValue(0);
 		for (int i = 0; i < iso_filedb_count; i++)
@@ -821,6 +821,63 @@ void SetupWizardDialog::extractPTR2Files()
 			//Console.WriteLn("progress_increment: %f", progress_increment * (i + 1));
 			m_ui.progressBar->setValue(progress_increment * (i + 1));
 		}
+
+
+		//patch elf to use hostfs. would rather make this an emupatch but I couldnt get it working
+		// 
+		//memory   file     og hex         patched hex   function
+		//0x105240 0x6240 - 09 00 52 54 -> 09 00 00 10   CdctrlSerch
+		//0x1052f4 0x62f4 - 22 00 62 14 -> 22 00 00 10   cdctrlReadSub
+		//0x105e9c 0x6e9C - 08 00 60 14 -> 00 00 00 00   CdctrlWP2Set
+		//0x106048 0x7048 - 07 00 60 54 -> 00 00 00 00   CdctrlWP2SetFileSeekchan
+		//0x10663c 0x763c - 08 00 60 14 -> 00 00 00 00   CdctrlXTRset
+
+		std::string elf_path = Path::Combine(extract_path, "SCPS_150.17");
+		auto elf_fp = FileSystem::OpenManagedCFile(elf_path.c_str(), "rb+");
+		if (!elf_fp)
+		{
+			DisplayErrorMessage("Could read SCPS_150.17. (Check permissions?)", elf_path);
+			return;
+		}
+
+		auto elf_stream = elf_fp.get();
+		std::fseek(elf_stream, 0x6240, SEEK_SET);
+		char buf1[4] = {0x09, 0x00, 0x00, 0x10};
+		std::fwrite(&buf1, sizeof(buf1), 1, elf_stream);
+		std::fseek(elf_stream, 0x62f4, SEEK_SET);
+		char buf2[4] = {0x22, 0x00, 0x00, 0x10};
+		std::fwrite(&buf2, sizeof(buf2), 1, elf_stream);
+		std::fseek(elf_stream, 0x6e9C, SEEK_SET);
+		char buf3[4] = {0x00, 0x00, 0x00, 0x00};
+		std::fwrite(&buf3, sizeof(buf3), 1, elf_stream);
+		std::fseek(elf_stream, 0x7048, SEEK_SET);
+		std::fwrite(&buf3, sizeof(buf3), 1, elf_stream);
+		std::fseek(elf_stream, 0x763c, SEEK_SET);
+		std::fwrite(&buf3, sizeof(buf3), 1, elf_stream);
+
+		const std::string patch_filename = Path::Combine(EmuFolders::Resources, "hostfspatch.bin");
+		const auto patchfp = FileSystem::OpenManagedCFile(patch_filename.c_str(), "rb");
+		if (!patchfp)
+		{
+			DisplayErrorMessage("Could read hostfspatch.bin. (Check permissions?)", patch_filename);
+			return;
+		}
+
+		FILE* patch_stream = patchfp.get();
+		std::fseek(patch_stream, 0, SEEK_SET);
+
+		char buf4[368] = {};
+		std::fread(&buf4, 368, 1, patch_stream);
+
+		std::fseek(elf_stream, 0x290B70, SEEK_SET);
+		std::fwrite(&buf4, sizeof(buf4), 1, elf_stream);
+
+		char buf5[3264] = {};
+		std::fread(&buf5, 3264, 1, patch_stream);
+
+		std::fseek(elf_stream, 0x290DD0, SEEK_SET);
+		std::fwrite(&buf5, sizeof(buf5), 1, elf_stream);
+
 		m_ui.progressBar->setValue(100);
 		m_ui.ExtractFiles->setDisabled(false);
 	});

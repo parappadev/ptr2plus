@@ -5,8 +5,11 @@
 #include <common/FileSystem.h>
 
 //hostfs loading patch
+//hostfs loading patch - doesnt work when applying to memory for some reason
+//currently we apply the patch to the elf file after extraction instead
 void HostFSPatch()
 {
+	/*
 	const std::string patch_filename = Path::Combine(EmuFolders::Resources, "hostfspatch.bin");
 	const auto fp = FileSystem::OpenManagedCFile(patch_filename.c_str(), "rb");
 	if (!fp)
@@ -42,6 +45,7 @@ void HostFSPatch()
 	//bne v1,zero -> nop
 	char buf7[4] = {0x00, 0x00, 0x00, 0x00};
 	vtlb_memSafeWriteBytes(0x0010663C, &buf7, 4);
+	*/
 }
 
 // Reactive Aspect Ratio Patch
@@ -148,6 +152,7 @@ void createAsyncFunc()
 void ReloadEmuPatches()
 {
 	HostFSPatch();
+	//HostFSPatch();
 	createAsyncFunc();
 	PTR2AspectRatioSet();
 }
