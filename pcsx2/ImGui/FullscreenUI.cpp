@@ -1075,6 +1075,12 @@ void FullscreenUI::DestroyResources()
 	s_fallback_disc_texture.reset();
 
 	s_paused_texture.reset();
+	s_star_texture.reset();
+	s_starsmall_texture.reset();
+	s_ast_texture.reset();
+	s_circle_texture.reset();
+	s_tri_texture.reset();
+	s_spark_texture.reset();
 
 	for (auto& tex : s_game_compatibility_textures)
 		tex.reset();
