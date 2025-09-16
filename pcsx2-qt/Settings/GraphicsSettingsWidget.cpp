@@ -84,7 +84,7 @@ GraphicsSettingsWidget::GraphicsSettingsWidget(SettingsWindow* dialog, QWidget* 
 	// Game Display Settings
 	//////////////////////////////////////////////////////////////////////////
 	SettingWidgetBinder::BindWidgetToEnumSetting(
-		sif, m_ui.aspectRatio, "EmuCore/GS", "AspectRatio", Pcsx2Config::GSOptions::AspectRatioNames, AspectRatioType::RAuto4_3_3_2);
+		sif, m_ui.aspectRatio, "EmuCore/GS", "AspectRatio", Pcsx2Config::GSOptions::AspectRatioNames, AspectRatioType::R16_9);
 	connect(
 		m_ui.aspectRatio, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &GraphicsSettingsWidget::onAspectRatioChange);
 
