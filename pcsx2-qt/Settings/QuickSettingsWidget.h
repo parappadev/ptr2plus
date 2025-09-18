@@ -37,6 +37,7 @@ private Q_SLOTS:
 	void onOutputVolumeChanged(int new_value);
 	void onOptimalFramePacingChanged();
 	void presetChanged();
+	void onNoInterlacingChanged();
 
 private:
 

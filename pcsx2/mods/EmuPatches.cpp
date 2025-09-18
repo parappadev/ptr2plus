@@ -4,7 +4,35 @@
 #include <common/Path.h>
 #include <common/FileSystem.h>
 
-//hostfs loading patch
+//no interlacing patch - this actually halfs the vertical res which is bad at low res
+void EnableInterlacing()
+{
+	char buf[4] = {0x08, 0x00, 0x42, 0x64};
+	vtlb_memSafeWriteBytes(0x0015487C, &buf, 4);
+}
+void DisableInterlacing()
+{
+	char buf[4] = {0x00, 0x00, 0x00, 0x00};
+	vtlb_memSafeWriteBytes(0x0015487C, &buf, 4);
+}
+
+//frogot what these are for
+/*
+	//sw v0,-0x7BB0(gp) -> NOP
+	char buf0[4] = {0x00, 0x00, 0x00, 0x00};
+	//vtlb_memSafeWriteBytes(0x001034B8, &buf0, 4);
+
+	//char buf[1] = {0x03};
+	//vtlb_memSafeWriteBytes(0x001031F4, &buf, 1);
+
+	char buf2[4] = {0x00};
+	//vtlb_memSafeWriteBytes(0x001031FC, &buf2, 1);
+
+	char buf3[4] = {0x00, 0x00, 0x00, 0x00};
+	//vtlb_memSafeWriteBytes(0x00103124, &buf3, 4);
+*/
+
+
 //hostfs loading patch - doesnt work when applying to memory for some reason
 //currently we apply the patch to the elf file after extraction instead
 void HostFSPatch()
@@ -151,7 +179,9 @@ void createAsyncFunc()
 
 void ReloadEmuPatches()
 {
-	HostFSPatch();
+	if (EmuConfig.EnableNoInterlacingPatches)
+		DisableInterlacing();
+	//NoInterlacingPatch();
 	//HostFSPatch();
 	createAsyncFunc();
 	PTR2AspectRatioSet();

@@ -4141,6 +4141,21 @@ void FullscreenUI::DrawQuickSettingsPage()
 		"EmuCore/GS", "AspectRatio", "Auto 4:3/3:2", Pcsx2Config::GSOptions::AspectRatioNames, Pcsx2Config::GSOptions::AspectRatioNames, 0,
 		false);
 
+	bool no_interlacing = bsi->GetBoolValue("EmuCore", "EnableNoInterlacingPatches", true);
+
+	if (ToggleButton(FSUI_CSTR("Disable Interlacing"),
+			FSUI_CSTR("Disables interlacing in PTR2, at the cost of halving the vertical resolution."),
+			&no_interlacing))
+	{
+		if (no_interlacing)
+			DisableInterlacing();
+		else
+			EnableInterlacing();
+
+		bsi->SetBoolValue("EmuCore", "EnableNoInterlacingPatches", no_interlacing);
+		SetSettingsChanged(bsi);
+	}
+
 	DrawIntListSetting(bsi, FSUI_CSTR("Bilinear Upscaling"), FSUI_CSTR("Smooths out the image when upscaling the console to the screen."),
 		"EmuCore/GS", "linear_present_mode", static_cast<int>(GSPostBilinearMode::BilinearSharp), s_bilinear_present_options,
 		std::size(s_bilinear_present_options), true);
@@ -4771,8 +4786,21 @@ void FullscreenUI::DrawGraphicsSettingsPage(SettingsInterface* bsi, bool show_ad
 	{
 		DrawToggleSetting(bsi, FSUI_CSTR("Enable Widescreen Patches"), FSUI_CSTR("Enables loading widescreen patches from pnach files."),
 			"EmuCore", "EnableWideScreenPatches", false);
-		DrawToggleSetting(bsi, FSUI_CSTR("Enable No-Interlacing Patches"),
-			FSUI_CSTR("Enables loading no-interlacing patches from pnach files."), "EmuCore", "EnableNoInterlacingPatches", false);
+
+		bool no_interlacing = bsi->GetBoolValue("EmuCore", "EnableNoInterlacingPatches", true);
+
+		if (ToggleButton(FSUI_CSTR("Enable No-Interlacing Patches"),
+				FSUI_CSTR("Disables interlacing in PTR2, at the cost of halving the vertical resolution."),
+				&no_interlacing))
+		{
+			if (no_interlacing)
+				DisableInterlacing();
+			else
+				EnableInterlacing();
+
+			bsi->SetBoolValue("EmuCore", "EnableNoInterlacingPatches", no_interlacing);
+			SetSettingsChanged(bsi);
+		}
 	}
 
 	DrawIntListSetting(bsi, FSUI_CSTR("Bilinear Upscaling"), FSUI_CSTR("Smooths out the image when upscaling the console to the screen."),

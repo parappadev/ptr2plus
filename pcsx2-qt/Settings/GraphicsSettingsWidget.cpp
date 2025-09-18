@@ -94,7 +94,8 @@ GraphicsSettingsWidget::GraphicsSettingsWidget(SettingsWindow* dialog, QWidget* 
 	SettingWidgetBinder::BindWidgetToIntSetting(
 		sif, m_ui.bilinearFiltering, "EmuCore/GS", "linear_present_mode", static_cast<int>(GSPostBilinearMode::BilinearSmooth));
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.widescreenPatches, "EmuCore", "EnableWideScreenPatches", false);
-	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.noInterlacingPatches, "EmuCore", "EnableNoInterlacingPatches", false);
+	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.noInterlacingPatches, "EmuCore", "EnableNoInterlacingPatches", true);
+	connect(m_ui.noInterlacingPatches, &QCheckBox::checkStateChanged, this, &GraphicsSettingsWidget::onNoInterlacingChanged);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.integerScaling, "EmuCore/GS", "IntegerScaling", false);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.PCRTCOffsets, "EmuCore/GS", "pcrtc_offsets", false);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.PCRTCOverscan, "EmuCore/GS", "pcrtc_overscan", false);
@@ -476,8 +477,8 @@ GraphicsSettingsWidget::GraphicsSettingsWidget(SettingsWindow* dialog, QWidget* 
 		dialog->registerWidgetHelp(m_ui.widescreenPatches, tr("Enable Widescreen Patches"), tr("Unchecked"),
 			tr("Automatically loads and applies widescreen patches on game start. Can cause issues."));
 
-		dialog->registerWidgetHelp(m_ui.noInterlacingPatches, tr("Enable No-Interlacing Patches"), tr("Unchecked"),
-			tr("Automatically loads and applies no-interlacing patches on game start. Can cause issues."));
+		dialog->registerWidgetHelp(m_ui.noInterlacingPatches, tr("Enable No-Interlacing Patches"), tr("Checked"),
+			tr("Applies no-interlacing patches in PTR2, at the cost of halving the vertical resolution."));
 
 		dialog->registerWidgetHelp(m_ui.DisableInterlaceOffset, tr("Disable Interlace Offset"), tr("Unchecked"),
 			tr("Disables interlacing offset which may reduce blurring in some situations."));
@@ -892,6 +893,15 @@ GraphicsSettingsWidget::~GraphicsSettingsWidget() = default;
 void GraphicsSettingsWidget::onAspectRatioChange(int index)
 {
 	PTR2AspectRatioSet(static_cast<AspectRatioType>(index));
+}
+
+void GraphicsSettingsWidget::onNoInterlacingChanged()
+{
+	const bool enabled = m_dialog->getEffectiveBoolValue("EmuCore", "EnableNoInterlacingPatches", true);
+	if (enabled)
+		DisableInterlacing();
+	else
+		EnableInterlacing();
 }
 
 void GraphicsSettingsWidget::onTextureFilteringChange()

@@ -74,17 +74,24 @@
       </item>
       <item row="5" column="0" colspan="2">
        <layout class="QGridLayout" name="systemSettingsLayout">
-        <item row="0" column="0">
+        <item row="1" column="0">
          <widget class="QCheckBox" name="vsync">
           <property name="text">
            <string>VSync</string>
           </property>
          </widget>
         </item>
-        <item row="1" column="0">
+        <item row="2" column="0">
          <widget class="QCheckBox" name="optimalFramePacing">
           <property name="text">
            <string>Optimal Frame Pacing (Low Input Latency)</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0">
+         <widget class="QCheckBox" name="noInterlacingPatches">
+          <property name="text">
+           <string>Disable Interlacing</string>
           </property>
          </widget>
         </item>

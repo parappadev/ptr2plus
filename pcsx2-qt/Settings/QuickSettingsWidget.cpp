@@ -33,6 +33,7 @@
 //#include "AudioSettingsWidget.h"
 #include "QtUtils.h"
 #include "SettingWidgetBinder.h"
+#include <pcsx2/mods/EmuPatches.h>
 //#include "SettingsDialog.h"
 
 static constexpr s32 DEFAULT_TARGET_LATENCY = 60;
@@ -70,6 +71,9 @@ QuickSettingsWidget::QuickSettingsWidget(SettingsWindow* dialog, QWidget* parent
 	SettingWidgetBinder::BindWidgetToIntSetting(
 		sif, m_ui.bilinearFiltering, "EmuCore/GS", "linear_present_mode", static_cast<int>(GSPostBilinearMode::BilinearSmooth));
 
+	//Disable Interlacing
+	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.noInterlacingPatches, "EmuCore", "EnableNoInterlacingPatches", true);
+	connect(m_ui.noInterlacingPatches, &QCheckBox::checkStateChanged, this, &QuickSettingsWidget::onNoInterlacingChanged);
 
 	//aspect ratio
 	SettingWidgetBinder::BindWidgetToEnumSetting(
@@ -115,6 +119,9 @@ QuickSettingsWidget::QuickSettingsWidget(SettingsWindow* dialog, QWidget* parent
 		tr("Enables bilinear post processing filter. Smooths the overall picture as it is displayed on the screen. Corrects "
 		   "positioning between pixels."));
 
+	dialog->registerWidgetHelp(m_ui.noInterlacingPatches, tr("Enable No-Interlacing Patch"), tr("Checked"),
+		tr("Applies no-interlacing patches in PTR2, at the cost of halving the vertical resolution."));
+
 	dialog->registerWidgetHelp(m_ui.aspectRatio, tr("Aspect Ratio"), tr("Auto Standard (4:3/3:2 Progressive)"),
 		tr("Changes the aspect ratio used to display the console's output to the screen. The default is Auto Standard (4:3/3:2 "
 		   "Progressive) which automatically adjusts the aspect ratio to match how a game would be shown on a typical TV of the era."));
@@ -148,6 +155,15 @@ QuickSettingsWidget::QuickSettingsWidget(SettingsWindow* dialog, QWidget* parent
 }
 
 QuickSettingsWidget::~QuickSettingsWidget() = default;
+
+void QuickSettingsWidget::onNoInterlacingChanged()
+{
+	const bool enabled = m_dialog->getEffectiveBoolValue("EmuCore", "EnableNoInterlacingPatches", true);
+	if (enabled)
+		DisableInterlacing();
+	else
+		EnableInterlacing();
+}
 
 void QuickSettingsWidget::updateLatencyLabel()
 {

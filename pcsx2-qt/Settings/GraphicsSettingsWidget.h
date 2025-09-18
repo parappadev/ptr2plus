@@ -26,6 +26,7 @@ Q_SIGNALS:
 
 private Q_SLOTS:
 	void onAspectRatioChange(int index);
+	void onNoInterlacingChanged();
 	void onTextureFilteringChange();
 	void onSWTextureFilteringChange();
 	void onRendererChanged(int index);
