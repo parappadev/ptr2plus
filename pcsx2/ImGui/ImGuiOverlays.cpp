@@ -1135,6 +1135,13 @@ void SaveStateSelectorUI::ShowSlotOSDMessage()
 
 void ImGuiManager::RenderOverlays()
 {
+	//Console.WriteLn("layout_padding_left: %.6f", ImGuiFullscreen::g_layout_padding_left);
+	//Console.WriteLn("layout_padding_top: %.6f", ImGuiFullscreen::g_layout_padding_top);
+	if (ImGuiManager::s_need_layout_update)
+	{
+		ImGuiManager::s_need_layout_update = false;
+		ImGuiFullscreen::UpdateLayoutScale();
+	}
 	const float scale = ImGuiManager::GetGlobalScale();
 	const float margin = std::ceil(10.0f * scale) + ImGuiFullscreen::g_layout_padding_left;
 	const float margin_y = std::ceil(10.0f * scale) + ImGuiFullscreen::g_layout_padding_top;

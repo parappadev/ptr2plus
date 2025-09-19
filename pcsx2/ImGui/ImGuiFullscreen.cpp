@@ -529,6 +529,9 @@ bool ImGuiFullscreen::UpdateLayoutScale()
 	gameSize.x = static_cast<float>(dRectSize.x);
 	gameSize.y = static_cast<float>(dRectSize.y);
 
+	if (gameSize.x == 0 || gameSize.y == 0)
+		ImGuiManager::s_need_layout_update = true;
+
 	const static float LAYOUT_RATIO = LAYOUT_SCREEN_WIDTH / LAYOUT_SCREEN_HEIGHT;
 	const ImGuiIO& io = ImGui::GetIO();
 
