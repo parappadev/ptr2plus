@@ -3786,7 +3786,8 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 	{ 
 	
 		ImDrawList* dl = ImGui::GetWindowDrawList();
-
+		if (WantsToCloseMenu())
+			ReturnToPreviousWindow();
 	//tab
 
 		ImVec2 tab_pos(heading_pos.x, heading_pos.y);
