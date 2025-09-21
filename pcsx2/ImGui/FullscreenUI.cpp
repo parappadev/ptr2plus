@@ -6014,7 +6014,7 @@ void FullscreenUI::DrawPatchesOrCheatsSettingsPage(bool cheats)
 						 s_game_cheat_unlabelled_count),
 			false, false, ImGuiFullscreen::LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY);
 	}
-
+	/*
 	if (!patch_list.empty() || (cheats && s_game_cheat_unlabelled_count > 0))
 	{
 		ActiveButton(
@@ -6025,7 +6025,7 @@ void FullscreenUI::DrawPatchesOrCheatsSettingsPage(bool cheats)
 			FSUI_CSTR("Use patches at your own risk, the PCSX2 team will provide no support for users who have enabled game patches."),
 			false, false, ImGuiFullscreen::LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY);
 	}
-
+	*/
 	EndMenuButtons();
 }
 

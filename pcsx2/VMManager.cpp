@@ -926,10 +926,16 @@ void VMManager::RequestDisplaySize(float scale /*= 0.0f*/)
 
 std::string VMManager::GetSerialForGameSettings()
 {
+	/* the below is not necessary in ptr2plus 
+
 	// If we're running an ELF, we don't want to use the serial for any ISO override
 	// for game settings, since the game settings is where we define the override.
 	std::unique_lock lock(s_info_mutex);
 	return s_elf_override.empty() ? std::string(s_disc_serial) : std::string();
+	*/
+	std::unique_lock lock(s_info_mutex);
+	return std::string(s_disc_serial);
+
 }
 
 bool VMManager::UpdateGameSettingsLayer()
