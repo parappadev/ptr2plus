@@ -1478,7 +1478,7 @@ QString QtHost::GetAppNameAndVersion()
 #if defined(PCSX2_DEBUG)
 	return QString("PTR2PLUS Dev %1").arg(BuildVersion::GitRev);
 #else
-	return QString("PTR2PLUS Alpha 1.1 %1").arg(BuildVersion::GitRev);
+	return QString("PTR2PLUS Alpha 1.2 %1").arg(BuildVersion::GitRev);
 #endif
 }
 
