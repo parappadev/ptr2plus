@@ -384,8 +384,7 @@ Pcsx2Config::SpeedhackOptions::SpeedhackOptions()
 	WaitLoop = true;
 	IntcStat = true;
 	vuFlagHack = true;
-	//vu1Instant = true; //except this one (parappa 2 black box fix
-	
+	vu1Instant = true;
 }
 
 Pcsx2Config::SpeedhackOptions& Pcsx2Config::SpeedhackOptions::DisableAll()
@@ -1917,13 +1916,10 @@ Pcsx2Config::Pcsx2Config()
 	InhibitScreensaver = true;
 	BackupSavestate = true;
 
-	//black box/noodles fix for parappa 2, set as default for ptr2plus
-	EmuConfig.Speedhacks.vuThread = false;
-	EmuConfig.Speedhacks.vu1Instant = false;
 	//ptr2plus needs hostfs on
 	HostFs = true;
 
-	performance_preset = 0;
+	performance_preset = 0; //ptr2plus
 
 	WarnAboutUnsafeSettings = true;
 	ManuallySetRealTimeClock = false;

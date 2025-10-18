@@ -3312,15 +3312,10 @@ void VMManager::WarnAboutUnsafeSettings()
 	}
 	if (!EmuConfig.Cpu.Recompiler.EnableFastmem)
 		append(ICON_FA_EXCLAMATION_CIRCLE, TRANSLATE_SV("VMManager", "Fastmem is not enabled, this will reduce performance."));
-	if (EmuConfig.Speedhacks.vuThread)
+	if (!EmuConfig.Speedhacks.vu1Instant)
 	{
 		append(ICON_FA_EXCLAMATION_CIRCLE,
-			TRANSLATE_SV("VMManager", "MTVU (Multi-Threaded VU1) is enabled, this will break visuals in PaRappa 2 (black box, noodles)"));
-	}
-	if (EmuConfig.Speedhacks.vu1Instant)
-	{
-		append(ICON_FA_EXCLAMATION_CIRCLE,
-			TRANSLATE_SV("VMManager", "Instant VU1 is enabled, this will break visuals in PaRappa 2 (black box, noodles)"));
+			TRANSLATE_SV("VMManager", "Instant VU1 is disabled, this may reduce performance."));
 	}
 	if (!EmuConfig.Speedhacks.vuFlagHack)
 	{
@@ -3475,18 +3470,16 @@ void VMManager::SetHardwareDependentDefaultSettings(SettingsInterface& si)
 
 	Console.WriteLn(fmt::format("CPU cores count: {}", core_count));
 
-	/*
 	if (core_count >= 3)
 	{
 		Console.WriteLn("  Enabling MTVU.");
 		si.SetBoolValue("EmuCore/Speedhacks", "vuThread", true);
 	}
 	else
-	{*/
-		//Console.WriteLn("  Disabling MTVU.");
-		Console.WriteLn("Not enabling MTVU because it breaks PaRappa 2 (black box/noodles");
-		//si.SetBoolValue("EmuCore/Speedhacks", "vuThread", false);
-	//}
+	{
+		Console.WriteLn("  Disabling MTVU.");
+		si.SetBoolValue("EmuCore/Speedhacks", "vuThread", false);
+	}
 
 	const int extra_threads = (core_count > 3) ? 3 : 2;
 	Console.WriteLn(fmt::format("  Setting Extra Software Rendering Threads to {}.", extra_threads));
