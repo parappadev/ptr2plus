@@ -4,6 +4,16 @@
 #include <common/Path.h>
 #include <common/FileSystem.h>
 
+//no black box patch by polyproxy
+//patches out UseGsSetXyOffset()
+void NoBlackBox()
+{
+	char buf[4] = {0x08, 0x00, 0xE0, 0x03}; //jr ra
+	char buf2[4] = {0x00, 0x00, 0x00, 0x00}; //nop
+	vtlb_memSafeWriteBytes(0x0010FC18, &buf, 4);
+	vtlb_memSafeWriteBytes(0x0010FC1C, &buf2, 4);
+}
+
 //no interlacing patch - this actually halfs the vertical res which is bad at low res
 void EnableInterlacing()
 {
@@ -179,6 +189,7 @@ void createAsyncFunc()
 
 void ReloadEmuPatches()
 {
+	NoBlackBox();
 	if (EmuConfig.EnableNoInterlacingPatches)
 		DisableInterlacing();
 	//NoInterlacingPatch();
