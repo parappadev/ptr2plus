@@ -20,6 +20,11 @@ static bool ActiveMods::CacheFileValidation()
 	return true;
 }
 
+void ActiveMods::Set(std::vector<std::pair<std::string, std::string>> activeMods)
+{
+	activeModCache = std::move(activeMods);
+}
+
 bool ActiveMods::ContainsMod(const std::string mod)
 {
 	for (std::pair<std::string, std::string> entry : activeModCache)

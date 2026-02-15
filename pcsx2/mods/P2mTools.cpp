@@ -557,140 +557,6 @@ std::vector<tex_file> GetP2MTexFiles(FILE* stream, p2m_header& hd)
 
 //UNUSED
 /*
-bool ELFfilenameFound(u32 mem, std::string filename)
-{
-	char dst[24];
-	vtlb_memSafeReadBytes(mem, dst, sizeof(dst));
-	std::string str(dst);
-
-	filename = StringUtil::toUpper(filename);
-	str = StringUtil::toUpper(str);
-
-	if (str.find(filename) != std::string::npos)
-	{
-		return true;
-	}
-
-	return false;
-}
-
-bool ELFpathFound(int& path_off, int& file_off, std::string filename)
-{
-	u32 mem_pointer = 0x0017EF70;
-	//Console.WriteLn("Mem pointer: %u", mem_pointer);
-	FILE_STR file;
-	//Console.WriteLn("file size: %u", sizeof(file));
-	for (int i = 0; i < 2; i++) //loop through logo/stmenu structs
-	{
-		readBytes(mem_pointer, &file, sizeof(file));
-		if (ELFfilenameFound(file.fname_p, filename))
-		{
-			path_off = file.fname_p;
-			file_off = mem_pointer - sizeof(file);
-			return true;
-		}
-
-		mem_pointer += 4;
-	}
-	
-	for (int i = 0; i < 10; i++) //loop through ext0X structs
-	{
-		readBytes(mem_pointer, &file, sizeof(file));
-		if (ELFfilenameFound(file.fname_p, filename))
-		{
-			path_off = file.fname_p;
-			file_off = mem_pointer - sizeof(file);
-			return true;
-		}
-	}
-	
-	STDAT_DAT stdat;
-	do //loop through stdata structs
-	{
-		readBytes(mem_pointer, &stdat, sizeof(stdat));
-		
-		//loop through file_strs inside stdat
-		u32 offsets[4] = {stdat.file1.fname_p, stdat.file2.fname_p, stdat.file3.fname_p, stdat.file4.fname_p};
-		for (int i = 0; i < 4; i++)
-		{
-			if (offsets[i] != 0 && ELFfilenameFound(offsets[i], filename))
-			{
-				path_off = offsets[i];
-				file_off = mem_pointer - 4 - sizeof(file) * (5 - (i + 1));
-				return true;
-			}
-
-		}
-
-	} while (!ELFfilenameFound(stdat.file1.fname_p, "VS08VS0.INT"));
-	olm_struct olm;
-
-	do // Loop through OLM structs
-	{
-		readBytes(mem_pointer, &olm, sizeof(olm));
-		if (ELFfilenameFound(olm.file.fname_p, filename))
-		{
-			path_off = olm.file.fname_p;
-			file_off = mem_pointer - sizeof(olm);
-			return true;
-		}
-
-	} while (!ELFfilenameFound(olm.file.fname_p, "STG00.OLM") || !ELFfilenameFound(olm.stage_name_pos, "TITLE"));
-
-	return false;
-}
-*/
-//UNUSED
-/*
-bool PatchELFPath(std::string path, bool unpatch, bool tmp)
-{
-	std::string filename = Path::GetFileName(path).data();
-	int off, file_off = 0;
-	if (ELFpathFound(off, file_off, filename))
-	{
-		char patch[24];
-		std::string strpath;
-		if (unpatch)
-		{
-			strpath = "host:\\" + StringUtil::toUpper(path);
-		}
-		else if (tmp)
-		{
-			strpath = "host:\\TMP\\" + filename;
-		}
-		else
-		{
-			strpath = "host:\\MOD\\" + filename;
-		}
-		strncpy(patch, strpath.c_str(), sizeof(patch));
-		vtlb_memSafeWriteBytes(off, patch, sizeof(patch));
-
-		//patch search value
-		char search[1] = {0};
-		vtlb_memSafeWriteBytes(file_off + 3, search, 1);
-		return true;
-	}
-	return false;
-}
-
-bool PatchELFPath(mod_file file)
-{
-	return PatchELFPath(file.path, false, file.tmp);
-}
-bool PatchELFPath(std::string path, bool tmp)
-{
-	return PatchELFPath(path, false, tmp);
-}
-bool UnPatchELFPath(mod_file file)
-{
-	return PatchELFPath(file.path, true, false);
-}
-bool UnPatchELFPath(std::string path)
-{
-	return PatchELFPath(path, true, false);
-}
-*/
-	/*
 bool isIntAsset(std::string path)
 {
 	
@@ -704,22 +570,6 @@ bool isIntAsset(std::string path)
 }
 */
 
-//UNUSED
-/*
-bool ApplyModFile(mod_file file)
-{
-	//dont patch files from unpacked INT/XTR files as they aren't in the ISO paths
-	//they are loaded using PTR2Hooks, which will use the activemod cache file
-	if (file.type == isoFile)
-	{
-		if (!PatchELFPath(file))
-		{
-			return false;
-		}
-	}
-}
-*/
-
 bool StartUpApplyActiveMods()
 {
 	std::vector<std::pair<std::string, std::string>> activeModCache = ActiveMods::GetFromFile();
@@ -729,115 +579,8 @@ bool StartUpApplyActiveMods()
 	for (std::string modname : PriorityList::Get())
 		LoadTexFiles(modname);
 
-	/*
-	//load mod files
-	for (std::pair<std::string, std::string> entry : activeModCache)
-	{
-		mod_file file = GetP2MFileByEntry(entry);
-		if (!ApplyModFile(file))
-		{
-			return false;
-		}
-	}
-	*/
 	return true;
 }
-/* unused atm
-bool isInDeleteCache(std::string path)
-{
-	const std::string deletecache_filename(Path::Combine(EmuFolders::Cache, "deletefile.cache"));
-
-	const auto fp = FileSystem::OpenManagedCFile(deletecache_filename.c_str(), "rb");
-	u16 file_count;
-	if (std::fread(&file_count, 2, 1, fp.get()) != 1)
-		return false;
-
-	for (int i = 0; i < file_count; i++)
-	{
-		std::string delete_path;
-
-		long off = ftell(fp.get());
-
-		char buf[900];
-		if (fgets(buf, sizeof(buf), fp.get()) == nullptr)
-			return false;
-		delete_path = buf;
-
-		//fgets puts file offset at end for some reason, so reset it:
-		off += delete_path.length() + 1;
-		std::fseek(fp.get(), off, SEEK_SET);
-
-		if (StringUtil::compareNoCase(delete_path, path))
-		{
-			return true;
-		}
-	}
-	return false;
-}
-bool addDeleteEntry(std::string path)
-{
-	const std::string deletecache_filename(Path::Combine(EmuFolders::Cache, "deletefile.cache"));
-
-	const auto fp = FileSystem::OpenManagedCFile(deletecache_filename.c_str(), "rb+");
-	u16 file_count;
-	if (std::fread(&file_count, 2, 1, fp.get()) != 1)
-		return false;
-
-	std::fseek(fp.get(), 0, SEEK_END);
-	fputs(path.c_str(), fp.get());
-	fputc('\0', fp.get());
-
-	file_count++;
-	std::fseek(fp.get(), 0, SEEK_SET);
-	std::fwrite(&file_count, sizeof(file_count), 1, fp.get());
-
-	return true;
-}
-
-bool removeDeleteEntry(std::string path)
-{
-	const std::string deletecache_filename(Path::Combine(EmuFolders::Cache, "deletefile.cache"));
-
-	auto fp = FileSystem::OpenManagedCFile(deletecache_filename.c_str(), "rb");
-	u16 file_count;
-	if (std::fread(&file_count, 2, 1, fp.get()) != 1)
-		return false;
-
-	std::vector<std::string> new_paths;
-	for (int i = 0; i < file_count; i++)
-	{
-		std::string active_path;
-
-		long off = ftell(fp.get());
-
-		char buf[900];
-		if (fgets(buf, sizeof(buf), fp.get()) == nullptr)
-			return false;
-		active_path = buf;
-
-		//fgets puts file offset at end for some reason, so reset it:
-		off += active_path.length() + 1;
-		std::fseek(fp.get(), off, SEEK_SET);
-
-		if (path != active_path)
-		{
-			new_paths.push_back(active_path);
-		}
-	}
-	fp.reset();
-	FileSystem::DeleteFilePath(deletecache_filename.c_str());
-	const auto newfp = FileSystem::OpenManagedCFile(deletecache_filename.c_str(), "wb");
-	u16 new_filecount = new_paths.size();
-
-	std::fwrite(&new_filecount, sizeof(new_filecount), 1, newfp.get());
-	for (int i = 0; i < new_filecount; i++)
-	{
-		fputs(new_paths[i].c_str(), newfp.get());
-		fputc('\0', newfp.get());
-	}
-	return true;
-}*/
-
 
 bool isTexLoaded(std::string modname)
 {
@@ -918,178 +661,6 @@ bool CopyModFileFromP2M(FILE* stream, mod_file file, std::string modname, bool e
 	return copyStream(stream, new_stream, file.size);
 }
 
-
-//Not Necessary anymore
-//CURRENTLY DISABLED AS ITS BROKE AAAAAa:
-/*
-//sometimes loading a new mod isnt possible because the current active file is in use by the game
-//instead of stopping the user, we can put the new mod in a TMP folder and tell the game it's there
-//the current active file path is put in a deletecache file similar to activemodscache, and will be deleted
-//as soon as the game has stopped using it (tries every frame), then the new mod is copied from TMP to the MOD folder
-//if the file in TMP is locked up by the game, just extract it again from the p2m into MOD, and put the TMP
-//file in the delete cache - this is a long workaround but should make the user experience more smooth
-bool TryDeleteFiles()
-{
-	const std::string deletecache_filename(Path::Combine(EmuFolders::Cache, "deletefile.cache"));
-
-	//cache file validation
-	if (!FileSystem::FileExists(deletecache_filename.c_str()))
-	{
-		u16 data = 0;
-		if (!FileSystem::WriteBinaryFile(deletecache_filename.c_str(), &data, 2))
-		{
-			//todo: error handling
-		}
-		return false;
-	}
-
-	auto fp = FileSystem::OpenManagedCFile(deletecache_filename.c_str(), "rb");
-	u16 file_count;
-	if (std::fread(&file_count, 2, 1, fp.get()) != 1)
-		return false;
-
-	std::vector<std::string> paths;
-	//get filepaths in deletecache
-	for (int i = 0; i < file_count; i++)
-	{
-		std::string active_path;
-
-		long off = ftell(fp.get());
-
-		char buf[900];
-		if (fgets(buf, sizeof(buf), fp.get()) == nullptr)
-			return false;
-		active_path = buf;
-
-		//fgets puts file offset at end for some reason, so reset it:
-		off += active_path.length() + 1;
-		std::fseek(fp.get(), off, SEEK_SET);
-
-		paths.push_back(active_path);
-	}
-	//for each file in deletecache
-	std::vector<std::string> newpaths;
-
-	for (std::string path : paths)
-	{
-		std::string filepath = Path::Combine(EmuFolders::PTR2, path);
-		//first, try to delete
-		if (!FileSystem::FileExists(filepath.c_str()))
-		{
-			continue;
-		}
-		if (!FileSystem::DeleteFilePath(filepath.c_str()))
-		{
-			//file must be still in use, keep in deletecache
-			newpaths.push_back(path);
-			continue;
-		}
-
-		//if deleted file was in MOD, check for replacement file in TMP
-		if (Path::GetDirectory(path) == "MOD")
-		{
-			std::string pathTMP = Path::Combine(Path::Combine(EmuFolders::PTR2, "/TMP"), Path::GetFileName(path));
-			std::string pathMOD = Path::Combine(GetPTR2ModDirectory(), Path::GetFileName(path));
-
-			if (!FileSystem::FileExists(pathTMP.c_str()))
-				continue;
-
-			if (FileSystem::CopyFilePath(pathTMP.c_str(), pathMOD.c_str(), false))
-			{
-				if (!FileSystem::DeleteFilePath(pathTMP.c_str()))
-				{
-					//file was able to be copied from, but cannot be deleted
-					//unsure if this would ever actually happen, but handle it anyway
-					newpaths.push_back(pathTMP); //add to delete cache
-				}
-				//could make quicker by storing file type in delete cache file
-				//so I can just check if its an ISO file in here and call PatcHElfPath directly
-				std::string mod;
-				ActiveMods::GetMod(path, mod);
-				std::pair<std::string, std::string> entry(path, mod);
-				mod_file file = GetP2MFileByEntry(entry);
-
-				ApplyModFile(file);
-			}
-			else
-			{
-				//file is still in use, extract it from p2m file again instead
-				std::string mod;
-				ActiveMods::GetMod(path, mod);
-				std::string modpath = Path::Combine(EmuFolders::PTR2InstalledMods, mod);
-
-				std::pair<std::string, std::string> entry(path, mod);
-				mod_file file = GetP2MFileByEntry(entry);
-
-				const auto fp = FileSystem::OpenManagedCFile(modpath.c_str(), "rb");
-				if (!fp)
-					return false;
-
-				//extract file to MODS folder
-				CopyModFileFromP2M(fp.get(), file, true);
-
-				ApplyModFile(file);
-
-				newpaths.push_back(pathTMP); //add to delete cache
-			}
-		}
-		//std::string name = Path::GetFileName(path);
-	}
-	fp.reset();
-	FileSystem::DeleteFilePath(deletecache_filename.c_str());
-	const auto newfp = FileSystem::OpenManagedCFile(deletecache_filename.c_str(), "wb");
-	u16 new_filecount = newpaths.size();
-
-	std::fwrite(&new_filecount, sizeof(new_filecount), 1, newfp.get());
-	for (int i = 0; i < new_filecount; i++)
-	{
-		fputs(newpaths[i].c_str(), newfp.get());
-		fputc('\0', newfp.get());
-	}
-	if (new_filecount == 0)
-	{
-		//flag bool
-		files_to_delete = false;
-	}
-	return true;
-}
-
-*/
-
-//UNUSED
-/*
-bool moveAllModFiles(FILE* stream, std::vector<mod_file> files)
-{
-	for (mod_file file : files)
-	{
-		CopyModFileFromP2M(stream, file);
-	}
-	return true;
-}
-*/
-
-//UNUSED
-/*
-bool disableModEntry(std::string path)
-{
-	if (FileSystem::RenamePath(GetEnabledModFilePath(path).c_str(), GetDisabledActiveModFilePath(path).c_str()))
-	{
-		return false; //todo error handling
-		//addDeleteEntry(path);
-		//files_to_delete = true;
-	}
-
-	ActiveMods::RemoveEntry(path);
-	refreshPriorityList();
-	std::string mod_file = GetEnabledModFilePath(path);
-
-	//could be unpatching unecessarily if its an int asset file
-	//but proooobably still cheaper than fetching the actual file from p2m to check
-	UnPatchELFPath(path); 
-	return true;
-}
-*/
-
 bool installMod(std::string file_path)
 {
 	if (file_path.length() == 0)
@@ -1162,14 +733,10 @@ bool toggleMod(std::string filename, bool enable)
 
 	if (enable)
 	{
-		const auto fp = FileSystem::OpenManagedCFile(filename.c_str(), "rb");
-		//p2m_header hd;
 		//get files of mod
-		//std::vector<mod_file> files = GetP2MFiles(fp.get(), hd);
+		const auto fp = FileSystem::OpenManagedCFile(filename.c_str(), "rb");
 
 		std::string mod_dir = (std::string)Path::StripExtension(filename);
-		//check activemods
-		//if files exist, disable mods associated
 		FileSystem::FindResultsArray results;
 		FileSystem::FindFiles(mod_dir.c_str(), "*", FILESYSTEM_FIND_RECURSIVE | FILESYSTEM_FIND_FILES, &results);
 		std::vector<std::pair<std::string, std::string>> entries;
@@ -1179,75 +746,15 @@ bool toggleMod(std::string filename, bool enable)
 			{
 				continue;
 			}
-			//move file to ptr2/MOD folder
 			
 			std::string rel_path = Path::MakeRelative(fd.FileName, mod_dir);
-			/*
-			std::string dest_path = GetEnabledModFilePath(rel_path);
-			std::string dest_dir = std::string(Path::GetDirectory(dest_path));
-			FileSystem::EnsureDirectoryExists(dest_dir.c_str(), true);
-
-			if (!FileSystem::RenamePath(fd.FileName.c_str(), dest_path.c_str()))
-			{
-				Host::AddKeyedOSDMessage("error_enable", "Unable to enable mod - leave the stage first.", Host::OSD_WARNING_DURATION);
-				g_loading = "";
-				return false;
-			}
-
-			//std::string extension = StringUtil::toUpper(Path::GetExtension(rel_path));
-			//if (extension != "WP2" && extension != "INT" && extension != "OLM" && extension != "XTR")
-			if (!isIntAssetCheap(rel_path))
-			{
-				if (!PatchELFPath(rel_path, false, false))
-				{
-					Host::AddKeyedOSDMessage("error_enable", "Critical Error: Unable to patch ELF memory.", Host::OSD_WARNING_DURATION);
-					//g_loading = "";
-					//return false;
-					//somethings up here
-				}
-			}
-			*/
 
 			std::pair<std::string, std::string> entry(rel_path, mod);
 			//ActiveMods::Add(entry);
 			entries.push_back(entry);
 		}
 
-		/*
-		for (mod_file file : files)
-		{
-			std::string existing_mod;
-			if (ActiveMods::GetMod(file.path, existing_mod) == true)
-			{
-
-				//disableMod(existing_mod);
-				disableModEntry(file.path);
-			
-			
-				//if file in delete cache, mark it to be put in TMP
-				//if (isInDeleteCache(file.path) && file.type != intAsset) //dont count int asset as TMP workaround isnt necessary
-				//{
-				//	file.tmp = true;
-				//}
-			
-			}
-
-			//move file to ptr2/MOD folder
-			std::string dest_path = GetEnabledModFilePath(file.path);
-			std::string dest_dir = std::string(Path::GetDirectory(dest_path));
-			FileSystem::EnsureDirectoryExists(dest_dir.c_str(), true);
-		
-			if (!FileSystem::RenamePath(GetDisabledModFilePath(mod, file.path).c_str(), dest_path.c_str()))
-				return false; //todo error handling
-
-			ApplyModFile(file);
-			//add to activemods
-			std::pair<std::string, std::string> entry(file.path, mod);
-			//ActiveMods::Add(entry);
-			entries.push_back(entry);
-		}
-		*/
-
+		//add to active mods list
 		ActiveMods::AddMultiple(entries);
 
 		//add to prioritylist
@@ -1262,43 +769,11 @@ bool toggleMod(std::string filename, bool enable)
 	else
 	{
 		//get files of mod
-		//std::vector<mod_file> files = GetP2MFilesByModName(modname);
 		std::vector<std::string> paths;
 		ActiveMods::GetPaths(mod, paths);
 
-		/*
-		//delete files from MOD folder
-		for (std::string path : paths)
-		{
-			std::string full_path = GetEnabledModFilePath(path);
-
-			if (!FileSystem::RenamePath(full_path.c_str(), GetDisabledModFilePath(mod, path).c_str()))
-			{
-				//addDeleteEntry(file.path);
-				//files_to_delete = true;
-				{
-					Host::AddKeyedOSDMessage("error_disable", "Unable to disable mod - leave the stage first.", Host::OSD_WARNING_DURATION);
-					g_loading = "";
-					return false;
-				}
-			}
-
-			//if (file.type == isoFile)
-			if (!isIntAssetCheap(path))
-			{
-				if (!UnPatchELFPath(path))
-				{
-					Host::AddKeyedOSDMessage("error_enable", "Critical Error: Unable to unpatch ELF memory.", Host::OSD_WARNING_DURATION);
-					//g_loading = "";
-					//return false;
-				}
-			}
-		}
-		*/
-
-		//remove from activemods
+		//remove from active mods list
 		ActiveMods::RemoveMod(mod);
-		//removeActiveModEntry(modname);
 
 		//remove from prioritylist (also unloads texs
 		PriorityRemove(mod);
@@ -1308,35 +783,7 @@ bool toggleMod(std::string filename, bool enable)
 	return true;
 }
 
-bool ApplySingleModEntry(std::string path, std::string modname)
-{
-	std::string modpath = GetP2MPathFromModName(modname);
-
-	const auto fp = FileSystem::OpenManagedCFile(modpath.c_str(), "rb");
-	//get files of mod
-	p2m_header hd;
-	parseP2MHeader(fp.get(), hd);
-
-	mod_file file = GetP2MFile(fp.get(), hd, path);
-
-	/*
-	//if file in delete cache, mark it to be put in TMP
-	if (isInDeleteCache(path))
-	{
-		file.tmp = true;
-	}
-	*/
-
-	//extract file to MODS folder
-	CopyModFileFromP2M(fp.get(), file, modname, true);
-
-	ApplyModFile(file);
-
-	return true;
-	
-}
-
-//when priorities have been reordered, reload mod files
+//when priorities have been reordered, reset active mods
 //should not be called if mods have been removed/added
 bool RefreshMods() 
 {
@@ -1352,37 +799,12 @@ bool RefreshMods()
 		for (mod_file file : files)
 		{
 			entries.insert_or_assign(file.path, modname);
-			//entries.push_back(entry);
 		}
 	}
 
-	//remove entries already applied
-	std::vector<std::pair<std::string, std::string>> cache = ActiveMods::Get();
-	for (std::pair<std::string, std::string> entry : cache)
-	{
-		if (entry.first == "textureREPLACEMENTS") //leave texture replacement entries in
-		{
-			continue;
-		}
-		if ( entries[entry.first] == entry.second )
-		{
-			entries.erase(entry.first);
-		}
-		else //remove entries we are going to replace
-			ActiveMods::RemoveEntry(entry.first);
-	}
+	//set our new active mod entries and refresh priority list - for ui and textures
+	ActiveMods::Set(std::vector<std::pair<std::string, std::string>>(entries.begin(), entries.end()));
 	refreshPriorityList();
-
-	//convert map to vector of pairs, so we can access both key and value
-	std::vector<std::pair<std::string, std::string>> new_cache;
-	new_cache.assign(entries.begin(), entries.end());
-
-	//apply our new entries
-	for (std::pair<std::string, std::string> entry : new_cache)
-	{
-		ApplySingleModEntry(entry.first, entry.second);
-		ActiveMods::Add(entry);
-	}
 
 	return true;
 }
@@ -1514,11 +936,7 @@ bool SaveStateBase::activeModsFreeze()
 		}
 
 		//the following code uses a similar logic to RefreshMods():
-		//filter mod files by priority using std::map
-		//remove any files from the map that are already loaded,
-		//so we dont waste time loading files we dont have to
-		//
-		//this does not apply to tex files
+		//filter mod files by priority and reset active mods
 
 		int mod_count = priorities.size();
 
@@ -1532,34 +950,6 @@ bool SaveStateBase::activeModsFreeze()
 			{
 				entries.insert_or_assign(file.path, modname);
 				//entries.push_back(entry);
-			}
-		}
-
-		//remove entries already applied
-		std::vector<std::pair<std::string, std::string>> cache = ActiveMods::Get();
-		for (std::pair<std::string, std::string> entry : cache)
-		{
-			//if current file in new files
-			if (entries[entry.first] == entry.second)
-			{
-				//remove from new files
-				entries.erase(entry.first);
-			}
-			else //otherwise unload current file
-			{
-				//remove entries we are going to replace
-				ActiveMods::RemoveEntry(entry.first);
-
-				//taken from disableModEntry() -- because we dont want to unpatch elf
-				std::string mod_file = GetEnabledModFilePath(entry.first);
-
-				if (!FileSystem::RenamePath(mod_file.c_str(), GetDisabledActiveModFilePath(entry.first).c_str()))
-				{
-					//todo error handling ??
-					
-					//addDeleteEntry(entry.first);
-					//files_to_delete = true;
-				}
 			}
 		}
 
@@ -1580,16 +970,8 @@ bool SaveStateBase::activeModsFreeze()
 			}
 		}
 
-		//convert map to vector of pairs, so we can access both key and value
-		std::vector<std::pair<std::string, std::string>> new_cache;
-		new_cache.assign(entries.begin(), entries.end());
+		ActiveMods::Set(std::vector<std::pair<std::string, std::string>>(entries.begin(), entries.end()));
 
-		//apply our new entries
-		for (std::pair<std::string, std::string> entry : new_cache)
-		{
-			ApplySingleModEntry(entry.first, entry.second);
-			ActiveMods::Add(entry);
-		}
 	}
 	return true;
 }
