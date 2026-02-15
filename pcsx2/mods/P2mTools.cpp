@@ -555,6 +555,8 @@ std::vector<tex_file> GetP2MTexFiles(FILE* stream, p2m_header& hd)
 	return tex_files;
 }
 
+//UNUSED
+/*
 bool ELFfilenameFound(u32 mem, std::string filename)
 {
 	char dst[24];
@@ -571,6 +573,7 @@ bool ELFfilenameFound(u32 mem, std::string filename)
 
 	return false;
 }
+
 bool ELFpathFound(int& path_off, int& file_off, std::string filename)
 {
 	u32 mem_pointer = 0x0017EF70;
@@ -636,7 +639,9 @@ bool ELFpathFound(int& path_off, int& file_off, std::string filename)
 
 	return false;
 }
-
+*/
+//UNUSED
+/*
 bool PatchELFPath(std::string path, bool unpatch, bool tmp)
 {
 	std::string filename = Path::GetFileName(path).data();
@@ -667,6 +672,7 @@ bool PatchELFPath(std::string path, bool unpatch, bool tmp)
 	}
 	return false;
 }
+
 bool PatchELFPath(mod_file file)
 {
 	return PatchELFPath(file.path, false, file.tmp);
@@ -683,7 +689,7 @@ bool UnPatchELFPath(std::string path)
 {
 	return PatchELFPath(path, true, false);
 }
-
+*/
 	/*
 bool isIntAsset(std::string path)
 {
@@ -697,6 +703,9 @@ bool isIntAsset(std::string path)
 	
 }
 */
+
+//UNUSED
+/*
 bool ApplyModFile(mod_file file)
 {
 	//dont patch files from unpacked INT/XTR files as they aren't in the ISO paths
@@ -709,6 +718,7 @@ bool ApplyModFile(mod_file file)
 		}
 	}
 }
+*/
 
 bool StartUpApplyActiveMods()
 {
@@ -719,6 +729,7 @@ bool StartUpApplyActiveMods()
 	for (std::string modname : PriorityList::Get())
 		LoadTexFiles(modname);
 
+	/*
 	//load mod files
 	for (std::pair<std::string, std::string> entry : activeModCache)
 	{
@@ -728,6 +739,7 @@ bool StartUpApplyActiveMods()
 			return false;
 		}
 	}
+	*/
 	return true;
 }
 /* unused atm
@@ -907,6 +919,7 @@ bool CopyModFileFromP2M(FILE* stream, mod_file file, std::string modname, bool e
 }
 
 
+//Not Necessary anymore
 //CURRENTLY DISABLED AS ITS BROKE AAAAAa:
 /*
 //sometimes loading a new mod isnt possible because the current active file is in use by the game
@@ -1055,6 +1068,8 @@ bool moveAllModFiles(FILE* stream, std::vector<mod_file> files)
 }
 */
 
+//UNUSED
+/*
 bool disableModEntry(std::string path)
 {
 	if (FileSystem::RenamePath(GetEnabledModFilePath(path).c_str(), GetDisabledActiveModFilePath(path).c_str()))
@@ -1073,6 +1088,7 @@ bool disableModEntry(std::string path)
 	UnPatchELFPath(path); 
 	return true;
 }
+*/
 
 bool installMod(std::string file_path)
 {
@@ -1164,7 +1180,9 @@ bool toggleMod(std::string filename, bool enable)
 				continue;
 			}
 			//move file to ptr2/MOD folder
+			
 			std::string rel_path = Path::MakeRelative(fd.FileName, mod_dir);
+			/*
 			std::string dest_path = GetEnabledModFilePath(rel_path);
 			std::string dest_dir = std::string(Path::GetDirectory(dest_path));
 			FileSystem::EnsureDirectoryExists(dest_dir.c_str(), true);
@@ -1188,6 +1206,8 @@ bool toggleMod(std::string filename, bool enable)
 					//somethings up here
 				}
 			}
+			*/
+
 			std::pair<std::string, std::string> entry(rel_path, mod);
 			//ActiveMods::Add(entry);
 			entries.push_back(entry);
@@ -1246,6 +1266,7 @@ bool toggleMod(std::string filename, bool enable)
 		std::vector<std::string> paths;
 		ActiveMods::GetPaths(mod, paths);
 
+		/*
 		//delete files from MOD folder
 		for (std::string path : paths)
 		{
@@ -1273,6 +1294,7 @@ bool toggleMod(std::string filename, bool enable)
 				}
 			}
 		}
+		*/
 
 		//remove from activemods
 		ActiveMods::RemoveMod(mod);

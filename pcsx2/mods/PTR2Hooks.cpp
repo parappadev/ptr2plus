@@ -225,14 +225,22 @@ void PrHookManager::INT_Loader()
 
 		//replace path with modded file if active mod
 		std::string mod;
+		std::string final_path;
 		if (ActiveMods::GetMod(path, mod))
 		{
-			path = "MOD\\DATA\\" + int_title + "\\" + g_folder + "\\" + name;
+			
+			path = "DATA\\" + int_title + "\\" + g_folder + "\\" + name;
+			std::string mod_dir = std::string(Path::StripExtension(Path::Combine(EmuFolders::PTR2InstalledMods, mod)));
+			final_path = Path::Combine(mod_dir, path);
+
 #if defined(PCSX2_DEVBUILD)
 			Console.WriteLn(Color_Cyan, "[PTR2PLUS] INT_Loader: Using " + name + " from " + mod + " instead.");
 #endif
 		}
-		std::string final_path = Path::Combine(EmuFolders::PTR2, path);
+		else
+		{
+			final_path = Path::Combine(EmuFolders::PTR2, path);
+		}
 
 		// Write bytes from file to memory
 		const auto fp = FileSystem::OpenManagedCFile(final_path.c_str(), "rb");

@@ -29,6 +29,7 @@
 #else
 #include <unistd.h>
 #endif
+#include <mods/ActiveMods.h>
 
 #if !defined(S_ISREG) && defined(S_IFMT) && defined(S_IFREG)
 #define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
@@ -261,7 +262,9 @@ namespace R3000A
 		static int open(IOManFile** file, const std::string& full_path, s32 flags, u16 mode)
 		{
 			const std::string path(full_path.substr(full_path.find(':') + 1));
-			const std::string file_path(ioman::host_path(path, false));
+			std::string file_path(ioman::host_path(path, false));
+			//Console.WriteLn(Color_Yellow, "[PTR2PLUS-IOPBIOS] Opening " + file_path);
+			
 			int native_flags = O_BINARY; // necessary in Windows.
 
 			switch (flags & IOP_O_RDWR)
@@ -543,6 +546,23 @@ namespace R3000A
 			// For now it just supports relative folders from the location of the elf
 			std::string native_path(Path::Canonicalize(path));
 			std::string new_path;
+			std::string mod;
+			if (ActiveMods::GetMod(native_path, mod))
+			{
+				std::string mod_dir = std::string(Path::StripExtension(Path::Combine(EmuFolders::PTR2InstalledMods, mod)));
+				std::string mod_file_path = Path::Combine(mod_dir, native_path);
+				Console.WriteLn(Color_Green, "[PTR2PLUS] Intercepted ISO File I/O: " + native_path);
+				Console.WriteLn(Color_Green, "[PTR2PLUS] File exists in mod: " + mod);
+				Console.WriteLn(Color_Green, "[PTR2PLUS] Using mod file instead: " + mod_file_path);
+
+				if (FileSystem::FileExists(mod_file_path.c_str()))
+				{
+					new_path = mod_file_path;
+					return new_path;
+				}
+				else
+					Console.WriteLn(Color_Red, "[PTR2PLUS] ERROR file doesn't exist! Defaulting to game file.");
+			}
 			if (!hostRoot.empty() && native_path.starts_with(hostRoot))
 				new_path = std::move(native_path);
 			else if (!hostRoot.empty()) // relative paths
@@ -599,6 +619,8 @@ namespace R3000A
 				}
 
 				int err = HostFile::open(&file, path, flags, mode);
+				//Console.WriteLn(Color_Green, "[PTR2PLUS-IOPBIOS] Opening file: " + path);
+				
 
 				if (err != 0 || !file)
 				{
