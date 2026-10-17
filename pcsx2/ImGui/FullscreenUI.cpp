@@ -1261,8 +1261,6 @@ bool FullscreenUI::LoadSvgResources()
 
 void FullscreenUI::DestroyResources()
 {
-	s_fallback_exe_texture.reset();
-	s_fallback_disc_texture.reset();
 
 	s_paused_texture.reset();
 	s_star_texture.reset();

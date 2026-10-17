@@ -621,14 +621,6 @@ void GSRenderer::VSync(u32 field, bool registers_written, bool idle_frame)
 	}
 	else
 	{
-		src_rect = CalculateDrawSrcRect(current, m_real_size);
-		src_uv = GSVector4(src_rect) / GSVector4(current->GetSize()).xyxy();
-		draw_rect = CalculateDrawDstRect(g_gs_device->GetWindowWidth(), g_gs_device->GetWindowHeight(),
-			src_rect, current->GetSize(), s_display_alignment, g_gs_device->UsesLowerLeftOrigin(),
-			GetVideoMode() == GSVideoMode::SDTV_480P);
-		s_last_draw_rect = draw_rect;
-		g_gs_device->SetLastDrawRect(s_last_draw_rect); //ptr2plus
-
 		if (!idle_frame)
 			g_gs_device->AgePool();
 
@@ -649,6 +641,7 @@ void GSRenderer::VSync(u32 field, bool registers_written, bool idle_frame)
 				src_rect, current->GetSize(), s_display_alignment, g_gs_device->UsesLowerLeftOrigin(),
 				GetVideoMode() == GSVideoMode::SDTV_480P);
 			s_last_draw_rect = draw_rect;
+			g_gs_device->SetLastDrawRect(s_last_draw_rect); //ptr2plus
 
 			if (GSConfig.CASMode != GSCASMode::Disabled)
 			{

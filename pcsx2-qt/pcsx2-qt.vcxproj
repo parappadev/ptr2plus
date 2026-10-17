@@ -414,7 +414,7 @@
     <QtUi Include="Settings\MemoryCardConvertDialog.ui" />
     <QtUi Include="Settings\MemoryCardCreateDialog.ui" />
     <QtUi Include="Settings\MemoryCardSettingsWidget.ui" />
-    <QtUi Include="Settings\QuickSettingsWidget.ui">
+    <QtUi Include="Settings\QuickSettingsWidget.ui" />
     <QtUi Include="Settings\PatchDetailsWidget.ui" />
     <QtUi Include="Settings\SettingsWindow.ui" />
     <QtUi Include="Settings\USBBindingWidget_Buzz.ui" />
