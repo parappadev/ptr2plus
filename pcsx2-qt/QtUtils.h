@@ -20,6 +20,7 @@ class QAction;
 class QComboBox;
 class QFileInfo;
 class QFrame;
+class QIcon;
 class QLabel;
 class QKeyEvent;
 class QSlider;
@@ -82,9 +83,6 @@ namespace QtUtils
 	/// Adjusts the fixed size for a window if it's not resizeable.
 	void ResizePotentiallyFixedSizeWindow(QWidget* widget, int width, int height);
 
-	/// Returns the pixel ratio/scaling factor for a widget.
-	qreal GetDevicePixelRatioForWidget(const QWidget* widget);
-
 	/// Returns the common window info structure for a Qt widget.
 	std::optional<WindowInfo> GetWindowInfoForWidget(QWidget* widget);
 
@@ -97,4 +95,13 @@ namespace QtUtils
 
 	/// Converts an abstract item model to a CSV string.
 	QString AbstractItemModelToCSV(QAbstractItemModel* model, int role = Qt::DisplayRole, bool useQuotes = false);
+
+	// Heuristic to check if the current theme is a light or dark theme.
+	bool IsLightTheme(const QPalette& palette);
+
+	bool IsCompositorManagerRunning();
+
+	/// Sets the scalable icon to a given label (svg icons, or icons with multiple size pixmaps)
+	/// The icon will then be reloaded on DPR changes using an event filter
+	void SetScalableIcon(QLabel* lbl, const QIcon& icon, const QSize& size);
 } // namespace QtUtils

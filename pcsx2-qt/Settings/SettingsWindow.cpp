@@ -663,7 +663,7 @@ void SettingsWindow::saveAndReloadGameSettings()
 	g_emu_thread->reloadGameSettings();
 }
 
-void SettingsWindow::openGamePropertiesDialog(const GameList::Entry* game, const std::string_view title, std::string serial, u32 disc_crc, bool is_elf)
+void SettingsWindow::openGamePropertiesDialog(const GameList::Entry* game, const std::string_view title, std::string serial, u32 disc_crc, bool is_elf, const char* category)
 {
 	std::string filename = VMManager::GetGameSettingsPath(!is_elf ? serial : std::string_view(), disc_crc);
 
@@ -672,6 +672,8 @@ void SettingsWindow::openGamePropertiesDialog(const GameList::Entry* game, const
 	{
 		if (dialog->isPerGameSettings() && static_cast<INISettingsInterface*>(dialog->m_sif.get())->GetFileName() == filename)
 		{
+			if (category)
+				dialog->setCategory(category);
 			dialog->show();
 			dialog->raise();
 			dialog->activateWindow();
@@ -686,6 +688,8 @@ void SettingsWindow::openGamePropertiesDialog(const GameList::Entry* game, const
 
 	SettingsWindow* dialog = new SettingsWindow(std::move(sif), game, std::move(serial), disc_crc, QtUtils::StringViewToQString(Path::GetFileName(filename)));
 	dialog->setWindowTitle(QtUtils::StringViewToQString(title));
+	if (category)
+		dialog->setCategory(category);
 	dialog->show();
 }
 

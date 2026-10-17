@@ -56,12 +56,22 @@ namespace Host
 	void ClearOSDMessages();
 
 	/// Displays an asynchronous error on the UI thread, i.e. doesn't block the caller.
+	void ReportInfoAsync(const std::string_view title, const std::string_view message);
+	void ReportFormattedInfoAsync(const std::string_view title, const char* format, ...);
+
+	/// Displays an asynchronous error on the UI thread, i.e. doesn't block the caller.
 	void ReportErrorAsync(const std::string_view title, const std::string_view message);
 	void ReportFormattedErrorAsync(const std::string_view title, const char* format, ...);
 
 	/// Displays a synchronous confirmation on the UI thread, i.e. blocks the caller.
 	bool ConfirmMessage(const std::string_view title, const std::string_view message);
 	bool ConfirmFormattedMessage(const std::string_view title, const char* format, ...);
+
+	/// Sets batch mode (exit after game shutdown).
+	bool InBatchMode();
+
+	/// Sets NoGUI mode (implys batch mode, does not display main window, exits on shutdown).
+	bool InNoGUIMode();
 
 	/// Opens a URL, using the default application.
 	void OpenURL(const std::string_view url);

@@ -154,6 +154,7 @@ namespace EmuFolders
 	std::string Settings;
 	std::string PTR2InstalledMods;
 	std::string PTR2;
+	std::string DebuggerLayouts;
 	std::string DebuggerSettings;
 	std::string Bios;
 	std::string Snapshots;
@@ -637,7 +638,7 @@ void Pcsx2Config::CpuOptions::LoadSave(SettingsWrapper& wrap)
 	Recompiler.LoadSave(wrap);
 }
 
-const char* Pcsx2Config::GSOptions::AspectRatioNames[] = {
+const char* Pcsx2Config::GSOptions::AspectRatioNames[(size_t)AspectRatioType::MaxCount + 1] = {
 	//"Stretch", //ptr2plus, I'm hiding this option because I don't want to rework the imgui UI to be responsive without visual issues
 	"Auto 4:3/3:2",
 	"4:3",
@@ -645,7 +646,7 @@ const char* Pcsx2Config::GSOptions::AspectRatioNames[] = {
 	//"10:7",
 	nullptr};
 
-const char* Pcsx2Config::GSOptions::FMVAspectRatioSwitchNames[] = {
+const char* Pcsx2Config::GSOptions::FMVAspectRatioSwitchNames[(size_t)FMVAspectRatioSwitchType::MaxCount + 1] = {
 	"Off",
 	"Auto 4:3/3:2",
 	"4:3",
@@ -840,12 +841,12 @@ bool Pcsx2Config::GSOptions::OptionsAreEqual(const GSOptions& right) const
 		OpEqu(ShadeBoost_Contrast) &&
 		OpEqu(ShadeBoost_Saturation) &&
 		OpEqu(PNGCompressionLevel) &&
-		OpEqu(SaveN) &&
-		OpEqu(SaveL) &&
-		OpEqu(SaveB) &&
-		OpEqu(SaveNF) &&
-		OpEqu(SaveLF) &&
-		OpEqu(SaveBF) &&
+		OpEqu(SaveDrawStart) &&
+		OpEqu(SaveDrawCount) &&
+		OpEqu(SaveDrawBy) &&
+		OpEqu(SaveFrameStart) &&
+		OpEqu(SaveFrameCount) &&
+		OpEqu(SaveFrameBy) &&
 
 		OpEqu(ExclusiveFullscreenControl) &&
 		OpEqu(ScreenshotSize) &&
@@ -967,13 +968,13 @@ void Pcsx2Config::GSOptions::LoadSave(SettingsWrapper& wrap)
 	SettingsWrapBitBoolEx(UserHacks_EstimateTextureRegion, "UserHacks_EstimateTextureRegion");
 	SettingsWrapBitBoolEx(FXAA, "fxaa");
 	SettingsWrapBitBool(ShadeBoost);
-	SettingsWrapBitBoolEx(DumpGSData, "dump");
-	SettingsWrapBitBoolEx(SaveRT, "save");
-	SettingsWrapBitBoolEx(SaveFrame, "savef");
-	SettingsWrapBitBoolEx(SaveTexture, "savet");
-	SettingsWrapBitBoolEx(SaveDepth, "savez");
-	SettingsWrapBitBoolEx(SaveAlpha, "savea");
-	SettingsWrapBitBoolEx(SaveInfo, "savei");
+	SettingsWrapBitBoolEx(DumpGSData, "DumpGSData");
+	SettingsWrapBitBoolEx(SaveRT, "SaveRT");
+	SettingsWrapBitBoolEx(SaveFrame, "SaveFrame");
+	SettingsWrapBitBoolEx(SaveTexture, "SaveTexture");
+	SettingsWrapBitBoolEx(SaveDepth, "SaveDepth");
+	SettingsWrapBitBoolEx(SaveAlpha, "SaveAlpha");
+	SettingsWrapBitBoolEx(SaveInfo, "SaveInfo");
 	SettingsWrapBitBool(DumpReplaceableTextures);
 	SettingsWrapBitBool(DumpReplaceableMipmaps);
 	SettingsWrapBitBool(DumpTexturesWithFMVActive);
@@ -1032,12 +1033,12 @@ void Pcsx2Config::GSOptions::LoadSave(SettingsWrapper& wrap)
 	SettingsWrapBitfield(ShadeBoost_Saturation);
 	SettingsWrapBitfield(ExclusiveFullscreenControl);
 	SettingsWrapBitfieldEx(PNGCompressionLevel, "png_compression_level");
-	SettingsWrapBitfieldEx(SaveN, "saven");
-	SettingsWrapBitfieldEx(SaveL, "savel");
-	SettingsWrapBitfieldEx(SaveB, "saveb");
-	SettingsWrapBitfieldEx(SaveNF, "savenf");
-	SettingsWrapBitfieldEx(SaveLF, "savelf");
-	SettingsWrapBitfieldEx(SaveBF, "savebf");
+	SettingsWrapBitfieldEx(SaveDrawStart, "SaveDrawStart");
+	SettingsWrapBitfieldEx(SaveDrawCount, "SaveDrawCount");
+	SettingsWrapBitfieldEx(SaveDrawBy, "SaveDrawBy");
+	SettingsWrapBitfieldEx(SaveFrameStart, "SaveFrameStart");
+	SettingsWrapBitfieldEx(SaveFrameCount, "SaveFrameCount");
+	SettingsWrapBitfieldEx(SaveFrameBy, "SaveFrameBy");
 
 	SettingsWrapEntryEx(CaptureContainer, "CaptureContainer");
 	SettingsWrapEntryEx(VideoCaptureCodec, "VideoCaptureCodec");
@@ -1123,9 +1124,11 @@ bool Pcsx2Config::GSOptions::UseHardwareRenderer() const
 
 bool Pcsx2Config::GSOptions::ShouldDump(int draw, int frame) const
 {
+	int drawOffset = draw - SaveDrawStart;
+	int frameOffset = frame - SaveFrameStart;
 	return DumpGSData &&
-		(SaveN <= draw) && ((SaveL < 0) || (draw < SaveN + SaveL)) && (draw % SaveB == 0) &&
-		(SaveNF <= frame) && ((SaveLF < 0) || (frame < SaveNF + SaveLF)) && (frame % SaveBF == 0);
+		   (drawOffset >= 0) && ((SaveDrawCount < 0) || (drawOffset < SaveDrawCount)) && (drawOffset % SaveDrawBy == 0) &&
+		   (frameOffset >= 0) && ((SaveFrameCount < 0) || (frameOffset < SaveFrameCount)) && (frameOffset % SaveFrameBy == 0);
 }
 
 static constexpr const std::array s_spu2_sync_mode_names = {
@@ -1530,45 +1533,6 @@ void Pcsx2Config::GamefixOptions::LoadSave(SettingsWrapper& wrap)
 	SettingsWrapBitBool(FullVU0SyncHack);
 }
 
-Pcsx2Config::DebugOptions::DebugOptions()
-{
-	ShowDebuggerOnStart = false;
-	AlignMemoryWindowStart = true;
-	FontWidth = 8;
-	FontHeight = 12;
-	WindowWidth = 0;
-	WindowHeight = 0;
-	MemoryViewBytesPerRow = 16;
-}
-
-void Pcsx2Config::DebugOptions::LoadSave(SettingsWrapper& wrap)
-{
-	SettingsWrapSection("EmuCore/Debugger");
-
-	SettingsWrapBitBool(ShowDebuggerOnStart);
-	SettingsWrapBitBool(AlignMemoryWindowStart);
-	SettingsWrapBitfield(FontWidth);
-	SettingsWrapBitfield(FontHeight);
-	SettingsWrapBitfield(WindowWidth);
-	SettingsWrapBitfield(WindowHeight);
-	SettingsWrapBitfield(MemoryViewBytesPerRow);
-}
-
-bool Pcsx2Config::DebugOptions::operator!=(const DebugOptions& right) const
-{
-	return !this->operator==(right);
-}
-
-bool Pcsx2Config::DebugOptions::operator==(const DebugOptions& right) const
-{
-	return OpEqu(bitset) &&
-		   OpEqu(FontWidth) &&
-		   OpEqu(FontHeight) &&
-		   OpEqu(WindowWidth) &&
-		   OpEqu(WindowHeight) &&
-		   OpEqu(MemoryViewBytesPerRow);
-}
-
 const char* Pcsx2Config::DebugAnalysisOptions::RunConditionNames[] = {
 	"Always",
 	"If Debugger Is Open",
@@ -1867,12 +1831,24 @@ Pcsx2Config::AchievementsOptions::AchievementsOptions()
 	Notifications = true;
 	LeaderboardNotifications = true;
 	SoundEffects = true;
+	InfoSound = true;
+	UnlockSound = true;
+	LBSubmitSound = true;
 	Overlays = true;
 }
 
 void Pcsx2Config::AchievementsOptions::LoadSave(SettingsWrapper& wrap)
 {
 	SettingsWrapSection("Achievements");
+
+	if (InfoSoundName.empty())
+		InfoSoundName = Path::Combine(EmuFolders::Resources, DEFAULT_INFO_SOUND_NAME);
+
+	if (UnlockSoundName.empty())
+		UnlockSoundName = Path::Combine(EmuFolders::Resources, DEFAULT_UNLOCK_SOUND_NAME);
+
+	if (LBSubmitSoundName.empty())
+		LBSubmitSoundName = Path::Combine(EmuFolders::Resources, DEFAULT_LBSUBMIT_SOUND_NAME);
 
 	SettingsWrapBitBool(Enabled);
 	SettingsWrapBitBoolEx(HardcoreMode, "ChallengeMode");
@@ -1882,9 +1858,15 @@ void Pcsx2Config::AchievementsOptions::LoadSave(SettingsWrapper& wrap)
 	SettingsWrapBitBool(Notifications);
 	SettingsWrapBitBool(LeaderboardNotifications);
 	SettingsWrapBitBool(SoundEffects);
+	SettingsWrapBitBool(InfoSound);
+	SettingsWrapBitBool(UnlockSound);
+	SettingsWrapBitBool(LBSubmitSound);
 	SettingsWrapBitBool(Overlays);
 	SettingsWrapEntry(NotificationsDuration);
 	SettingsWrapEntry(LeaderboardsDuration);
+	SettingsWrapEntry(InfoSoundName);
+	SettingsWrapEntry(UnlockSoundName);
+	SettingsWrapEntry(LBSubmitSoundName);
 
 	if (wrap.IsLoading())
 	{
@@ -1914,6 +1896,7 @@ Pcsx2Config::Pcsx2Config()
 	EnableRecordingTools = true;
 	EnableGameFixes = true;
 	InhibitScreensaver = true;
+	UseSavestateSelector = true;
 	BackupSavestate = true;
 
 	//ptr2plus needs hostfs on
@@ -1922,6 +1905,7 @@ Pcsx2Config::Pcsx2Config()
 	performance_preset = 0; //ptr2plus
 
 	WarnAboutUnsafeSettings = true;
+	EnableDiscordPresence = false;
 	ManuallySetRealTimeClock = false;
 
 	// To be moved to FileMemoryCard pluign (someday)
@@ -1984,7 +1968,6 @@ void Pcsx2Config::LoadSaveCore(SettingsWrapper& wrap)
 	Profiler.LoadSave(wrap);
 	Savestate.LoadSave(wrap);
 
-	Debugger.LoadSave(wrap);
 	DebuggerAnalysis.LoadSave(wrap);
 	Trace.LoadSave(wrap);
 
@@ -2010,7 +1993,12 @@ void Pcsx2Config::LoadSaveCore(SettingsWrapper& wrap)
 
 	if (wrap.IsLoading())
 	{
+		// Patches will get re-applied after loading the state so this doesn't matter too much
 		CurrentAspectRatio = GS.AspectRatio;
+		if (CurrentAspectRatio == AspectRatioType::RAuto4_3_3_2)
+		{
+			CurrentCustomAspectRatio = 0.f;
+		}
 	}
 }
 
@@ -2062,6 +2050,7 @@ void Pcsx2Config::CopyRuntimeConfig(Pcsx2Config& cfg)
 	CurrentIRX = std::move(cfg.CurrentIRX);
 	CurrentGameArgs = std::move(cfg.CurrentGameArgs);
 	CurrentAspectRatio = cfg.CurrentAspectRatio;
+	CurrentCustomAspectRatio = cfg.CurrentCustomAspectRatio;
 	IsPortableMode = cfg.IsPortableMode;
 
 	for (u32 i = 0; i < sizeof(Mcd) / sizeof(Mcd[0]); i++)
@@ -2104,17 +2093,16 @@ void Pcsx2Config::ClearInvalidPerGameConfiguration(SettingsInterface* si)
 void EmuFolders::SetAppRoot()
 {
 	std::string program_path = FileSystem::GetProgramPath();
+	Console.WriteLnFmt("Program Path: {}", program_path);
+	AppRoot = Path::Canonicalize(Path::GetDirectory(program_path));
 #ifdef __APPLE__
 	const auto bundle_path = CocoaTools::GetNonTranslocatedBundlePath();
 	if (bundle_path.has_value())
 	{
 		// On macOS, override with the bundle path if launched from a bundle.
-		program_path = bundle_path.value();
+		AppRoot = StringUtil::EndsWithNoCase(*bundle_path, ".app") ? Path::GetDirectory(*bundle_path) : *bundle_path;
 	}
 #endif
-	Console.WriteLnFmt("Program Path: {}", program_path);
-
-	AppRoot = Path::Canonicalize(Path::GetDirectory(program_path));
 
 	// logging of directories in case something goes wrong super early
 	Console.WriteLnFmt("AppRoot Directory: {}", AppRoot);
@@ -2131,8 +2119,10 @@ bool EmuFolders::SetResourcesDirectory()
 #endif
 #else
 	// On macOS, this is in the bundle resources directory.
-	const std::string program_path = FileSystem::GetProgramPath();
-	Resources = Path::Canonicalize(Path::Combine(Path::GetDirectory(program_path), "../Resources"));
+	if (auto resources = CocoaTools::GetResourcePath())
+		Resources = *resources;
+	else
+		Resources = Path::Combine(AppRoot, "resources");
 #endif
 
 	Console.WriteLnFmt("Resources Directory: {}", Resources);
@@ -2214,16 +2204,16 @@ bool EmuFolders::SetDataDirectory(Error* error)
 	if (DataRoot.empty())
 	{
 #if defined(__linux__)
-	// special check if we're on appimage
-	// always make sure that DataRoot
-	// is adjacent next to the appimage
-	if (getenv("APPIMAGE"))
-	{
-		std::string_view appimage_path = Path::GetDirectory(getenv("APPIMAGE"));
-		DataRoot = Path::RealPath(Path::Combine(appimage_path, "PCSX2"));
-	}
-	else
-		DataRoot = Path::Combine(AppRoot, GetPortableModePath());
+		// special check if we're on appimage
+		// always make sure that DataRoot
+		// is adjacent next to the appimage
+		if (getenv("APPIMAGE"))
+		{
+			std::string_view appimage_path = Path::GetDirectory(getenv("APPIMAGE"));
+			DataRoot = Path::RealPath(Path::Combine(appimage_path, "PCSX2"));
+		}
+		else
+			DataRoot = Path::Combine(AppRoot, GetPortableModePath());
 #else
 		DataRoot = Path::Combine(AppRoot, GetPortableModePath());
 #endif
@@ -2254,6 +2244,8 @@ void EmuFolders::SetDefaults(SettingsInterface& si)
 	si.SetStringValue("Folders", "Textures", "textures");
 	si.SetStringValue("Folders", "InputProfiles", "inputprofiles");
 	si.SetStringValue("Folders", "Videos", "videos");
+	si.SetStringValue("Folders", "DebuggerLayouts", "debuggerlayouts");
+	si.SetStringValue("Folders", "DebuggerSettings", "debuggersettings");
 }
 
 static std::string LoadPathFromSettings(SettingsInterface& si, const std::string& root, const char* name, const char* def)
@@ -2282,6 +2274,7 @@ void EmuFolders::LoadConfig(SettingsInterface& si)
 	Textures = LoadPathFromSettings(si, DataRoot, "Textures", "textures");
 	InputProfiles = LoadPathFromSettings(si, DataRoot, "InputProfiles", "inputprofiles");
 	Videos = LoadPathFromSettings(si, DataRoot, "Videos", "videos");
+	DebuggerLayouts = LoadPathFromSettings(si, Settings, "DebuggerLayouts", "debuggerlayouts");
 	DebuggerSettings = LoadPathFromSettings(si, Settings, "DebuggerSettings", "debuggersettings");
 
 	Console.WriteLn("PTR2InstalledMods Directory: %s", PTR2InstalledMods.c_str());
@@ -2301,6 +2294,7 @@ void EmuFolders::LoadConfig(SettingsInterface& si)
 	Console.WriteLn("Textures Directory: %s", Textures.c_str());
 	Console.WriteLn("Input Profile Directory: %s", InputProfiles.c_str());
 	Console.WriteLn("Video Dumping Directory: %s", Videos.c_str());
+	Console.WriteLn("Debugger Layouts Directory: %s", DebuggerLayouts.c_str());
 	Console.WriteLn("Debugger Settings Directory: %s", DebuggerSettings.c_str());
 }
 
@@ -2319,11 +2313,12 @@ bool EmuFolders::EnsureFoldersExist()
 	result = FileSystem::CreateDirectoryPath(Covers.c_str(), false) && result;
 	result = FileSystem::CreateDirectoryPath(GameSettings.c_str(), false) && result;
 	result = FileSystem::CreateDirectoryPath(UserResources.c_str(), false) && result;
-	result = FileSystem::CreateDirectoryPath(DebuggerSettings.c_str(), false) && result;
 	result = FileSystem::CreateDirectoryPath(Cache.c_str(), false) && result;
 	result = FileSystem::CreateDirectoryPath(Textures.c_str(), false) && result;
 	result = FileSystem::CreateDirectoryPath(InputProfiles.c_str(), false) && result;
 	result = FileSystem::CreateDirectoryPath(Videos.c_str(), false) && result;
+	result = FileSystem::CreateDirectoryPath(DebuggerLayouts.c_str(), false) && result;
+	result = FileSystem::CreateDirectoryPath(DebuggerSettings.c_str(), false) && result;
 	return result;
 }
 

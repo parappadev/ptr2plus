@@ -87,7 +87,7 @@ public Q_SLOTS:
 	void setVMPaused(bool paused);
 	void shutdownVM(bool save_state = true);
 	void loadState(const QString& filename);
-	void loadStateFromSlot(qint32 slot);
+	void loadStateFromSlot(qint32 slot, bool load_backup = false);
 	void saveState(const QString& filename);
 	void saveStateToSlot(qint32 slot);
 	void toggleFullscreen();
@@ -114,7 +114,7 @@ public Q_SLOTS:
 	void endCapture();
 	void setAudioOutputVolume(int volume, int fast_forward_volume);
 	void setAudioOutputMuted(bool muted);
-	
+
 Q_SIGNALS:
 	bool messageConfirmed(const QString& title, const QString& message);
 	void statusMessage(const QString& message);
@@ -244,12 +244,6 @@ namespace QtHost
 
 	/// Sets the icon theme, based on the current style (light/dark).
 	void SetIconThemeFromStyle();
-
-	/// Sets batch mode (exit after game shutdown).
-	bool InBatchMode();
-
-	/// Sets NoGUI mode (implys batch mode, does not display main window, exits on shutdown).
-	bool InNoGUIMode();
 
 	/// Returns true if the calling thread is the UI thread.
 	bool IsOnUIThread();

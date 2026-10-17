@@ -339,7 +339,7 @@ void GSClut::Read(const GIFRegTEX0& TEX0)
 				break;
 			}
 		}
-		else if(TEX0.CPSM == PSMCT16 || TEX0.CPSM == PSMCT16S)
+		else if (TEX0.CPSM == PSMCT16 || TEX0.CPSM == PSMCT16S)
 		{
 			switch(TEX0.PSM)
 			{
@@ -462,7 +462,8 @@ void GSClut::GetAlphaMinMax32(int& amin_out, int& amax_out)
 {
 	// call only after Read32
 
-	pxAssert(!m_read.dirty);
+	if (m_read.dirty)
+		GL_INS("GSClut: GetAlphaMinMax32 m_read.dirty");
 
 	if (m_read.adirty)
 	{

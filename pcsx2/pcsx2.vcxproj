@@ -31,7 +31,8 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(DepsIncludeDir)\SDL2</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(DepsIncludeDir)\plutovg;$(DepsIncludeDir)\plutosvg</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(DepsIncludeDir)\SDL3</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(SolutionDir)3rdparty\include</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(SolutionDir)3rdparty\fmt\include</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(SolutionDir)3rdparty\winwil\include</AdditionalIncludeDirectories>
@@ -195,6 +196,7 @@
     <ClCompile Include="DEV9\Sessions\TCP_Session\TCP_Session_Out.cpp" />
     <ClCompile Include="DEV9\Win32\pcap_io_win32.cpp" />
     <ClCompile Include="DEV9\Sessions\BaseSession.cpp" />
+    <ClCompile Include="DEV9\Sessions\UDP_Session\UDP_Common.cpp" />
     <ClCompile Include="DEV9\Sessions\UDP_Session\UDP_FixedPort.cpp" />
     <ClCompile Include="DEV9\Sessions\UDP_Session\UDP_Session.cpp" />
     <ClCompile Include="DEV9\smap.cpp" />
@@ -641,6 +643,7 @@
     <ClInclude Include="DEV9\Sessions\BaseSession.h" />
     <ClInclude Include="DEV9\Sessions\ICMP_Session\ICMP_Session.h" />
     <ClInclude Include="DEV9\Sessions\TCP_Session\TCP_Session.h" />
+    <ClInclude Include="DEV9\Sessions\UDP_Session\UDP_Common.h" />
     <ClInclude Include="DEV9\Sessions\UDP_Session\UDP_FixedPort.h" />
     <ClInclude Include="DEV9\Sessions\UDP_Session\UDP_BaseSession.h" />
     <ClInclude Include="DEV9\Sessions\UDP_Session\UDP_Session.h" />

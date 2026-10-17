@@ -116,7 +116,7 @@ namespace VMManager
 	static bool HasValidOrInitializingVM();
 	static void PrecacheCDVDFile();
 
-	static std::string GetCurrentSaveStateFileName(s32 slot);
+	static std::string GetCurrentSaveStateFileName(s32 slot, bool backup = false);
 	static bool DoLoadState(const char* filename);
 	static bool DoSaveState(const char* filename, s32 slot_for_message, bool zip_on_thread, bool backup_old_state);
 	static void ZipSaveState(std::unique_ptr<ArchiveEntryList> elist,
@@ -479,7 +479,7 @@ void VMManager::UpdateLoggingSettings(SettingsInterface& si)
 
 	const bool system_console_enabled = !s_log_block_system_console && si.GetBoolValue("Logging", "EnableSystemConsole", false);
 	const bool log_window_enabled = !s_log_block_system_console && si.GetBoolValue("Logging", "EnableLogWindow", false);
-	const bool file_logging_enabled = s_log_force_file_log || si.GetBoolValue("Logging", "EnableFileLogging", false);
+	const bool file_logging_enabled = s_log_force_file_log || si.GetBoolValue("Logging", "EnableFileLogging", true);
 
 	if (system_console_enabled != Log::IsConsoleOutputEnabled())
 		Log::SetConsoleOutputLevel(system_console_enabled ? level : LOGLEVEL_NONE);
@@ -523,7 +523,7 @@ void VMManager::UpdateLoggingSettings(SettingsInterface& si)
 void VMManager::SetDefaultLoggingSettings(SettingsInterface& si)
 {
 	si.SetBoolValue("Logging", "EnableSystemConsole", false);
-	si.SetBoolValue("Logging", "EnableFileLogging", false);
+	si.SetBoolValue("Logging", "EnableFileLogging", true);
 	si.SetBoolValue("Logging", "EnableTimestamps", true);
 	si.SetBoolValue("Logging", "EnableVerbose", false);
 	si.SetBoolValue("Logging", "EnableEEConsole", false);
@@ -629,10 +629,10 @@ void VMManager::ReloadInputSources()
 		LoadInputBindings(*si, lock);
 }
 
-void VMManager::ReloadInputBindings()
+void VMManager::ReloadInputBindings(bool force)
 {
 	// skip loading bindings if we're not running, since it'll get done on startup anyway
-	if (!HasValidVM())
+	if (!force && !HasValidVM())
 		return;
 
 	FPControlRegisterBackup fpcr_backup(FPControlRegister::GetDefault());
@@ -667,19 +667,19 @@ void VMManager::LoadInputBindings(SettingsInterface& si, std::unique_lock<std::m
 		const bool use_profile_hotkeys = isi->GetBoolValue("Pad", "UseProfileHotkeyBindings", false);
 		if (use_profile_hotkeys)
 		{
-			InputManager::ReloadBindings(si, *isi, *isi);
+			InputManager::ReloadBindings(si, *isi, *isi, true, true);
 		}
 		else
 		{
 			// Temporarily disable the input profile layer, so it doesn't take precedence.
 			Host::Internal::SetInputSettingsLayer(nullptr, lock);
-			InputManager::ReloadBindings(si, *isi, si);
+			InputManager::ReloadBindings(si, *isi, si, true, false);
 			Host::Internal::SetInputSettingsLayer(s_input_settings_interface.get(), lock);
 		}
 	}
 	else
 	{
-		InputManager::ReloadBindings(si, si, si);
+		InputManager::ReloadBindings(si, si, si, false, false);
 	}
 }
 
@@ -887,7 +887,9 @@ void VMManager::RequestDisplaySize(float scale /*= 0.0f*/)
 	switch (GSConfig.AspectRatio)
 	{
 		case AspectRatioType::RAuto4_3_3_2:
-			if (GSgetDisplayMode() == GSVideoMode::SDTV_480P)
+			if (EmuConfig.CurrentCustomAspectRatio > 0.f)
+				x_scale = EmuConfig.CurrentCustomAspectRatio / (static_cast<float>(iwidth) / static_cast<float>(iheight));
+			else if (GSgetDisplayMode() == GSVideoMode::SDTV_480P)
 				x_scale = (3.0f / 2.0f) / (static_cast<float>(iwidth) / static_cast<float>(iheight));
 			else
 				x_scale = (4.0f / 3.0f) / (static_cast<float>(iwidth) / static_cast<float>(iheight));
@@ -1779,13 +1781,15 @@ bool SaveStateBase::vmFreeze()
 	return IsOkay();
 }
 
-std::string VMManager::GetSaveStateFileName(const char* game_serial, u32 game_crc, s32 slot)
+std::string VMManager::GetSaveStateFileName(const char* game_serial, u32 game_crc, s32 slot, bool backup)
 {
 	std::string filename;
 	if (std::strlen(game_serial) > 0)
 	{
 		if (slot < 0)
 			filename = fmt::format("{} ({:08X}).resume.p2s", game_serial, game_crc);
+		else if (backup)
+			filename = fmt::format("{} ({:08X}).{:02d}.p2s.backup", game_serial, game_crc, slot);
 		else
 			filename = fmt::format("{} ({:08X}).{:02d}.p2s", game_serial, game_crc, slot);
 
@@ -1795,7 +1799,7 @@ std::string VMManager::GetSaveStateFileName(const char* game_serial, u32 game_cr
 	return filename;
 }
 
-std::string VMManager::GetSaveStateFileName(const char* filename, s32 slot)
+std::string VMManager::GetSaveStateFileName(const char* filename, s32 slot, bool backup)
 {
 	pxAssertRel(!HasValidVM(), "Should not have a VM when calling the non-gamelist GetSaveStateFileName()");
 
@@ -1803,7 +1807,7 @@ std::string VMManager::GetSaveStateFileName(const char* filename, s32 slot)
 	std::string serial;
 	u32 crc;
 	if (GameList::GetSerialAndCRCForFilename(filename, &serial, &crc))
-		ret = GetSaveStateFileName(serial.c_str(), crc, slot);
+		ret = GetSaveStateFileName(serial.c_str(), crc, slot, backup);
 
 	return ret;
 }
@@ -1814,10 +1818,10 @@ bool VMManager::HasSaveStateInSlot(const char* game_serial, u32 game_crc, s32 sl
 	return (!filename.empty() && FileSystem::FileExists(filename.c_str()));
 }
 
-std::string VMManager::GetCurrentSaveStateFileName(s32 slot)
+std::string VMManager::GetCurrentSaveStateFileName(s32 slot, bool backup)
 {
 	std::unique_lock lock(s_info_mutex);
-	return GetSaveStateFileName(s_disc_serial.c_str(), s_disc_crc, slot);
+	return GetSaveStateFileName(s_disc_serial.c_str(), s_disc_crc, slot, backup);
 }
 
 bool VMManager::DoLoadState(const char* filename)
@@ -1860,7 +1864,7 @@ bool VMManager::DoSaveState(const char* filename, s32 slot_for_message, bool zip
 	if (!elist)
 	{
 		Host::AddIconOSDMessage(std::move(osd_key), ICON_FA_EXCLAMATION_TRIANGLE,
-			fmt::format(TRANSLATE_FS("VMManager", "Failed to save save state: {}."), error.GetDescription()),
+			fmt::format(TRANSLATE_FS("VMManager", "Failed to save state: {}."), error.GetDescription()),
 			Host::OSD_ERROR_DURATION);
 		return false;
 	}
@@ -1915,7 +1919,7 @@ void VMManager::ZipSaveState(std::unique_ptr<ArchiveEntryList> elist,
 	else
 	{
 		Host::AddIconOSDMessage(std::move(osd_key), ICON_FA_EXCLAMATION_TRIANGLE,
-			fmt::format(TRANSLATE_FS("VMManager", "Failed to save save state to slot {}."), slot_for_message,
+			fmt::format(TRANSLATE_FS("VMManager", "Failed to save state to slot {}."), slot_for_message,
 				Host::OSD_ERROR_DURATION));
 	}
 
@@ -2007,13 +2011,13 @@ bool VMManager::LoadState(const char* filename)
 	return false;
 }
 
-bool VMManager::LoadStateFromSlot(s32 slot)
+bool VMManager::LoadStateFromSlot(s32 slot, bool backup)
 {
-	const std::string filename = GetCurrentSaveStateFileName(slot);
+	const std::string filename = GetCurrentSaveStateFileName(slot, backup);
 	if (filename.empty() || !FileSystem::FileExists(filename.c_str()))
 	{
 		Host::AddIconOSDMessage("LoadStateFromSlot", ICON_FA_EXCLAMATION_TRIANGLE,
-			fmt::format(TRANSLATE_FS("VMManager", "There is no save state in slot {}."), slot),
+			fmt::format(TRANSLATE_FS("VMManager", "There is no saved {} in slot {}."), backup ? TRANSLATE("VMManager", "backup state") : "state", slot),
 			Host::OSD_QUICK_DURATION);
 		return false;
 	}
@@ -2031,13 +2035,13 @@ bool VMManager::LoadStateFromSlot(s32 slot)
 	if (MemcardBusy::IsBusy())
 	{
 		Host::AddIconOSDMessage("LoadStateFromSlot", ICON_FA_EXCLAMATION_TRIANGLE,
-			fmt::format(TRANSLATE_FS("VMManager", "Failed to load state from slot {} (Memory card is busy)"), slot),
+			fmt::format(TRANSLATE_FS("VMManager", "Failed to load {} from slot {} (Memory card is busy)"), backup ? TRANSLATE("VMManager", "backup state") : TRANSLATE("VMManager", "state"), slot),
 			Host::OSD_QUICK_DURATION);
 		return false;
 	}
 
 	Host::AddIconOSDMessage("LoadStateFromSlot", ICON_FA_FOLDER_OPEN,
-		fmt::format(TRANSLATE_FS("VMManager", "Loading state from slot {}..."), slot), Host::OSD_QUICK_DURATION);
+		fmt::format(TRANSLATE_FS("VMManager", "Loading {} from slot {}..."), backup ? TRANSLATE("VMManager", "backup state") : TRANSLATE("VMManager", "state"), slot), Host::OSD_QUICK_DURATION);
 	return DoLoadState(filename.c_str());
 }
 
@@ -2526,9 +2530,13 @@ void VMManager::LogCPUCapabilities()
 
 	Console.WriteLnFmt(
 		"  Operating System = {}\n"
-		"  Physical RAM     = {} MB",
+		"  Available RAM    = {} MB ({:.2f} GB)\n"
+		"  Physical RAM     = {} MB ({:.2f} GB)\n",
 		GetOSVersionString(),
-		GetPhysicalMemory() / _1mb);
+		GetAvailablePhysicalMemory() / _1mb,
+		static_cast<double>(GetAvailablePhysicalMemory()) / static_cast<double>(_1gb),
+		GetPhysicalMemory() / _1mb,
+		static_cast<double>(GetPhysicalMemory()) / static_cast<double>(_1gb));
 
 	Console.WriteLnFmt("  Processor        = {}", cpuinfo_get_package(0)->name);
 	Console.WriteLnFmt("  Core Count       = {} cores", cpuinfo_get_cores_count());
@@ -2610,7 +2618,7 @@ void VMManager::ShutdownCPUProviders()
 #else
 	// See the comment in the InitializeCPUProviders for an explaination why we
 	// still need to manage the MTVU thread.
-	if(vu1Thread.IsOpen())
+	if (vu1Thread.IsOpen())
 		vu1Thread.WaitVU();
 #endif
 }
@@ -3196,6 +3204,11 @@ void VMManager::WarnAboutUnsafeSettings()
 			append(ICON_FA_IMAGES,
 				TRANSLATE_SV("VMManager", "Mipmapping is disabled. This may break rendering in some games."));
 		}
+		if (EmuConfig.GS.UseDebugDevice)
+		{
+			append(ICON_FA_BUG,
+				TRANSLATE_SV("VMManager", "Debug device is enabled. This will massively reduce performance."));
+		}
 		/*static bool render_change_warn = false;
 		if (EmuConfig.GS.Renderer != GSRendererType::Auto && EmuConfig.GS.Renderer != GSRendererType::SW && !render_change_warn)
 		{
@@ -3633,7 +3646,7 @@ void VMManager::ReloadPINE()
 	PINEServer::Deinitialize();
 
 	if (EmuConfig.EnablePINE)
-		PINEServer::Initialize();
+		PINEServer::Initialize(EmuConfig.PINESlot);
 }
 
 void VMManager::InitializeDiscordPresence()

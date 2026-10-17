@@ -1,15 +1,15 @@
 // SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
-#define IMGUI_DEFINE_MATH_OPERATORS
-
 #include "fmt/format.h"
 #include "Host.h"
 #include "GS/Renderers/Common/GSDevice.h"
 #include "GS/Renderers/Common/GSTexture.h"
+#include "ImGui/FullscreenUI.h"
 #include "ImGui/ImGuiAnimated.h"
 #include "ImGui/ImGuiFullscreen.h"
 #include "ImGui/ImGuiManager.h"
+#include "Input/InputManager.h"
 
 #include "common/Assertions.h"
 #include "common/Console.h"
@@ -25,6 +25,9 @@
 #include "IconsFontAwesome5.h"
 #include "imgui_internal.h"
 #include "imgui_stdlib.h"
+
+#include <plutovg.h>
+#include <plutosvg.h>
 
 #include <array>
 #include <cmath>
@@ -42,6 +45,7 @@ namespace ImGuiFullscreen
 
 	static std::optional<RGBA8Image> LoadTextureImage(const char* path);
 	static std::shared_ptr<GSTexture> UploadTexture(const char* path, const RGBA8Image& image);
+	static std::optional<RGBA8Image> LoadSvgTextureImage(const char* path, ImVec2 size, SvgScaling mode);
 	static void TextureLoaderThread();
 
 	static void DrawPTR2PopupModalBG(ImVec2 win_pos, ImVec2 win_size, const char* name, ImVec2& inner_win_pos, ImVec2& inner_win_size);
@@ -94,14 +98,15 @@ namespace ImGuiFullscreen
 	static u32 s_menu_button_index = 0;
 	static u32 s_close_button_state = 0;
 	static FocusResetType s_focus_reset_queued = FocusResetType::None;
-	static bool s_light_theme = false;
 
 	static LRUCache<std::string, std::shared_ptr<GSTexture>> s_texture_cache(128, true);
+	static LRUCache<std::string, std::vector<u8>> s_svg_data_cache(64, true);
 	static std::shared_ptr<GSTexture> s_placeholder_texture;
 	static std::atomic_bool s_texture_load_thread_quit{false};
 	static std::mutex s_texture_load_mutex;
 	static std::condition_variable s_texture_load_cv;
 	static std::deque<std::string> s_texture_load_queue;
+	static std::deque<std::tuple<std::string, ImVec2, SvgScaling>> s_svg_texture_load_queue;
 	static std::deque<std::pair<std::string, RGBA8Image>> s_texture_upload_queue;
 	static Threading::Thread s_texture_load_thread;
 
@@ -201,6 +206,8 @@ namespace ImGuiFullscreen
 
 	static std::vector<BackgroundProgressDialogData> s_background_progress_dialogs;
 	static std::mutex s_background_progress_lock;
+
+	static InputLayout s_gamepad_layout = InputLayout::Unknown;
 } // namespace ImGuiFullscreen
 
 void ImGuiFullscreen::SetFonts(ImFont* standard_font, ImFont* medium_font, ImFont* large_font)
@@ -374,6 +381,166 @@ GSTexture* ImGuiFullscreen::GetCachedTextureAsync(std::string_view name)
 	return tex_ptr->get();
 }
 
+// Renders an SVG image to specified size into a texture of ceil(size).
+// The region donated by size is positioned top left of the image when size != ceil(size).
+// The image is scaled to fit within, and rendered center of, size.
+std::optional<RGBA8Image> ImGuiFullscreen::LoadSvgTextureImage(const char* path, ImVec2 size, SvgScaling mode)
+{
+	std::optional<RGBA8Image> image;
+
+	// Cache SVG files as we may need to re-render at a new size later.
+	std::vector<u8>* data_ptr = s_svg_data_cache.Lookup(path);
+	if (!data_ptr)
+	{
+		std::optional<std::vector<u8>> data;
+		if (Path::IsAbsolute(path))
+			data = FileSystem::ReadBinaryFile(path);
+		else
+			data = FileSystem::ReadBinaryFile(Path::Combine(EmuFolders::Resources, path).c_str());
+		if (data.has_value())
+			data_ptr = s_svg_data_cache.Insert(std::string(path), std::move(data.value()));
+	}
+
+	if (data_ptr)
+	{
+		// Load SVG
+		plutosvg_document_t* pluto_svg = plutosvg_document_load_from_data(reinterpret_cast<char*>(data_ptr->data()),
+			data_ptr->size(), -1, -1, nullptr, nullptr);
+
+		if (pluto_svg == nullptr)
+		{
+			Console.Error("Failed to load svg '%s'", path);
+			return image;
+		}
+
+		const float base_width = plutosvg_document_get_width(pluto_svg);
+		const float base_height = plutosvg_document_get_height(pluto_svg);
+
+		// Create a surface large enough to store the SVG.
+		const int px_width = std::ceil(size.x);
+		const int px_height = std::ceil(size.y);
+
+		std::vector<u32> pixel_data;
+		pixel_data.resize(px_width * px_height);
+
+		plutovg_surface_t* pluto_surface = plutovg_surface_create_for_data(reinterpret_cast<unsigned char*>(pixel_data.data()),
+			px_width, px_height, px_width * 4);
+		if (pluto_surface == nullptr)
+		{
+			plutosvg_document_destroy(pluto_svg);
+			Console.Error("Failed to create plutovg surface '%s'", path);
+			return image;
+		}
+
+		// Create a drawing canvas.
+		plutovg_canvas_t* pluto_canvas = plutovg_canvas_create(pluto_surface);
+		if (pluto_canvas == nullptr)
+		{
+			plutovg_surface_destroy(pluto_surface);
+			plutosvg_document_destroy(pluto_svg);
+			Console.Error("Failed to create plutovg canvas '%s'", path);
+			return image;
+		}
+
+		// Scale & position SVG.
+		// ImGui positions images from top left, so we can ignore integer size of surface.
+		switch (mode)
+		{
+			case SvgScaling::Stretch:
+				plutovg_canvas_scale(pluto_canvas, size.x / base_width, size.y / base_height);
+				break;
+			case SvgScaling::Fit:
+			{
+				const ImRect rect = CenterImage(size, {base_width, base_height}, false);
+				const float scale = (rect.Max.y - rect.Min.y) / base_height;
+				plutovg_canvas_scale(pluto_canvas, scale, scale);
+				plutovg_canvas_translate(pluto_canvas, rect.Min.x / scale, rect.Min.y / scale);
+				break;
+			}
+			case SvgScaling::ZoomFill:
+			{
+				const ImRect rect = CenterImage(size, {base_width, base_height}, true);
+				const float scale = (rect.Max.y - rect.Min.y) / base_height;
+				plutovg_canvas_scale(pluto_canvas, scale, scale);
+				plutovg_canvas_translate(pluto_canvas, rect.Min.x / scale, rect.Min.y / scale);
+				break;
+			}
+		}
+
+		// Render
+		const bool success = plutosvg_document_render(pluto_svg, nullptr, pluto_canvas, nullptr, nullptr, nullptr);
+
+		// Free pluto objects
+		plutovg_canvas_destroy(pluto_canvas);
+		plutovg_surface_destroy(pluto_surface);
+		plutosvg_document_destroy(pluto_svg);
+
+		if (!success)
+		{
+			Console.Error("Failed to render svg '%s'", path);
+			return image;
+		}
+
+		// Convert to RGBA8Image
+		plutovg_convert_argb_to_rgba(reinterpret_cast<unsigned char*>(pixel_data.data()), reinterpret_cast<unsigned char*>(pixel_data.data()),
+			px_width, px_height, px_width * 4);
+		image = RGBA8Image(px_width, px_height, std::move(pixel_data));
+	}
+	else
+	{
+		Console.Error("Failed to open texture resource '%s'", path);
+	}
+
+	return image;
+}
+
+std::shared_ptr<GSTexture> ImGuiFullscreen::LoadSvgTexture(std::string_view path, ImVec2 size, SvgScaling mode)
+{
+	std::string path_str(path);
+	std::optional<RGBA8Image> image(LoadSvgTextureImage(path_str.c_str(), size, mode));
+	if (image.has_value())
+	{
+		std::shared_ptr<GSTexture> ret(UploadTexture(path_str.c_str(), image.value()));
+		if (ret)
+			return ret;
+	}
+
+	return s_placeholder_texture;
+}
+
+GSTexture* ImGuiFullscreen::GetCachedSvgTexture(std::string_view name, ImVec2 size, SvgScaling mode)
+{
+	std::string svg_key = fmt::format("{}_{}x{}_{}", name, size.x, size.y, static_cast<u8>(mode));
+
+	std::shared_ptr<GSTexture>* tex_ptr = s_texture_cache.Lookup(svg_key);
+	if (!tex_ptr)
+	{
+		std::shared_ptr<GSTexture> tex(LoadSvgTexture(name, size, mode));
+		tex_ptr = s_texture_cache.Insert(std::string(svg_key), std::move(tex));
+	}
+
+	return tex_ptr->get();
+}
+
+GSTexture* ImGuiFullscreen::GetCachedSvgTextureAsync(std::string_view name, ImVec2 size, SvgScaling mode)
+{
+	std::string svg_key = fmt::format("{}_{}x{}_{}", name, size.x, size.y, static_cast<u8>(mode));
+
+	std::shared_ptr<GSTexture>* tex_ptr = s_texture_cache.Lookup(svg_key);
+	if (!tex_ptr)
+	{
+		// insert the placeholder
+		tex_ptr = s_texture_cache.Insert(std::string(svg_key), s_placeholder_texture);
+
+		// queue the actual load
+		std::unique_lock lock(s_texture_load_mutex);
+		s_svg_texture_load_queue.emplace_back(std::tuple(name, size, mode));
+		s_texture_load_cv.notify_one();
+	}
+
+	return tex_ptr->get();
+}
+
 bool ImGuiFullscreen::InvalidateCachedTexture(const std::string& path)
 {
 	return s_texture_cache.Remove(path);
@@ -405,7 +572,12 @@ void ImGuiFullscreen::TextureLoaderThread()
 	for (;;)
 	{
 		s_texture_load_cv.wait(
-			lock, []() { return (s_texture_load_thread_quit.load(std::memory_order_acquire) || !s_texture_load_queue.empty()); });
+			lock, []() {
+				return (
+					s_texture_load_thread_quit.load(std::memory_order_acquire) ||
+					!s_texture_load_queue.empty() ||
+					!s_svg_texture_load_queue.empty());
+			});
 
 		if (s_texture_load_thread_quit.load(std::memory_order_acquire))
 			break;
@@ -423,9 +595,30 @@ void ImGuiFullscreen::TextureLoaderThread()
 			if (image)
 				s_texture_upload_queue.emplace_back(std::move(path), std::move(image.value()));
 		}
+
+		while (!s_svg_texture_load_queue.empty())
+		{
+			std::string path;
+			ImVec2 size;
+			SvgScaling mode;
+			std::tie(path, size, mode) = std::move(s_svg_texture_load_queue.front());
+			s_svg_texture_load_queue.pop_front();
+
+			lock.unlock();
+			std::optional<RGBA8Image> image(LoadSvgTextureImage(path.c_str(), size, mode));
+			lock.lock();
+
+			// don't bother queuing back if it doesn't exist
+			if (image)
+			{
+				std::string svg_key = fmt::format("{}_{}x{}_{}", path, size.x, size.y, static_cast<u8>(mode));
+				s_texture_upload_queue.emplace_back(std::move(svg_key), std::move(image.value()));
+			}
+		}
 	}
 
 	s_texture_load_queue.clear();
+	s_svg_texture_load_queue.clear();
 }
 
 //adapted from CalculateDrawDstRect in GSRenderer.cpp
@@ -572,13 +765,13 @@ bool ImGuiFullscreen::UpdateLayoutScale()
 	return g_layout_scale != old_scale;
 }
 
-ImRect ImGuiFullscreen::CenterImage(const ImVec2& fit_size, const ImVec2& image_size)
+ImRect ImGuiFullscreen::CenterImage(const ImVec2& fit_size, const ImVec2& image_size, bool fill)
 {
 	const float fit_ar = fit_size.x / fit_size.y;
 	const float image_ar = image_size.x / image_size.y;
 
 	ImRect ret;
-	if (fit_ar > image_ar)
+	if ((fit_ar > image_ar) ^ fill)
 	{
 		// center horizontally
 		const float width = fit_size.y * image_ar;
@@ -598,9 +791,9 @@ ImRect ImGuiFullscreen::CenterImage(const ImVec2& fit_size, const ImVec2& image_
 	return ret;
 }
 
-ImRect ImGuiFullscreen::CenterImage(const ImRect& fit_rect, const ImVec2& image_size)
+ImRect ImGuiFullscreen::CenterImage(const ImRect& fit_rect, const ImVec2& image_size, bool fill)
 {
-	ImRect ret(CenterImage(fit_rect.Max - fit_rect.Min, image_size));
+	ImRect ret(CenterImage(fit_rect.Max - fit_rect.Min, image_size, fill));
 	ret.Translate(fit_rect.Min);
 	return ret;
 }
@@ -860,6 +1053,20 @@ void ImGuiFullscreen::EndFullscreenWindow()
 bool ImGuiFullscreen::IsGamepadInputSource()
 {
 	return (ImGui::GetCurrentContext()->NavInputSource == ImGuiInputSource_Gamepad);
+}
+
+void ImGuiFullscreen::ReportGamepadLayout(InputLayout layout)
+{
+	if (s_gamepad_layout == layout)
+		return;
+
+	s_gamepad_layout = layout;
+	FullscreenUI::GamepadLayoutChanged();
+}
+
+InputLayout ImGuiFullscreen::GetGamepadLayout()
+{
+	return s_gamepad_layout;
 }
 
 void ImGuiFullscreen::CreateFooterTextString(SmallStringBase& dest,
@@ -2046,7 +2253,7 @@ void ImGuiFullscreen::EndHorizontalMenu()
 	EndFullscreenWindow();
 }
 
-bool ImGuiFullscreen::HorizontalMenuItem(GSTexture* icon, const char* title, const char* description)
+bool ImGuiFullscreen::HorizontalMenuItem(GSTexture* icon, const ImVec2& icon_uv0, const ImVec2& icon_uv1, const char* title, const char* description)
 {
 	ImGuiWindow* window = ImGui::GetCurrentWindow();
 	if (window->SkipItems)
@@ -2085,7 +2292,7 @@ bool ImGuiFullscreen::HorizontalMenuItem(GSTexture* icon, const char* title, con
 	const ImVec2 icon_pos = bb.Min + ImVec2((avail_width - icon_size) * 0.5f, 0.0f);
 
 	ImDrawList* dl = ImGui::GetWindowDrawList();
-	dl->AddImage(reinterpret_cast<ImTextureID>(icon->GetNativeHandle()), icon_pos, icon_pos + ImVec2(icon_size, icon_size));
+	dl->AddImage(reinterpret_cast<ImTextureID>(icon->GetNativeHandle()), icon_pos, icon_pos + ImVec2(icon_size, icon_size), icon_uv0, icon_uv1);
 
 	ImFont* title_font = g_large_font;
 	const ImVec2 title_size = title_font->CalcTextSizeA(title_font->FontSize, avail_width, 0.0f, title);
@@ -2108,6 +2315,22 @@ bool ImGuiFullscreen::HorizontalMenuItem(GSTexture* icon, const char* title, con
 
 	s_menu_button_index++;
 	return pressed;
+}
+
+bool ImGuiFullscreen::HorizontalMenuItem(GSTexture* icon, const char* title, const char* description)
+{
+	return HorizontalMenuItem(icon, ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), title, description);
+}
+
+bool ImGuiFullscreen::HorizontalMenuSvgItem(const char* svg_path, const char* title, const char* description, SvgScaling mode)
+{
+	const ImVec2 icon_size = LayoutScale(150.0f, 150.0f);
+	GSTexture* padded_texture = GetCachedSvgTexture(svg_path, icon_size, mode);
+
+	const ImVec2 padded_size(padded_texture->GetWidth(), padded_texture->GetHeight());
+	const ImVec2 uv1 = icon_size / padded_size;
+
+	return HorizontalMenuItem(padded_texture, ImVec2(0.0f, 0.0f), uv1, title, description);
 }
 
 void ImGuiFullscreen::PopulateFileSelectorItems()
@@ -3166,10 +3389,10 @@ void ImGuiFullscreen::DrawNotifications(ImVec2& position, float spacing)
 	ImFont* const title_font = ImGuiFullscreen::g_large_font;
 	ImFont* const text_font = ImGuiFullscreen::g_medium_font;
 
-	const u32 toast_background_color = s_light_theme ? IM_COL32(241, 241, 241, 255) : IM_COL32(0x21, 0x21, 0x21, 255);
-	const u32 toast_border_color = s_light_theme ? IM_COL32(0x88, 0x88, 0x88, 255) : IM_COL32(0x48, 0x48, 0x48, 255);
-	const u32 toast_title_color = s_light_theme ? IM_COL32(1, 1, 1, 255) : IM_COL32(0xff, 0xff, 0xff, 255);
-	const u32 toast_text_color = s_light_theme ? IM_COL32(0, 0, 0, 255) : IM_COL32(0xff, 0xff, 0xff, 255);
+	const u32 toast_background_color = IM_COL32(0x21, 0x21, 0x21, 255);
+	const u32 toast_border_color = IM_COL32(0x48, 0x48, 0x48, 255);
+	const u32 toast_title_color = IM_COL32(0xff, 0xff, 0xff, 255);
+	const u32 toast_text_color = IM_COL32(0xff, 0xff, 0xff, 255);
 
 	for (u32 index = 0; index < static_cast<u32>(s_notifications.size());)
 	{
@@ -3337,13 +3560,10 @@ void ImGuiFullscreen::DrawToast()
 	}
 }
 
-void ImGuiFullscreen::SetTheme(bool light)
+void ImGuiFullscreen::SetTheme(std::string_view theme)
 {
-	s_light_theme = light;
-
-	if (!light)
+	if (theme == "Dark")
 	{
-		// dark
 		UIBackgroundColor = HEX_TO_IMVEC4(0x212121, 0xff);
 		//UIBackgroundColor = HEX_TO_IMVEC4(0xFFA160, 0xff); //button click
 		UIBackgroundTextColor = HEX_TO_IMVEC4(0xffffff, 0xff);
@@ -3365,9 +3585,8 @@ void ImGuiFullscreen::SetTheme(bool light)
 		UISecondaryWeakColor = HEX_TO_IMVEC4(0x002171, 0xff);
 		UISecondaryTextColor = HEX_TO_IMVEC4(0xffffff, 0xff);
 	}
-	else
+	else if (theme == "Light")
 	{
-		// light
 		UIBackgroundColor = HEX_TO_IMVEC4(0xc8c8c8, 0xff);
 		UIBackgroundTextColor = HEX_TO_IMVEC4(0x000000, 0xff);
 		UIBackgroundLineColor = HEX_TO_IMVEC4(0xe1e2e1, 0xff);
@@ -3383,6 +3602,177 @@ void ImGuiFullscreen::SetTheme(bool light)
 		UISecondaryColor = HEX_TO_IMVEC4(0x2a3e78, 0xff);
 		UISecondaryStrongColor = HEX_TO_IMVEC4(0x464db1, 0xff);
 		UISecondaryWeakColor = HEX_TO_IMVEC4(0xc0cfff, 0xff);
+		UISecondaryTextColor = HEX_TO_IMVEC4(0x000000, 0xff);
+	}
+	else if (theme == "AMOLED")
+	{
+		UIBackgroundColor = HEX_TO_IMVEC4(0x000000, 0xff);
+		UIBackgroundTextColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+		UIBackgroundLineColor = HEX_TO_IMVEC4(0xf0f0f0, 0xff);
+		UIBackgroundHighlightColor = HEX_TO_IMVEC4(0x0c0c0c, 0xff);
+		UIPopupBackgroundColor = HEX_TO_IMVEC4(0x212121, 0xf2);
+		UIPrimaryColor = HEX_TO_IMVEC4(0x0a0a0a, 0xff);
+		UIPrimaryLightColor = HEX_TO_IMVEC4(0xb5b5b5, 0xff);
+		UIPrimaryDarkColor = HEX_TO_IMVEC4(0x000000, 0xff);
+		UIPrimaryTextColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+		UIDisabledColor = HEX_TO_IMVEC4(0x8d8d8d, 0xff);
+		UITextHighlightColor = HEX_TO_IMVEC4(0x676767, 0xff);
+		UIPrimaryLineColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+		UISecondaryColor = HEX_TO_IMVEC4(0x969696, 0xff);
+		UISecondaryStrongColor = HEX_TO_IMVEC4(0x191919, 0xff);
+		UISecondaryWeakColor = HEX_TO_IMVEC4(0x474747, 0xff);
+		UISecondaryTextColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+	}
+	else if (theme == "CobaltSky")
+	{
+		UIBackgroundColor = HEX_TO_IMVEC4(0x2b3760, 0xff);
+		UIBackgroundTextColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+		UIBackgroundLineColor = HEX_TO_IMVEC4(0xf0f0f0, 0xff);
+		UIBackgroundHighlightColor = HEX_TO_IMVEC4(0x3b54ac, 0xff);
+		UIPopupBackgroundColor = HEX_TO_IMVEC4(0x2b3760, 0xf2);
+		UIPrimaryColor = HEX_TO_IMVEC4(0x202e5a, 0xff);
+		UIPrimaryLightColor = HEX_TO_IMVEC4(0xb5b5b5, 0xff);
+		UIPrimaryDarkColor = HEX_TO_IMVEC4(0x222c4d, 0xff);
+		UIPrimaryTextColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+		UIDisabledColor = HEX_TO_IMVEC4(0x8d8d8d, 0xff);
+		UITextHighlightColor = HEX_TO_IMVEC4(0x676767, 0xff);
+		UIPrimaryLineColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+		UISecondaryColor = HEX_TO_IMVEC4(0x969696, 0xff);
+		UISecondaryStrongColor = HEX_TO_IMVEC4(0x245dda, 0xff);
+		UISecondaryWeakColor = HEX_TO_IMVEC4(0x3a3d7b, 0xff);
+		UISecondaryTextColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+	}
+	else if (theme == "GreyMatter")
+	{
+		UIBackgroundColor = HEX_TO_IMVEC4(0x353944, 0xff);
+		UIBackgroundTextColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+		UIBackgroundLineColor = HEX_TO_IMVEC4(0xf0f0f0, 0xff);
+		UIBackgroundHighlightColor = HEX_TO_IMVEC4(0x484d57, 0xff);
+		UIPopupBackgroundColor = HEX_TO_IMVEC4(0x212121, 0xf2);
+		UIPrimaryColor = HEX_TO_IMVEC4(0x292d35, 0xff);
+		UIPrimaryLightColor = HEX_TO_IMVEC4(0xb5b5b5, 0xff);
+		UIPrimaryDarkColor = HEX_TO_IMVEC4(0x212121, 0xff);
+		UIPrimaryTextColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+		UIDisabledColor = HEX_TO_IMVEC4(0x8d8d8d, 0xff);
+		UITextHighlightColor = HEX_TO_IMVEC4(0x676767, 0xff);
+		UIPrimaryLineColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+		UISecondaryColor = HEX_TO_IMVEC4(0x969696, 0xff);
+		UISecondaryStrongColor = HEX_TO_IMVEC4(0x191919, 0xff);
+		UISecondaryWeakColor = HEX_TO_IMVEC4(0x2a2e36, 0xff);
+		UISecondaryTextColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+	}
+	else if (theme == "UntouchedLagoon")
+	{
+		UIBackgroundColor = HEX_TO_IMVEC4(0x9db1bb, 0xff);
+		UIBackgroundTextColor = HEX_TO_IMVEC4(0x000000, 0xff);
+		UIBackgroundLineColor = HEX_TO_IMVEC4(0xf0f0f0, 0xff);
+		UIBackgroundHighlightColor = HEX_TO_IMVEC4(0x1b7f7f, 0xff);
+		UIPopupBackgroundColor = HEX_TO_IMVEC4(0x488c8c, 0xf2);
+		UIPrimaryColor = HEX_TO_IMVEC4(0xa2c2bc, 0xff);
+		UIPrimaryLightColor = HEX_TO_IMVEC4(0xadcfc8, 0xff);
+		UIPrimaryDarkColor = HEX_TO_IMVEC4(0x488c8c, 0xff);
+		UIPrimaryTextColor = HEX_TO_IMVEC4(0x000000, 0xff);
+		UIDisabledColor = HEX_TO_IMVEC4(0x4b4b4b, 0xff);
+		UITextHighlightColor = HEX_TO_IMVEC4(0x676767, 0xff);
+		UIPrimaryLineColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+		UISecondaryColor = HEX_TO_IMVEC4(0x969696, 0xff);
+		UISecondaryStrongColor = HEX_TO_IMVEC4(0x2a5151, 0xff);
+		UISecondaryWeakColor = HEX_TO_IMVEC4(0x475055, 0xff);
+		UISecondaryTextColor = HEX_TO_IMVEC4(0x000000, 0xff);
+	}
+	else if (theme == "BabyPastel")
+	{
+		UIBackgroundColor = HEX_TO_IMVEC4(0xf1d9ee, 0xff);
+		UIBackgroundTextColor = HEX_TO_IMVEC4(0x000000, 0xff);
+		UIBackgroundLineColor = HEX_TO_IMVEC4(0xe05885, 0xff);
+		UIBackgroundHighlightColor = HEX_TO_IMVEC4(0xe05885, 0xff);
+		UIPopupBackgroundColor = HEX_TO_IMVEC4(0xeba0b9, 0xf2);
+		UIPrimaryColor = HEX_TO_IMVEC4(0xffaec9, 0xff);
+		UIPrimaryLightColor = HEX_TO_IMVEC4(0xe05885, 0xff);
+		UIPrimaryDarkColor = HEX_TO_IMVEC4(0xc3859a, 0xff);
+		UIPrimaryTextColor = HEX_TO_IMVEC4(0x000000, 0xff);
+		UIDisabledColor = HEX_TO_IMVEC4(0x4b4b4b, 0xff);
+		UITextHighlightColor = HEX_TO_IMVEC4(0xeba0b9, 0xff);
+		UIPrimaryLineColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+		UISecondaryColor = HEX_TO_IMVEC4(0xe05885, 0xff);
+		UISecondaryStrongColor = HEX_TO_IMVEC4(0xdc6c68, 0xff);
+		UISecondaryWeakColor = HEX_TO_IMVEC4(0xab5451, 0xff);
+		UISecondaryTextColor = HEX_TO_IMVEC4(0x000000, 0xff);
+	}
+	else if (theme == "PizzaBrown")
+	{
+		UIBackgroundColor = HEX_TO_IMVEC4(0xd9c9ba, 0xff);
+		UIBackgroundTextColor = HEX_TO_IMVEC4(0x000000, 0xff);
+		UIBackgroundLineColor = HEX_TO_IMVEC4(0xf0f0f0, 0xff);
+		UIBackgroundHighlightColor = HEX_TO_IMVEC4(0xaa5a36, 0xff);
+		UIPopupBackgroundColor = HEX_TO_IMVEC4(0xefad42, 0xf2);
+		UIPrimaryColor = HEX_TO_IMVEC4(0xe9bb93, 0xff);
+		UIPrimaryLightColor = HEX_TO_IMVEC4(0xf9e7ac, 0xff);
+		UIPrimaryDarkColor = HEX_TO_IMVEC4(0xefad42, 0xff);
+		UIPrimaryTextColor = HEX_TO_IMVEC4(0x000000, 0xff);
+		UIDisabledColor = HEX_TO_IMVEC4(0x4b4b4b, 0xff);
+		UITextHighlightColor = HEX_TO_IMVEC4(0x676767, 0xff);
+		UIPrimaryLineColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+		UISecondaryColor = HEX_TO_IMVEC4(0x969696, 0xff);
+		UISecondaryStrongColor = HEX_TO_IMVEC4(0xaf1c2f, 0xff);
+		UISecondaryWeakColor = HEX_TO_IMVEC4(0xab5451, 0xff);
+		UISecondaryTextColor = HEX_TO_IMVEC4(0x000000, 0xff);
+	}
+	else if (theme == "ScarletDevil")
+	{
+		UIBackgroundColor = HEX_TO_IMVEC4(0x782c44, 0xff);
+		UIBackgroundTextColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+		UIBackgroundLineColor = HEX_TO_IMVEC4(0xf0f0f0, 0xff);
+		UIBackgroundHighlightColor = HEX_TO_IMVEC4(0xa73e5f, 0xff);
+		UIPopupBackgroundColor = HEX_TO_IMVEC4(0x88475d, 0xf2);
+		UIPrimaryColor = HEX_TO_IMVEC4(0x4f2c44, 0xff);
+		UIPrimaryLightColor = HEX_TO_IMVEC4(0xb5b5b5, 0xff);
+		UIPrimaryDarkColor = HEX_TO_IMVEC4(0x632438, 0xff);
+		UIPrimaryTextColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+		UIDisabledColor = HEX_TO_IMVEC4(0x969696, 0xff);
+		UITextHighlightColor = HEX_TO_IMVEC4(0x676767, 0xff);
+		UIPrimaryLineColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+		UISecondaryColor = HEX_TO_IMVEC4(0x969696, 0xff);
+		UISecondaryStrongColor = HEX_TO_IMVEC4(0xc80000, 0xff);
+		UISecondaryWeakColor = HEX_TO_IMVEC4(0x8a334e, 0xff);
+		UISecondaryTextColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+	}
+	else if (theme == "VioletAngel")
+	{
+		UIBackgroundColor = HEX_TO_IMVEC4(0x6e1e7d, 0xff);
+		UIBackgroundTextColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+		UIBackgroundLineColor = HEX_TO_IMVEC4(0x862c9c, 0xff);
+		UIBackgroundHighlightColor = HEX_TO_IMVEC4(0x862c9c, 0xff);
+		UIPopupBackgroundColor = HEX_TO_IMVEC4(0x502657, 0xf2);
+		UIPrimaryColor = HEX_TO_IMVEC4(0x321846, 0xff);
+		UIPrimaryLightColor = HEX_TO_IMVEC4(0x9833d6, 0xff);
+		UIPrimaryDarkColor = HEX_TO_IMVEC4(0x70269e, 0xff);
+		UIPrimaryTextColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+		UIDisabledColor = HEX_TO_IMVEC4(0x969696, 0xff);
+		UITextHighlightColor = HEX_TO_IMVEC4(0x676767, 0xff);
+		UIPrimaryLineColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+		UISecondaryColor = HEX_TO_IMVEC4(0xe200cb, 0xff);
+		UISecondaryStrongColor = HEX_TO_IMVEC4(0xff00e6, 0xff);
+		UISecondaryWeakColor = HEX_TO_IMVEC4(0x561d79, 0xff);
+		UISecondaryTextColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+	}
+	else if (theme == "PCSX2Blue")
+	{
+		UIBackgroundColor = HEX_TO_IMVEC4(0x819af0, 0xff);
+		UIBackgroundTextColor = HEX_TO_IMVEC4(0x000000, 0xff);
+		UIBackgroundLineColor = HEX_TO_IMVEC4(0x89a5ff, 0xff);
+		UIBackgroundHighlightColor = HEX_TO_IMVEC4(0xfefffe, 0xff);
+		UIPopupBackgroundColor = HEX_TO_IMVEC4(0xb4cffe, 0xf2);
+		UIPrimaryColor = HEX_TO_IMVEC4(0x92b6fe, 0xff);
+		UIPrimaryLightColor = HEX_TO_IMVEC4(0x89a5ff, 0xff);
+		UIPrimaryDarkColor = HEX_TO_IMVEC4(0x7c8ef3, 0xff);
+		UIPrimaryTextColor = HEX_TO_IMVEC4(0x000000, 0xff);
+		UIDisabledColor = HEX_TO_IMVEC4(0x4b4b4b, 0xff);
+		UITextHighlightColor = HEX_TO_IMVEC4(0x676767, 0xff);
+		UIPrimaryLineColor = HEX_TO_IMVEC4(0xffffff, 0xff);
+		UISecondaryColor = HEX_TO_IMVEC4(0x92b6fe, 0xff);
+		UISecondaryStrongColor = HEX_TO_IMVEC4(0x0c53c5, 0xff);
+		UISecondaryWeakColor = HEX_TO_IMVEC4(0x819af0, 0xff);
 		UISecondaryTextColor = HEX_TO_IMVEC4(0x000000, 0xff);
 	}
 }

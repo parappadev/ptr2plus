@@ -7,7 +7,6 @@
 #include "Config.h"
 
 #include <QtGui/QStandardItemModel>
-#include <QtWidgets/QDialog>
 
 class SettingsWindow;
 
@@ -39,7 +38,7 @@ protected:
 	void removeSymbolFile();
 	void saveSymbolFiles();
 
-	void functionScanRangeChanged();
+	void saveFunctionScanRange();
 
 	void updateEnabledStates();
 

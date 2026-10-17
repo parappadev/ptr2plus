@@ -869,7 +869,7 @@ std::vector<AvailableMcdInfo> FileMcd_GetAvailableCards(bool include_in_use_card
 			Pcsx2Config::McdOptions config;
 			config.Enabled = true;
 			config.Type = MemoryCardType::Folder;
-			sourceFolderMemoryCard.Open(fd.FileName, config, (8 * 1024 * 1024) / FolderMemoryCard::ClusterSize, false, "");
+			sourceFolderMemoryCard.Open(fd.FileName, config, (8 * 1024 * 1024) / FolderMemoryCard::ClusterSize, EmuConfig.McdFolderAutoManage, "");
 
 			mcds.push_back({std::move(basename), std::move(fd.FileName), fd.ModificationTime,
 				MemoryCardType::Folder, MemoryCardFileType::Unknown, 0u, sourceFolderMemoryCard.IsFormatted()});
@@ -887,6 +887,7 @@ std::vector<AvailableMcdInfo> FileMcd_GetAvailableCards(bool include_in_use_card
 		}
 	}
 
+	std::sort(mcds.begin(), mcds.end(), [](auto& a, auto& b) { return a.name < b.name; });
 	return mcds;
 }
 

@@ -172,7 +172,13 @@ bool CBreakPoints::IsTempBreakPoint(BreakPointCpu cpu, u32 addr)
 	return bp != INVALID_BREAKPOINT;
 }
 
-void CBreakPoints::AddBreakPoint(BreakPointCpu cpu, u32 addr, bool temp, bool enabled)
+bool CBreakPoints::IsSteppingBreakPoint(BreakPointCpu cpu, u32 addr)
+{
+	const size_t bp = FindBreakpoint(cpu, addr, true, true);
+	return bp != INVALID_BREAKPOINT && breakPoints_[bp].stepping;
+}
+
+void CBreakPoints::AddBreakPoint(BreakPointCpu cpu, u32 addr, bool temp, bool enabled, bool stepping)
 {
 	const size_t bp = FindBreakpoint(cpu, addr, true, temp);
 	if (bp == INVALID_BREAKPOINT)
@@ -180,6 +186,7 @@ void CBreakPoints::AddBreakPoint(BreakPointCpu cpu, u32 addr, bool temp, bool en
 		BreakPoint pt;
 		pt.enabled = enabled;
 		pt.temporary = temp;
+		pt.stepping = stepping;
 		pt.addr = addr;
 		pt.cpu = cpu;
 
@@ -278,6 +285,16 @@ BreakPointCond* CBreakPoints::GetBreakPointCondition(BreakPointCpu cpu, u32 addr
 	return NULL;
 }
 
+void CBreakPoints::ChangeBreakPointDescription(BreakPointCpu cpu, u32 addr, const std::string& description)
+{
+	const size_t bp = FindBreakpoint(cpu, addr, true, false);
+	if (bp != INVALID_BREAKPOINT)
+	{
+		breakPoints_[bp].description = description;
+		Update();
+	}
+}
+
 void CBreakPoints::AddMemCheck(BreakPointCpu cpu, u32 start, u32 end, MemCheckCondition cond, MemCheckResult result)
 {
 	// This will ruin any pending memchecks.
@@ -345,6 +362,16 @@ void CBreakPoints::ChangeMemCheckAddCond(BreakPointCpu cpu, u32 start, u32 end, 
 	{
 		memChecks_[mc].hasCond = true;
 		memChecks_[mc].cond = cond;
+		Update(cpu);
+	}
+}
+
+void CBreakPoints::ChangeMemCheckDescription(BreakPointCpu cpu, u32 start, u32 end, const std::string& description)
+{
+	const size_t mc = FindMemCheck(cpu, start, end);
+	if (mc != INVALID_MEMCHECK)
+	{
+		memChecks_[mc].description = description;
 		Update(cpu);
 	}
 }

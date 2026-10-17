@@ -19,6 +19,7 @@
 #include <QtCore/QSortFilterProxyModel>
 #include <QtGui/QPainter>
 #include <QtGui/QPixmap>
+#include <QtGui/QPixmapCache>
 #include <QtGui/QWheelEvent>
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QHeaderView>
@@ -113,20 +114,57 @@ namespace
 			// https://stackoverflow.com/questions/32216568/how-to-set-icon-center-in-qtableview
 			Q_ASSERT(index.isValid());
 
-			// draw default item
+			// Draw the base item, with a blank icon
 			QStyleOptionViewItem opt = option;
 			initStyleOption(&opt, index);
 			opt.icon = QIcon();
-			QApplication::style()->drawControl(QStyle::CE_ItemViewItem, &opt, painter, 0);
+			// Based on QStyledItemDelegate::paint()
+			const QStyle* style = option.widget ? option.widget->style() : QApplication::style();
+			style->drawControl(QStyle::CE_ItemViewItem, &opt, painter, option.widget);
 
+			// Fetch icon pixmap
 			const QRect r = option.rect;
 			const QPixmap pix = qvariant_cast<QPixmap>(index.data(Qt::DecorationRole));
 			const int pix_width = static_cast<int>(pix.width() / pix.devicePixelRatio());
-			const int pix_height = static_cast<int>(pix.width() / pix.devicePixelRatio());
+			const int pix_height = static_cast<int>(pix.height() / pix.devicePixelRatio());
 
-			// draw pixmap at center of item
+			// Clip the pixmaps so they don't extend outside the column
+			painter->save();
+			painter->setClipRect(option.rect);
+
+			// Draw the icon, using code derived from QItemDelegate::drawDecoration()
+			const bool enabled = option.state & QStyle::State_Enabled;
 			const QPoint p = QPoint((r.width() - pix_width) / 2, (r.height() - pix_height) / 2);
-			painter->drawPixmap(r.topLeft() + p, pix);
+			if (option.state & QStyle::State_Selected)
+			{
+				// See QItemDelegate::selectedPixmap()
+				QColor color = option.palette.color(enabled ? QPalette::Normal : QPalette::Disabled, QPalette::Highlight);
+				color.setAlphaF(0.3f);
+
+				QString key = QString::fromStdString(fmt::format("{:016X}-{:d}-{:08X}", pix.cacheKey(), enabled, color.rgba()));
+				QPixmap pm;
+				if (!QPixmapCache::find(key, &pm))
+				{
+					QImage img = pix.toImage().convertToFormat(QImage::Format_ARGB32_Premultiplied);
+
+					QPainter tinted_painter(&img);
+					tinted_painter.setCompositionMode(QPainter::CompositionMode_SourceAtop);
+					tinted_painter.fillRect(0, 0, img.width(), img.height(), color);
+					tinted_painter.end();
+
+					pm = QPixmap(QPixmap::fromImage(img));
+					QPixmapCache::insert(key, pm);
+				}
+
+				painter->drawPixmap(r.topLeft() + p, pm);
+			}
+			else
+			{
+				painter->drawPixmap(r.topLeft() + p, pix);
+			}
+
+			// Restore the old clip path.
+			painter->restore();
 		}
 	};
 } // namespace
@@ -142,22 +180,27 @@ void GameListWidget::initialize()
 {
 	const float cover_scale = Host::GetBaseFloatSettingValue("UI", "GameListCoverArtScale", 0.45f);
 	const bool show_cover_titles = Host::GetBaseBoolSettingValue("UI", "GameListShowCoverTitles", true);
-	m_model = new GameListModel(cover_scale, show_cover_titles, this);
+	m_model = new GameListModel(cover_scale, show_cover_titles, devicePixelRatioF(), this);
 	m_model->updateCacheSize(width(), height());
 
 	m_sort_model = new GameListSortModel(m_model);
 	m_sort_model->setSourceModel(m_model);
 
 	m_ui.setupUi(this);
+
 	for (u32 type = 0; type < static_cast<u32>(GameList::EntryType::Count); type++)
 	{
-		m_ui.filterType->addItem(GameListModel::getIconForType(static_cast<GameList::EntryType>(type)),
-			qApp->translate("GameList", GameList::EntryTypeToDisplayString(static_cast<GameList::EntryType>(type))));
+		if (type != static_cast<u32>(GameList::EntryType::Invalid))
+		{
+			m_ui.filterType->addItem(GameListModel::getIconForType(static_cast<GameList::EntryType>(type)),
+				GameList::EntryTypeToString(static_cast<GameList::EntryType>(type), true));
+		}
 	}
+
 	for (u32 region = 0; region < static_cast<u32>(GameList::Region::Count); region++)
 	{
 		m_ui.filterRegion->addItem(GameListModel::getIconForRegion(static_cast<GameList::Region>(region)),
-			qApp->translate("GameList", GameList::RegionToString(static_cast<GameList::Region>(region))));
+			GameList::RegionToString(static_cast<GameList::Region>(region), true));
 	}
 
 	connect(m_ui.viewGameList, &QPushButton::clicked, this, &GameListWidget::showGameList);
@@ -181,6 +224,7 @@ void GameListWidget::initialize()
 	m_table_view->setSelectionBehavior(QAbstractItemView::SelectRows);
 	m_table_view->setContextMenuPolicy(Qt::CustomContextMenu);
 	m_table_view->setAlternatingRowColors(true);
+	m_table_view->setMouseTracking(true);
 	m_table_view->setShowGrid(false);
 	m_table_view->setCurrentIndex({});
 	m_table_view->horizontalHeader()->setHighlightSections(false);
@@ -189,6 +233,8 @@ void GameListWidget::initialize()
 	m_table_view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
 	m_table_view->setVerticalScrollMode(QAbstractItemView::ScrollMode::ScrollPerPixel);
 	m_table_view->setItemDelegateForColumn(0, new GameListIconStyleDelegate(this));
+	m_table_view->setItemDelegateForColumn(8, new GameListIconStyleDelegate(this));
+	m_table_view->setItemDelegateForColumn(9, new GameListIconStyleDelegate(this));
 
 	loadTableViewColumnVisibilitySettings();
 	loadTableViewColumnSortSettings();
@@ -514,6 +560,18 @@ void GameListWidget::resizeEvent(QResizeEvent* event)
 	QWidget::resizeEvent(event);
 	resizeTableViewColumnsToFit();
 	m_model->updateCacheSize(width(), height());
+}
+
+bool GameListWidget::event(QEvent* event)
+{
+	if (event->type() == QEvent::DevicePixelRatioChange)
+	{
+		m_model->setDevicePixelRatio(devicePixelRatioF());
+		QWidget::event(event);
+		return true;
+	}
+
+	return QWidget::event(event);
 }
 
 void GameListWidget::resizeTableViewColumnsToFit()

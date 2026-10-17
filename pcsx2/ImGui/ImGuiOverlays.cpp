@@ -230,7 +230,7 @@ __ri void ImGuiManager::DrawPerformanceOverlay(float& position_y, float scale, f
 
 			// GPU
 			text.clear();
-			text.append_format("GPU: {}", g_gs_device->GetName());
+			text.append_format("GPU: {}{}", g_gs_device->GetName(), GSConfig.UseDebugDevice ? " (Debug)" : "");
 			DRAW_LINE(fixed_font, text.c_str(), IM_COL32(255, 255, 255, 255));
 		}
 
@@ -394,6 +394,8 @@ __ri void ImGuiManager::DrawSettingsOverlay(float scale, float margin, float mar
 		APPEND("IVU ");
 	if (EmuConfig.Speedhacks.vuThread)
 		APPEND("MTVU ");
+	if (EmuConfig.GS.VsyncEnable)
+		APPEND("VSYNC ");
 
 	APPEND("EER={} EEC={} VUR={} VUC={} VQS={} ", static_cast<unsigned>(EmuConfig.Cpu.FPUFPCR.GetRoundMode()),
 		EmuConfig.Cpu.Recompiler.GetEEClampMode(), static_cast<unsigned>(EmuConfig.Cpu.VU0FPCR.GetRoundMode()),
@@ -414,10 +416,10 @@ __ri void ImGuiManager::DrawSettingsOverlay(float scale, float margin, float mar
 
 		APPEND("B={} PL={} ", static_cast<unsigned>(GSConfig.AccurateBlendingUnit), static_cast<unsigned>(GSConfig.TexturePreloading));
 		if (GSConfig.GPUPaletteConversion)
-			APPEND("PT ");
+			APPEND("PLTX ");
 
 		if (GSConfig.HWDownloadMode != GSHardwareDownloadMode::Enabled)
-			APPEND("DL={} ", static_cast<unsigned>(GSConfig.HWDownloadMode));
+			APPEND("HWDM={} ", static_cast<unsigned>(GSConfig.HWDownloadMode));
 
 		if (GSConfig.HWMipmap)
 			APPEND("MM ");
@@ -464,7 +466,7 @@ __ri void ImGuiManager::DrawSettingsOverlay(float scale, float margin, float mar
 		if (GSConfig.UserHacks_CPUFBConversion)
 			APPEND("FBC ");
 		if (GSConfig.UserHacks_ReadTCOnClose)
-			APPEND("FTC ");
+			APPEND("RTOC ");
 		if (GSConfig.UserHacks_DisableDepthSupport)
 			APPEND("DDC ");
 		if (GSConfig.UserHacks_DisablePartialInvalidation)
@@ -1103,6 +1105,14 @@ void SaveStateSelectorUI::LoadCurrentSlot()
 {
 	Host::RunOnCPUThread([slot = GetCurrentSlot()]() {
 		VMManager::LoadStateFromSlot(slot);
+	});
+	Close();
+}
+
+void SaveStateSelectorUI::LoadCurrentBackupSlot()
+{
+	Host::RunOnCPUThread([slot = GetCurrentSlot()]() {
+		VMManager::LoadStateFromSlot(slot, true);
 	});
 	Close();
 }

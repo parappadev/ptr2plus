@@ -22,8 +22,8 @@ enum class ShaderConvert
 	DATM_0,
 	DATM_1_RTA_CORRECTION,
 	DATM_0_RTA_CORRECTION,
-	HDR_INIT,
-	HDR_RESOLVE,
+	COLCLIP_INIT,
+	COLCLIP_RESOLVE,
 	RTA_CORRECTION,
 	RTA_DECORRECTION,
 	TRANSPARENCY_FILTER,
@@ -44,6 +44,7 @@ enum class ShaderConvert
 	DEPTH_COPY,
 	DOWNSAMPLE_COPY,
 	RGBA_TO_8I,
+	RGB5A1_TO_8I,
 	CLUT_4,
 	CLUT_8,
 	YUV,
@@ -257,11 +258,15 @@ enum HWBlendFlags
 	BLEND_A_MAX  = 0x8000, // Impossible blending uses coeff bigger than 1
 };
 
-// Determines the HW blend function for DX11/OGL
+// Determines the HW blend function for the video backend
 struct HWBlend
 {
+	typedef u8 BlendOp; /*GSDevice::BlendOp*/
+	typedef u8 BlendFactor; /*GSDevice::BlendFactor*/
+
 	u16 flags;
-	u8 op, src, dst;
+	BlendOp op;
+	BlendFactor src, dst;
 };
 
 struct alignas(16) GSHWDrawConfig
@@ -354,12 +359,12 @@ struct alignas(16) GSHWDrawConfig
 				u32 blend_c        : 2;
 				u32 blend_d        : 2;
 				u32 fixed_one_a    : 1;
-				u32 blend_hw       : 3;
+				u32 blend_hw       : 3; /*HWBlendType*/
 				u32 a_masked       : 1;
-				u32 hdr            : 1;
+				u32 colclip_hw     : 1; // colclip (COLCLAMP off) emulation through HQ textures
 				u32 rta_correction : 1;
 				u32 rta_source_correction : 1;
-				u32 colclip        : 1;
+				u32 colclip        : 1; // COLCLAMP off (color blend outputs wrap around 0-255)
 				u32 blend_mix      : 2;
 				u32 round_inv      : 1; // Blending will invert the value, so rounding needs to go the other way
 				u32 pabe           : 1;
@@ -368,6 +373,7 @@ struct alignas(16) GSHWDrawConfig
 
 				// Others ways to fetch the texture
 				u32 channel : 3;
+				u32 channel_fb : 1;
 
 				// Dithering
 				u32 dither : 2;
@@ -406,7 +412,7 @@ struct alignas(16) GSHWDrawConfig
 		{
 			const u32 sw_blend_bits = blend_a | blend_b | blend_d;
 			const bool sw_blend_needs_rt = (sw_blend_bits != 0 && ((sw_blend_bits | blend_c) & 1u)) || ((a_masked & blend_c) != 0);
-			return tex_is_fb || fbmask || (date > 0 && date != 3) || sw_blend_needs_rt;
+			return channel_fb || tex_is_fb || fbmask || (date > 0 && date != 3) || sw_blend_needs_rt;
 		}
 
 		/// Disables color output from the pixel shader, this is done when all channels are masked.
@@ -631,26 +637,30 @@ struct alignas(16) GSHWDrawConfig
 			return true;
 		}
 	};
+	// For hardware rendering backends
 	struct BlendState
 	{
+		typedef u8 BlendOp; /*GSDevice::BlendOp*/
+		typedef u8 BlendFactor; /*GSDevice::BlendFactor*/
+
 		union
 		{
 			struct
 			{
-				u8 enable : 1;
-				u8 constant_enable : 1;
-				u8 op : 6;
-				u8 src_factor : 4;
-				u8 dst_factor : 4;
-				u8 src_factor_alpha : 4;
-				u8 dst_factor_alpha : 4;
+				bool enable : 1;
+				bool constant_enable : 1;
+				BlendOp op : 6;
+				BlendFactor src_factor : 4;
+				BlendFactor dst_factor : 4;
+				BlendFactor src_factor_alpha : 4;
+				BlendFactor dst_factor_alpha : 4;
 				u8 constant;
 			};
 			u32 key;
 		};
 		constexpr BlendState(): key(0) {}
-		constexpr BlendState(bool enable_, u8 src_factor_, u8 dst_factor_, u8 op_,
-			u8 src_alpha_factor_, u8 dst_alpha_factor_, bool constant_enable_, u8 constant_)
+		constexpr BlendState(bool enable_, BlendFactor src_factor_, BlendFactor dst_factor_, BlendOp op_,
+			BlendFactor src_alpha_factor_, BlendFactor dst_alpha_factor_, bool constant_enable_, u8 constant_)
 			: key(0)
 		{
 			enable = enable_;
@@ -675,7 +685,7 @@ struct alignas(16) GSHWDrawConfig
 		Full,           ///< Full emulation (using barriers / ROV)
 	};
 
-	enum class HDRMode : u8
+	enum class ColClipMode : u8
 	{
 		NoModify = 0,
 		ConvertOnly = 1,
@@ -730,7 +740,7 @@ struct alignas(16) GSHWDrawConfig
 	struct BlendMultiPass
 	{
 		BlendState blend;
-		u8 blend_hw;
+		u8 blend_hw; /*HWBlendType*/
 		u8 dither;
 		bool enable;
 	};
@@ -742,9 +752,9 @@ struct alignas(16) GSHWDrawConfig
 	PSConstantBuffer cb_ps;
 	
 	// These are here as they need to be preserved between draws, and the state clear only does up to the constant buffers.
-	HDRMode hdr_mode;
-	GIFRegFRAME hdr_frame;
-	GSVector4i hdr_update_area; ///< Area in the framebuffer which HDR will modify;
+	ColClipMode colclip_mode;
+	GIFRegFRAME colclip_frame;
+	GSVector4i colclip_update_area; ///< Area in the framebuffer which colclip will modify;
 };
 
 class GSDevice : public GSAlignedClass<32>
@@ -865,9 +875,8 @@ protected:
 	GSTexture* m_target_tmp = nullptr;
 	GSTexture* m_current = nullptr;
 	GSTexture* m_cas = nullptr;
-	GSTexture* m_hdr_rt = nullptr; ///< Temp HDR texture
-	
 	GSVector4 m_lastdrawrect;
+	GSTexture* m_colclip_rt = nullptr; ///< Temp hw colclip texture
 
 	bool AcquireWindow(bool recreate_window);
 
@@ -892,9 +901,9 @@ public:
 	/// Returns a string containing current adapter in use.
 	const std::string& GetName() const { return m_name; }
 
-	GSTexture* GetHDRTexture() const { return m_hdr_rt; }
+	GSTexture* GetColorClipTexture() const { return m_colclip_rt; }
 		
-	void SetHDRTexture(GSTexture* tex) { m_hdr_rt = tex; }
+	void SetColorClipTexture(GSTexture* tex) { m_colclip_rt = tex; }
 
 	/// Returns a string representing the specified API.
 	static const char* RenderAPIToString(RenderAPI api);
@@ -930,6 +939,8 @@ public:
 	__fi GSTexture* GetCurrent() const { return m_current; }
 	__fi GSVector2i GetDrawRectSize() const { return GSVector2i(static_cast<s32>(m_lastdrawrect.z - m_lastdrawrect.x), static_cast<s32>(m_lastdrawrect.w - m_lastdrawrect.y)); };
 	__fi void SetLastDrawRect(GSVector4 dr) { m_lastdrawrect = dr; }
+	__fi GSTexture* GetMAD() const { return m_mad; }
+	
 	void Recycle(GSTexture* t);
 
 	/// Returns true if it's an OpenGL-based renderer.

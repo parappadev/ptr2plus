@@ -88,10 +88,6 @@ bool GSRenderer::Merge(int field)
 	int y_offset[3] = { 0, 0, 0 };
 	const bool feedback_merge = m_regs->EXTWRITE.WRITE == 1;
 
-	PCRTCDisplays.SetVideoMode(GetVideoMode());
-	PCRTCDisplays.EnableDisplays(m_regs->PMODE, m_regs->SMODE2, isReallyInterlaced());
-	PCRTCDisplays.CheckSameSource();
-
 	if (!PCRTCDisplays.PCRTCDisplays[0].enabled && !PCRTCDisplays.PCRTCDisplays[1].enabled)
 	{
 		m_real_size = GSVector2i(0, 0);
@@ -101,11 +97,6 @@ bool GSRenderer::Merge(int field)
 	// Need to do this here, if the user has Anti-Blur enabled, these offsets can get wiped out/changed.
 	const bool game_deinterlacing = (m_regs->DISP[0].DISPFB.DBY != PCRTCDisplays.PCRTCDisplays[0].prevFramebufferReg.DBY) !=
 									(m_regs->DISP[1].DISPFB.DBY != PCRTCDisplays.PCRTCDisplays[1].prevFramebufferReg.DBY);
-
-	PCRTCDisplays.SetRects(0, m_regs->DISP[0].DISPLAY, m_regs->DISP[0].DISPFB);
-	PCRTCDisplays.SetRects(1, m_regs->DISP[1].DISPLAY, m_regs->DISP[1].DISPFB);
-	PCRTCDisplays.CalculateDisplayOffset(m_scanmask_used);
-	PCRTCDisplays.CalculateFramebufferOffset(m_scanmask_used);
 
 	// Only need to check the right/bottom on software renderer, hardware always gets the full texture then cuts a bit out later.
 	if (PCRTCDisplays.FrameRectMatch() && !PCRTCDisplays.FrameWrap() && !feedback_merge)
@@ -128,6 +119,18 @@ bool GSRenderer::Merge(int field)
 	if (!tex[0] && !tex[1])
 	{
 		m_real_size = GSVector2i(0, 0);
+
+		// Clear out the MAD buffer as some remnants of the previously shown frame came be left over, causing a flash for one frame.
+		if (GSConfig.InterlaceMode == GSInterlaceMode::Automatic || GSConfig.InterlaceMode >= GSInterlaceMode::AdaptiveTFF)
+		{
+			GSTexture* mad_tex = g_gs_device->GetMAD();
+
+			if (mad_tex)
+			{
+				g_gs_device->ClearRenderTarget(mad_tex, 0);
+				mad_tex = nullptr;
+			}
+		}
 		return false;
 	}
 
@@ -278,8 +281,25 @@ float GSRenderer::GetModXYOffset()
 
 static float GetCurrentAspectRatioFloat(bool is_progressive)
 {
-	static constexpr std::array<float, static_cast<size_t>(AspectRatioType::MaxCount) + 1> ars = {{4.0f / 3.0f, 4.0f / 3.0f, 4.0f / 3.0f, 16.0f / 9.0f, 10.0f / 7.0f, 3.0f / 2.0f}};
-	return ars[static_cast<u32>(GSConfig.AspectRatio) + (3u * (is_progressive && GSConfig.AspectRatio == AspectRatioType::RAuto4_3_3_2))];
+	switch (GSConfig.AspectRatio)
+	{
+		default:
+		// We don't know the AR of the display here, nor we care about it
+		case AspectRatioType::Stretch:
+		case AspectRatioType::RAuto4_3_3_2:
+			if (EmuConfig.CurrentCustomAspectRatio > 0.f)
+				return EmuConfig.CurrentCustomAspectRatio;
+			else if (is_progressive)
+				return 3.0f / 2.0f;
+			else
+				return 4.0f / 3.0f;
+		case AspectRatioType::R4_3:
+			return 4.0f / 3.0f;
+		case AspectRatioType::R16_9:
+			return 16.0f / 9.0f;
+		case AspectRatioType::R10_7:
+			return 10.0f / 7.0f;
+	}
 }
 
 static GSVector4 CalculateDrawDstRect(s32 window_width, s32 window_height, const GSVector4i& src_rect, const GSVector2i& src_size, GSDisplayAlignment alignment, bool flip_y, bool is_progressive)
@@ -295,6 +315,9 @@ static GSVector4 CalculateDrawDstRect(s32 window_width, s32 window_height, const
 			targetAr = 3.0f / 2.0f;
 		else
 			targetAr = 4.0f / 3.0f;
+		// Fall back on the custom aspect ratio set by patches (e.g. 16:9, 21:9)
+		if (EmuConfig.CurrentCustomAspectRatio > 0.f)
+			targetAr = EmuConfig.CurrentCustomAspectRatio;
 	}
 	else if (EmuConfig.CurrentAspectRatio == AspectRatioType::R4_3)
 	{
@@ -595,23 +618,8 @@ void GSRenderer::VSync(u32 field, bool registers_written, bool idle_frame)
 			EndPresentFrame();
 
 		PerformanceMetrics::Update(registers_written, fb_sprite_frame, skip_frame);
-		return;
 	}
-
-	if (!idle_frame)
-		g_gs_device->AgePool();
-
-
-	g_perfmon.EndFrame(idle_frame);
-
-	if ((g_perfmon.GetFrame() & 0x1f) == 0)
-		g_perfmon.Update();
-
-	// Little bit ugly, but we can't do CAS inside the render pass.
-	GSVector4i src_rect;
-	GSVector4 src_uv, draw_rect;
-	GSTexture* current = g_gs_device->GetCurrent();
-	if (current && !blank_frame)
+	else
 	{
 		src_rect = CalculateDrawSrcRect(current, m_real_size);
 		src_uv = GSVector4(src_rect) / GSVector4(current->GetSize()).xyxy();
@@ -619,55 +627,69 @@ void GSRenderer::VSync(u32 field, bool registers_written, bool idle_frame)
 			src_rect, current->GetSize(), s_display_alignment, g_gs_device->UsesLowerLeftOrigin(),
 			GetVideoMode() == GSVideoMode::SDTV_480P);
 		s_last_draw_rect = draw_rect;
-		g_gs_device->SetLastDrawRect(s_last_draw_rect);
+		g_gs_device->SetLastDrawRect(s_last_draw_rect); //ptr2plus
 
-		//PTR2PLUS: try to delete mod file cache
-		//might not be the best place for this... but i don't want to try more than once a frame
-		if (files_to_delete)
-		{
-			//TryDeleteFiles();
-		}
+		if (!idle_frame)
+			g_gs_device->AgePool();
 
-		if (GSConfig.CASMode != GSCASMode::Disabled)
-		{
-			static bool cas_log_once = false;
-			if (g_gs_device->Features().cas_sharpening)
-			{
-				// sharpen only if the IR is higher than the display resolution
-				const bool sharpen_only = (GSConfig.CASMode == GSCASMode::SharpenOnly ||
-										   (current->GetWidth() > g_gs_device->GetWindowWidth() &&
-											   current->GetHeight() > g_gs_device->GetWindowHeight()));
-				g_gs_device->CAS(current, src_rect, src_uv, draw_rect, sharpen_only);
-			}
-			else if (!cas_log_once)
-			{
-				Host::AddIconOSDMessage("CASUnsupported", ICON_FA_EXCLAMATION_TRIANGLE,
-					TRANSLATE_SV("GS",
-						"CAS is not available, your graphics driver does not support the required functionality."),
-					10.0f);
-				cas_log_once = true;
-			}
-		}
-	}
+		g_perfmon.EndFrame(idle_frame);
 
-	if (BeginPresentFrame(false))
-	{
+		if ((g_perfmon.GetFrame() & 0x1f) == 0)
+			g_perfmon.Update();
+
+		// Little bit ugly, but we can't do CAS inside the render pass.
+		GSVector4i src_rect;
+		GSVector4 src_uv, draw_rect;
+		GSTexture* current = g_gs_device->GetCurrent();
 		if (current && !blank_frame)
 		{
-			const u64 current_time = Common::Timer::GetCurrentValue();
-			const float shader_time = static_cast<float>(Common::Timer::ConvertValueToSeconds(current_time - m_shader_time_start));
+			src_rect = CalculateDrawSrcRect(current, m_real_size);
+			src_uv = GSVector4(src_rect) / GSVector4(current->GetSize()).xyxy();
+			draw_rect = CalculateDrawDstRect(g_gs_device->GetWindowWidth(), g_gs_device->GetWindowHeight(),
+				src_rect, current->GetSize(), s_display_alignment, g_gs_device->UsesLowerLeftOrigin(),
+				GetVideoMode() == GSVideoMode::SDTV_480P);
+			s_last_draw_rect = draw_rect;
 
-			g_gs_device->PresentRect(current, src_uv, nullptr, draw_rect,
-				s_tv_shader_indices[GSConfig.TVShader], shader_time, GSConfig.LinearPresent != GSPostBilinearMode::Off);
+			if (GSConfig.CASMode != GSCASMode::Disabled)
+			{
+				static bool cas_log_once = false;
+				if (g_gs_device->Features().cas_sharpening)
+				{
+					// sharpen only if the IR is higher than the display resolution
+					const bool sharpen_only = (GSConfig.CASMode == GSCASMode::SharpenOnly ||
+					                           (current->GetWidth() > g_gs_device->GetWindowWidth() &&
+					                            current->GetHeight() > g_gs_device->GetWindowHeight()));
+					g_gs_device->CAS(current, src_rect, src_uv, draw_rect, sharpen_only);
+				}
+				else if (!cas_log_once)
+				{
+					Host::AddIconOSDMessage("CASUnsupported", ICON_FA_EXCLAMATION_TRIANGLE,
+						TRANSLATE_SV("GS", "CAS is not available, your graphics driver does not support the required functionality."),
+						10.0f);
+					cas_log_once = true;
+				}
+			}
 		}
 
-		EndPresentFrame();
+		if (BeginPresentFrame(false))
+		{
+			if (current && !blank_frame)
+			{
+				const u64 current_time = Common::Timer::GetCurrentValue();
+				const float shader_time = static_cast<float>(Common::Timer::ConvertValueToSeconds(current_time - m_shader_time_start));
 
-		if (GSConfig.OsdShowGPU)
-			PerformanceMetrics::OnGPUPresent(g_gs_device->GetAndResetAccumulatedGPUTime());
+				g_gs_device->PresentRect(current, src_uv, nullptr, draw_rect,
+					s_tv_shader_indices[GSConfig.TVShader], shader_time, GSConfig.LinearPresent != GSPostBilinearMode::Off);
+			}
+
+			EndPresentFrame();
+
+			if (GSConfig.OsdShowGPU)
+				PerformanceMetrics::OnGPUPresent(g_gs_device->GetAndResetAccumulatedGPUTime());
+		}
+
+		PerformanceMetrics::Update(registers_written, fb_sprite_frame, false);
 	}
-
-	PerformanceMetrics::Update(registers_written, fb_sprite_frame, false);
 
 	// snapshot
 	if (!m_snapshot.empty())

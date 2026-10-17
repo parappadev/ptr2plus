@@ -16,6 +16,7 @@
 #include "fmt/format.h"
 
 #include "common/Assertions.h"
+#include "common/CocoaTools.h"
 #include "common/Console.h"
 #include "common/CrashHandler.h"
 #include "common/FileSystem.h"
@@ -56,7 +57,8 @@ namespace GSRunner
 	static bool CreatePlatformWindow();
 	static void DestroyPlatformWindow();
 	static std::optional<WindowInfo> GetPlatformWindowInfo();
-	static void PumpPlatformMessages();
+	static void PumpPlatformMessages(bool forever = false);
+	static void StopPlatformMessagePump();
 } // namespace GSRunner
 
 static constexpr u32 WINDOW_WIDTH = 640;
@@ -112,6 +114,10 @@ bool GSRunner::InitializeConfig()
 	// complete as quickly as possible
 	si.SetBoolValue("EmuCore/GS", "FrameLimitEnable", false);
 	si.SetIntValue("EmuCore/GS", "VsyncEnable", false);
+
+	// Force screenshot quality settings to something more performant, overriding any defaults good for users.
+	si.SetIntValue("EmuCore/GS", "ScreenshotFormat", static_cast<int>(GSScreenshotFormat::PNG));
+	si.SetIntValue("EmuCore/GS", "ScreenshotQuality", 10);
 
 	// ensure all input sources are disabled, we're not using them
 	si.SetBoolValue("InputSources", "SDL", false);
@@ -169,9 +175,23 @@ void Host::SetDefaultUISettings(SettingsInterface& si)
 	// nothing
 }
 
+bool Host::LocaleCircleConfirm()
+{
+	// not running any UI, so no settings requests will come in
+	return false;
+}
+
 std::unique_ptr<ProgressCallback> Host::CreateHostProgressCallback()
 {
 	return ProgressCallback::CreateNullProgressCallback();
+}
+
+void Host::ReportInfoAsync(const std::string_view title, const std::string_view message)
+{
+	if (!title.empty() && !message.empty())
+		INFO_LOG("ReportInfoAsync: {}: {}", title, message);
+	else if (!message.empty())
+		INFO_LOG("ReportInfoAsync: {}", message);
 }
 
 void Host::ReportErrorAsync(const std::string_view title, const std::string_view message)
@@ -399,6 +419,16 @@ void Host::OnCreateMemoryCardOpenRequested()
 	// noop
 }
 
+bool Host::InBatchMode()
+{
+	return false;
+}
+
+bool Host::InNoGUIMode()
+{
+	return false;
+}
+
 bool Host::ShouldPreferHostFileSelector()
 {
 	return false;
@@ -514,20 +544,20 @@ bool GSRunner::ParseCommandLineArgs(int argc, char* argv[], VMBootParameters& pa
 			{
 				std::string str(argv[++i]);
 
-				s_settings_interface.SetBoolValue("EmuCore/GS", "dump", true);
+				s_settings_interface.SetBoolValue("EmuCore/GS", "DumpGSData", true);
 
 				if (str.find("rt") != std::string::npos)
-					s_settings_interface.SetBoolValue("EmuCore/GS", "save", true);
+					s_settings_interface.SetBoolValue("EmuCore/GS", "SaveRT", true);
 				if (str.find("f") != std::string::npos)
-					s_settings_interface.SetBoolValue("EmuCore/GS", "savef", true);
+					s_settings_interface.SetBoolValue("EmuCore/GS", "SaveFrame", true);
 				if (str.find("tex") != std::string::npos)
-					s_settings_interface.SetBoolValue("EmuCore/GS", "savet", true);
+					s_settings_interface.SetBoolValue("EmuCore/GS", "SaveTexture", true);
 				if (str.find("z") != std::string::npos)
-					s_settings_interface.SetBoolValue("EmuCore/GS", "savez", true);
+					s_settings_interface.SetBoolValue("EmuCore/GS", "SaveDepth", true);
 				if (str.find("a") != std::string::npos)
-					s_settings_interface.SetBoolValue("EmuCore/GS", "savea", true);
+					s_settings_interface.SetBoolValue("EmuCore/GS", "SaveAlpha", true);
 				if (str.find("i") != std::string::npos)
-					s_settings_interface.SetBoolValue("EmuCore/GS", "savei", true);
+					s_settings_interface.SetBoolValue("EmuCore/GS", "SaveInfo", true);
 				continue;
 			}
 			else if (CHECK_ARG_PARAM("-dumprange"))
@@ -550,9 +580,9 @@ bool GSRunner::ParseCommandLineArgs(int argc, char* argv[], VMBootParameters& pa
 				{
 					by = std::max(1, StringUtil::FromChars<int>(split[2]).value_or(1));
 				}
-				s_settings_interface.SetIntValue("EmuCore/GS", "saven", start);
-				s_settings_interface.SetIntValue("EmuCore/GS", "savel", num);
-				s_settings_interface.SetIntValue("EmuCore/GS", "saveb", by);
+				s_settings_interface.SetIntValue("EmuCore/GS", "SaveDrawStart", start);
+				s_settings_interface.SetIntValue("EmuCore/GS", "SaveDrawCount", num);
+				s_settings_interface.SetIntValue("EmuCore/GS", "SaveDrawBy", by);
 				continue;
 			}
 			else if (CHECK_ARG_PARAM("-dumprangef"))
@@ -575,9 +605,9 @@ bool GSRunner::ParseCommandLineArgs(int argc, char* argv[], VMBootParameters& pa
 				{
 					by = std::max(1, StringUtil::FromChars<int>(split[2]).value_or(1));
 				}
-				s_settings_interface.SetIntValue("EmuCore/GS", "savenf", start);
-				s_settings_interface.SetIntValue("EmuCore/GS", "savelf", num);
-				s_settings_interface.SetIntValue("EmuCore/GS", "savebf", by);
+				s_settings_interface.SetIntValue("EmuCore/GS", "SaveFrameStart", start);
+				s_settings_interface.SetIntValue("EmuCore/GS", "SaveFrameCount", num);
+				s_settings_interface.SetIntValue("EmuCore/GS", "SaveFrameBy", by);
 				continue;
 			}
 			else if (CHECK_ARG_PARAM("-dumpdirhw"))
@@ -653,7 +683,7 @@ bool GSRunner::ParseCommandLineArgs(int argc, char* argv[], VMBootParameters& pa
 				s_settings_interface.SetBoolValue("EmuCore/GS", "UserHacks", true);
 
 				if (str.find("af") != std::string::npos)
-					s_settings_interface.SetBoolValue("EmuCore/GS", "UserHacks_AutoFlush", true);
+					s_settings_interface.SetIntValue("EmuCore/GS", "UserHacks_AutoFlushLevel", 1);
 				if (str.find("cpufb") != std::string::npos)
 					s_settings_interface.SetBoolValue("EmuCore/GS", "UserHacks_CPU_FB_Conversion", true);
 				if (str.find("dds") != std::string::npos)
@@ -661,9 +691,9 @@ bool GSRunner::ParseCommandLineArgs(int argc, char* argv[], VMBootParameters& pa
 				if (str.find("dpi") != std::string::npos)
 					s_settings_interface.SetBoolValue("EmuCore/GS", "UserHacks_DisablePartialInvalidation", true);
 				if (str.find("dsf") != std::string::npos)
-					s_settings_interface.SetBoolValue("EmuCore/GS", "UserHacks_DisableSafeFeatures", true);
+					s_settings_interface.SetBoolValue("EmuCore/GS", "UserHacks_Disable_Safe_Features", true);
 				if (str.find("tinrt") != std::string::npos)
-					s_settings_interface.SetBoolValue("EmuCore/GS", "UserHacks_TextureInsideRt", true);
+					s_settings_interface.SetIntValue("EmuCore/GS", "UserHacks_TextureInsideRt", 1);
 				if (str.find("plf") != std::string::npos)
 					s_settings_interface.SetBoolValue("EmuCore/GS", "preload_frame_with_gs_data", true);
 
@@ -746,7 +776,7 @@ bool GSRunner::ParseCommandLineArgs(int argc, char* argv[], VMBootParameters& pa
 		return false;
 	}
 
-	if (s_settings_interface.GetBoolValue("EmuCore/GS", "dump") && !dumpdir.empty())
+	if (s_settings_interface.GetBoolValue("EmuCore/GS", "DumpGSData") && !dumpdir.empty())
 	{
 		if (s_settings_interface.GetStringValue("EmuCore/GS", "HWDumpDirectory").empty())
 			s_settings_interface.SetStringValue("EmuCore/GS", "HWDumpDirectory", dumpdir.c_str());
@@ -791,6 +821,22 @@ void GSRunner::DumpStats()
 #define main real_main
 #endif
 
+static void CPUThreadMain(VMBootParameters* params) {
+	if (VMManager::Initialize(*params))
+	{
+		// run until end
+		GSDumpReplayer::SetLoopCount(s_loop_count);
+		VMManager::SetState(VMState::Running);
+		while (VMManager::GetState() == VMState::Running)
+			VMManager::Execute();
+		VMManager::Shutdown(false);
+		GSRunner::DumpStats();
+	}
+
+	VMManager::Internal::CPUThreadShutdown();
+	GSRunner::StopPlatformMessagePump();
+}
+
 int main(int argc, char* argv[])
 {
 	CrashHandler::Install();
@@ -819,16 +865,9 @@ int main(int argc, char* argv[])
 	VMManager::ApplySettings();
 	GSDumpReplayer::SetIsDumpRunner(true);
 
-	if (VMManager::Initialize(params))
-	{
-		// run until end
-		GSDumpReplayer::SetLoopCount(s_loop_count);
-		VMManager::SetState(VMState::Running);
-		while (VMManager::GetState() == VMState::Running)
-			VMManager::Execute();
-		VMManager::Shutdown(false);
-		GSRunner::DumpStats();
-	}
+	std::thread cputhread(CPUThreadMain, &params);
+	GSRunner::PumpPlatformMessages(/*forever=*/true);
+	cputhread.join();
 
 	VMManager::Internal::CPUThreadShutdown();
 	GSRunner::DestroyPlatformWindow();
@@ -841,9 +880,6 @@ void Host::PumpMessagesOnCPUThread()
 	// update GS thread copy of frame number
 	MTGS::RunOnGSThread([frame_number = GSDumpReplayer::GetFrameNumber()]() { s_dump_frame_number = frame_number; });
 	MTGS::RunOnGSThread([loop_number = GSDumpReplayer::GetLoopCount()]() { s_loop_number = loop_number; });
-
-	// process any window messages (but we shouldn't really have any)
-	GSRunner::PumpPlatformMessages();
 }
 
 s32 Host::Internal::GetTranslatedStringImpl(
@@ -957,14 +993,30 @@ std::optional<WindowInfo> GSRunner::GetPlatformWindowInfo()
 	return wi;
 }
 
-void GSRunner::PumpPlatformMessages()
+static constexpr int SHUTDOWN_MSG = WM_APP + 0x100;
+static DWORD MainThreadID;
+
+void GSRunner::PumpPlatformMessages(bool forever)
 {
 	MSG msg;
-	while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE))
+	while (true)
 	{
-		TranslateMessage(&msg);
-		DispatchMessageW(&msg);
+		while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE))
+		{
+			if (msg.message == SHUTDOWN_MSG)
+				return;
+			TranslateMessage(&msg);
+			DispatchMessageW(&msg);
+		}
+		if (!forever)
+			return;
+		WaitMessage();
 	}
+}
+
+void GSRunner::StopPlatformMessagePump()
+{
+	PostThreadMessageW(MainThreadID, SHUTDOWN_MSG, 0, 0);
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -985,7 +1037,51 @@ int wmain(int argc, wchar_t** argv)
 		u8_argptrs.push_back(u8_args[i].data());
 	u8_argptrs.push_back(nullptr);
 
+	MainThreadID = GetCurrentThreadId();
+
 	return real_main(argc, u8_argptrs.data());
 }
 
-#endif // _WIN32
+#elif defined(__APPLE__)
+
+static void* s_window;
+static WindowInfo s_wi;
+
+bool GSRunner::CreatePlatformWindow()
+{
+	pxAssertRel(!s_window, "Tried to create window when there already was one!");
+	s_window = CocoaTools::CreateWindow("PCSX2 GS Runner", WINDOW_WIDTH, WINDOW_HEIGHT);
+	CocoaTools::GetWindowInfoFromWindow(&s_wi, s_window);
+	PumpPlatformMessages();
+	return s_window;
+}
+
+void GSRunner::DestroyPlatformWindow()
+{
+	if (s_window) {
+		CocoaTools::DestroyWindow(s_window);
+		s_window = nullptr;
+	}
+}
+
+std::optional<WindowInfo> GSRunner::GetPlatformWindowInfo()
+{
+	WindowInfo wi;
+	if (s_window)
+		wi = s_wi;
+	else
+		wi.type = WindowInfo::Type::Surfaceless;
+	return wi;
+}
+
+void GSRunner::PumpPlatformMessages(bool forever)
+{
+	CocoaTools::RunCocoaEventLoop(forever);
+}
+
+void GSRunner::StopPlatformMessagePump()
+{
+	CocoaTools::StopMainThreadEventLoop();
+}
+
+#endif // _WIN32 / __APPLE__

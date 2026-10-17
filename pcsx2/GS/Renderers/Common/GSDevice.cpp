@@ -46,8 +46,8 @@ const char* shaderName(ShaderConvert value)
 		case ShaderConvert::DATM_0:                 return "ps_datm0";
 		case ShaderConvert::DATM_1_RTA_CORRECTION:  return "ps_datm1_rta_correction";
 		case ShaderConvert::DATM_0_RTA_CORRECTION:  return "ps_datm0_rta_correction";
-		case ShaderConvert::HDR_INIT:               return "ps_hdr_init";
-		case ShaderConvert::HDR_RESOLVE:            return "ps_hdr_resolve";
+		case ShaderConvert::COLCLIP_INIT:           return "ps_colclip_init";
+		case ShaderConvert::COLCLIP_RESOLVE:        return "ps_colclip_resolve";
 		case ShaderConvert::RTA_CORRECTION:         return "ps_rta_correction";
 		case ShaderConvert::RTA_DECORRECTION:       return "ps_rta_decorrection";
 		case ShaderConvert::TRANSPARENCY_FILTER:    return "ps_filter_transparency";
@@ -68,6 +68,7 @@ const char* shaderName(ShaderConvert value)
 		case ShaderConvert::DEPTH_COPY:             return "ps_depth_copy";
 		case ShaderConvert::DOWNSAMPLE_COPY:        return "ps_downsample_copy";
 		case ShaderConvert::RGBA_TO_8I:             return "ps_convert_rgba_8i";
+		case ShaderConvert::RGB5A1_TO_8I:           return "ps_convert_rgb5a1_8i";
 		case ShaderConvert::CLUT_4:                 return "ps_convert_clut_4";
 		case ShaderConvert::CLUT_8:                 return "ps_convert_clut_8";
 		case ShaderConvert::YUV:                    return "ps_yuv";
@@ -103,7 +104,9 @@ const char* shaderName(PresentShader value)
 enum class TextureLabel
 {
 	ColorRT,
-	HDRRT,
+	ColorHQRT,
+	ColorHDRRT,
+	ColorClipRT,
 	U16RT,
 	U32RT,
 	DepthStencil,
@@ -127,8 +130,12 @@ static TextureLabel GetTextureLabel(GSTexture::Type type, GSTexture::Format form
 			{
 				case GSTexture::Format::Color:
 					return TextureLabel::ColorRT;
-				case GSTexture::Format::HDRColor:
-					return TextureLabel::HDRRT;
+				case GSTexture::Format::ColorHQ:
+					return TextureLabel::ColorHQRT;
+				case GSTexture::Format::ColorHDR:
+					return TextureLabel::ColorHDRRT;
+				case GSTexture::Format::ColorClip:
+					return TextureLabel::ColorClipRT;
 				case GSTexture::Format::UInt16:
 					return TextureLabel::U16RT;
 				case GSTexture::Format::UInt32:
@@ -149,6 +156,7 @@ static TextureLabel GetTextureLabel(GSTexture::Type type, GSTexture::Format form
 				case GSTexture::Format::BC2:
 				case GSTexture::Format::BC3:
 				case GSTexture::Format::BC7:
+				case GSTexture::Format::ColorHDR:
 					return TextureLabel::ReplacementTexture;
 				default:
 					return TextureLabel::Other;
@@ -163,14 +171,19 @@ static TextureLabel GetTextureLabel(GSTexture::Type type, GSTexture::Format form
 	}
 }
 
+// Debug names
 static const char* TextureLabelString(TextureLabel label)
 {
 	switch (label)
 	{
 		case TextureLabel::ColorRT:
 			return "Color RT";
-		case TextureLabel::HDRRT:
-			return "HDR RT";
+		case TextureLabel::ColorHQRT:
+			return "Color HQ RT";
+		case TextureLabel::ColorHDRRT:
+			return "Color HDR RT";
+		case TextureLabel::ColorClipRT:
+			return "Color Clip RT";
 		case TextureLabel::U16RT:
 			return "U16 RT";
 		case TextureLabel::U32RT:
@@ -481,6 +494,7 @@ GSTexture* GSDevice::FetchSurface(GSTexture::Type type, int width, int height, i
 			{
 				ERROR_LOG("GS: Memory allocation failure for {}x{} texture. Purging pool and retrying.", size.x, size.y);
 				PurgePool();
+				t = CreateSurface(type, size.x, size.y, levels, format);
 				if (!t)
 				{
 					ERROR_LOG("GS: Memory allocation failure for {}x{} texture after purging pool.", size.x, size.y);
@@ -904,6 +918,7 @@ bool GSHWDrawConfig::BlendState::IsEffective(ColorMaskSelector colormask) const
 
 // clang-format off
 
+// Maps PS2 blend modes to our best approximation of them with PC hardware
 const std::array<HWBlend, 3*3*3*3> GSDevice::m_blendMap =
 {{
 	{ BLEND_NO_REC             , OP_ADD          , CONST_ONE       , CONST_ZERO}      , // 0000: (Cs - Cs)*As + Cs ==> Cs

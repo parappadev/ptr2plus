@@ -21,7 +21,7 @@ public:
 	GSState();
 	virtual ~GSState();
 
-	static constexpr int GetSaveStateSize();
+	static constexpr int GetSaveStateSize(int version);
 
 private:
 	// RESTRICT prevents multiple loads of the same part of the register when accessing its bitfields (the compiler is happy to know that memory writes in-between will not go there)
@@ -108,15 +108,19 @@ private:
 	struct GSTransferBuffer
 	{
 		int x = 0, y = 0;
+		int w = 0, h = 0;
 		int start = 0, end = 0, total = 0;
 		u8* buff = nullptr;
+		GSVector4i rect = GSVector4i::zero();
 		GIFRegBITBLTBUF m_blit = {};
+		GIFRegTRXPOS m_pos = {};
+		GIFRegTRXREG m_reg = {};
 		bool write = false;
 
 		GSTransferBuffer();
 		~GSTransferBuffer();
 
-		void Init(int tx, int ty, const GIFRegBITBLTBUF& blit, bool write);
+		void Init(GIFRegTRXPOS& TRXPOS, GIFRegTRXREG& TRXREG, const GIFRegBITBLTBUF& blit, bool is_write);
 		bool Update(int tw, int th, int bpp, int& len);
 
 	} m_tr;
@@ -144,6 +148,21 @@ protected:
 		u16* buff;
 		u32 tail;
 	} m_index = {};
+
+	struct
+	{
+		GSVertex* buff;
+		u32 head, tail, next, maxcount; // head: first vertex, tail: last vertex + 1, next: last indexed + 1
+		u32 xy_tail;
+		GSVector4i xy[4];
+		GSVector4i xyhead;
+	} m_draw_vertex = {};
+
+	struct
+	{
+		u16* buff;
+		u32 tail;
+	} m_draw_index = {};
 
 	void UpdateContext();
 	void UpdateScissor();
@@ -219,11 +238,19 @@ public:
 	GSVector4i temp_draw_rect = {};
 	std::unique_ptr<GSDumpBase> m_dump;
 	bool m_scissor_invalid = false;
+	bool m_quad_check_valid = false;
+	bool m_are_quads = false;
 	bool m_nativeres = false;
 	bool m_mipmap = false;
 	bool m_texflush_flag = false;
 	bool m_isPackedUV_HackFlag = false;
 	bool m_channel_shuffle = false;
+	bool m_using_temp_z = false;
+	bool m_temp_z_full_copy = false;
+	bool m_in_target_draw = false;
+	bool m_channel_shuffle_abort = false;
+
+	u32 m_target_offset = 0;
 	u8 m_scanmask_used = 0;
 	u32 m_dirty_gs_regs = 0;
 	int m_backed_up_ctx = 0;
@@ -236,7 +263,7 @@ public:
 	static int s_last_transfer_draw_n;
 	static int s_transfer_n;
 
-	static constexpr u32 STATE_VERSION = 8;
+	static constexpr u32 STATE_VERSION = 9;
 
 	enum REG_DIRTY
 	{
@@ -302,6 +329,8 @@ public:
 			int FBP;
 			int FBW;
 			int PSM;
+			int DBY;
+			int DBX;
 			GSRegDISPFB prevFramebufferReg;
 			GSVector2i prevDisplayOffset;
 			GSVector2i displayOffset;
@@ -416,7 +445,7 @@ public:
 
 	void DumpVertices(const std::string& filename);
 
-	bool TrianglesAreQuads(bool shuffle_check = false) const;
+	bool TrianglesAreQuads(bool shuffle_check = false);
 	PRIM_OVERLAP PrimitiveOverlap();
 	bool SpriteDrawWithoutGaps();
 	void CalculatePrimitiveCoversWithoutGaps();

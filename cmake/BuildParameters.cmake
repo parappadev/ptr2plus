@@ -7,7 +7,7 @@ include(GNUInstallDirs)
 # Misc option
 #-------------------------------------------------------------------------------
 option(ENABLE_TESTS "Enables building the unit tests" ON)
-option(ENABLE_GSRUNNER "Enables building the GSRunner" OFF)
+option(ENABLE_GSRUNNER "Enables building the GSRunner by default.  It can still be built with `make pcsx2-gsrunner` otherwise." OFF)
 option(LTO_PCSX2_CORE "Enable LTO/IPO/LTCG on the subset of pcsx2 that benefits most from it but not anything else")
 option(USE_VTUNE "Plug VTUNE to profile GS JIT.")
 option(PACKAGE_MODE "Use this option to ease packaging of PCSX2 (developer/distribution option)")
@@ -64,10 +64,13 @@ set(CMAKE_SHARED_LINKER_FLAGS_DEVEL "${CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO}
 	CACHE STRING "Flags used for linking shared libraries during development builds" FORCE)
 set(CMAKE_EXE_LINKER_FLAGS_DEVEL "${CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO}"
 	CACHE STRING "Flags used for linking executables during development builds" FORCE)
+# Exclude Debug from the configurations we can import from
+set(CMAKE_MAP_IMPORTED_CONFIG_DEVEL "RelWithDebInfo" "Release" "MinSizeRel" "None" "NoConfig" ""
+	CACHE STRING "Configurations used when importing packages for development builds" FORCE)
 if(CMAKE_CONFIGURATION_TYPES)
 	list(INSERT CMAKE_CONFIGURATION_TYPES 0 Devel)
 endif()
-mark_as_advanced(CMAKE_C_FLAGS_DEVEL CMAKE_CXX_FLAGS_DEVEL CMAKE_LINKER_FLAGS_DEVEL CMAKE_SHARED_LINKER_FLAGS_DEVEL CMAKE_EXE_LINKER_FLAGS_DEVEL)
+mark_as_advanced(CMAKE_C_FLAGS_DEVEL CMAKE_CXX_FLAGS_DEVEL CMAKE_LINKER_FLAGS_DEVEL CMAKE_SHARED_LINKER_FLAGS_DEVEL CMAKE_EXE_LINKER_FLAGS_DEVEL CMAKE_MAP_IMPORTED_CONFIG_DEVEL)
 
 #-------------------------------------------------------------------------------
 # Select the architecture
@@ -146,15 +149,11 @@ if(MSVC AND NOT USE_CLANG_CL)
 endif()
 
 if(MSVC)
-	# Disable RTTI
-	string(REPLACE "/GR" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-
 	# Disable Exceptions
 	string(REPLACE "/EHsc" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 else()
 	add_compile_options(-pipe -fvisibility=hidden -pthread)
 	add_compile_options(
-		"$<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>"
 		"$<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>"
 	)
 endif()

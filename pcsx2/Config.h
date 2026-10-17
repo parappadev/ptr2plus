@@ -232,17 +232,17 @@ enum class DebugFunctionScanMode
 
 enum class AspectRatioType : u8
 {
-	RAuto4_3_3_2,
+	Stretch, // Stretches to the whole window/display size
+	RAuto4_3_3_2, // Automatically scales to the target aspect ratio if there's a widescreen patch
 	R4_3,
 	R16_9,
 	R10_7,
-	Stretch,
 	MaxCount
 };
 
 enum class FMVAspectRatioSwitchType : u8
 {
-	Off,
+	Off, // Falls back on the selected generic aspect ratio type
 	RAuto4_3_3_2,
 	R4_3,
 	R16_9,
@@ -449,6 +449,7 @@ enum class GSHalfPixelOffset : u8
 	Special,
 	SpecialAggressive,
 	Native,
+	NativeWTexOffset,
 	MaxCount
 };
 
@@ -831,17 +832,17 @@ struct Pcsx2Config
 		u16 SWExtraThreads = 2;
 		u16 SWExtraThreadsHeight = 4;
 
-		int SaveN = 0;
-		int SaveL = 5000;
-		int SaveB = 1;
-		int SaveNF = 0;
-		int SaveLF = -1;
-		int SaveBF = 1;
+		int SaveDrawStart = 0;
+		int SaveDrawCount = 5000;
+		int SaveDrawBy = 1;
+		int SaveFrameStart = 0;
+		int SaveFrameCount = -1;
+		int SaveFrameBy = 1;
 
 		s8 ExclusiveFullscreenControl = -1;
 		GSScreenshotSize ScreenshotSize = GSScreenshotSize::WindowResolution;
 		GSScreenshotFormat ScreenshotFormat = GSScreenshotFormat::PNG;
-		int ScreenshotQuality = 50;
+		int ScreenshotQuality = 90;
 
 		std::string CaptureContainer = DEFAULT_CAPTURE_CONTAINER;
 		std::string VideoCaptureCodec;
@@ -1084,29 +1085,6 @@ struct Pcsx2Config
 		static std::optional<SpeedHack> ParseSpeedHackName(const std::string_view name);
 	};
 
-	struct DebugOptions
-	{
-		BITFIELD32()
-		bool
-			ShowDebuggerOnStart : 1;
-		bool
-			AlignMemoryWindowStart : 1;
-		BITFIELD_END
-
-		u8 FontWidth;
-		u8 FontHeight;
-		u32 WindowWidth;
-		u32 WindowHeight;
-		u32 MemoryViewBytesPerRow;
-
-
-		DebugOptions();
-		void LoadSave(SettingsWrapper& wrap);
-
-		bool operator==(const DebugOptions& right) const;
-		bool operator!=(const DebugOptions& right) const;
-	};
-
 	// ------------------------------------------------------------------------
 	struct DebugAnalysisOptions
 	{
@@ -1245,6 +1223,9 @@ struct Pcsx2Config
 		static constexpr u32 MAXIMUM_NOTIFICATION_DURATION = 30;
 		static constexpr u32 DEFAULT_NOTIFICATION_DURATION = 5;
 		static constexpr u32 DEFAULT_LEADERBOARD_DURATION = 10;
+		static constexpr const char* DEFAULT_INFO_SOUND_NAME = "sounds/achievements/message.wav";
+		static constexpr const char* DEFAULT_UNLOCK_SOUND_NAME = "sounds/achievements/unlock.wav";
+		static constexpr const char* DEFAULT_LBSUBMIT_SOUND_NAME = "sounds/achievements/lbsubmit.wav";
 
 		BITFIELD32()
 		bool
@@ -1256,11 +1237,18 @@ struct Pcsx2Config
 			Notifications : 1,
 			LeaderboardNotifications : 1,
 			SoundEffects : 1,
+			InfoSound : 1,
+			UnlockSound : 1,
+			LBSubmitSound : 1,
 			Overlays : 1;
 		BITFIELD_END
 
 		u32 NotificationsDuration = DEFAULT_NOTIFICATION_DURATION;
 		u32 LeaderboardsDuration = DEFAULT_LEADERBOARD_DURATION;
+
+		std::string InfoSoundName;
+		std::string UnlockSoundName;
+		std::string LBSubmitSoundName;
 
 		AchievementsOptions();
 		void LoadSave(SettingsWrapper& wrap);
@@ -1318,7 +1306,6 @@ struct Pcsx2Config
 	SpeedhackOptions Speedhacks;
 	GamefixOptions Gamefixes;
 	ProfilerOptions Profiler;
-	DebugOptions Debugger;
 	DebugAnalysisOptions DebuggerAnalysis;
 	EmulationSpeedOptions EmulationSpeed;
 	SavestateOptions Savestate;
@@ -1353,6 +1340,8 @@ struct Pcsx2Config
 	std::string CurrentIRX;
 	std::string CurrentGameArgs;
 	AspectRatioType CurrentAspectRatio = AspectRatioType::RAuto4_3_3_2;
+	// Fall back aspect ratio for games that have patches (when AspectRatioType::RAuto4_3_3_2) is active.
+	float CurrentCustomAspectRatio = 0.f;
 	bool IsPortableMode = false;
 
 	Pcsx2Config();
@@ -1389,7 +1378,6 @@ namespace EmuFolders
 	extern std::string AppRoot;
 	extern std::string DataRoot;
 	extern std::string Settings;
-	extern std::string DebuggerSettings;
 	extern std::string Bios;
 	extern std::string PTR2InstalledMods;
 	extern std::string PTR2;
@@ -1407,6 +1395,8 @@ namespace EmuFolders
 	extern std::string Textures;
 	extern std::string InputProfiles;
 	extern std::string Videos;
+	extern std::string DebuggerLayouts;
+	extern std::string DebuggerSettings;
 
 	/// Initializes critical folders (AppRoot, DataRoot, Settings). Call once on startup.
 	void SetAppRoot();

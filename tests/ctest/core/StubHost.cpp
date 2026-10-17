@@ -39,6 +39,10 @@ std::unique_ptr<ProgressCallback> Host::CreateHostProgressCallback()
 	return ProgressCallback::CreateNullProgressCallback();
 }
 
+void Host::ReportInfoAsync(const std::string_view title, const std::string_view message)
+{
+}
+
 void Host::ReportErrorAsync(const std::string_view title, const std::string_view message)
 {
 }
@@ -50,6 +54,16 @@ bool Host::ConfirmMessage(const std::string_view title, const std::string_view m
 
 void Host::OpenURL(const std::string_view url)
 {
+}
+
+bool Host::InBatchMode()
+{
+	return false;
+}
+
+bool Host::InNoGUIMode()
+{
+	return false;
 }
 
 bool Host::CopyTextToClipboard(const std::string_view text)
@@ -236,6 +250,11 @@ void Host::OnCoverDownloaderOpenRequested()
 
 void Host::OnCreateMemoryCardOpenRequested()
 {
+}
+
+bool Host::LocaleCircleConfirm()
+{
+	return false;
 }
 
 bool Host::ShouldPreferHostFileSelector()

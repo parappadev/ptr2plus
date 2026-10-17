@@ -1,14 +1,13 @@
 <RCC>
 	<qresource>
 		<file>icons/AppIcon64.png</file>
-		<file>icons/applications-system-24.png</file>
 		<file>icons/black/index.theme</file>
 		<file>icons/black/svg/arrow-left-right-line.svg</file>
 		<file>icons/black/svg/artboard-2-line.svg</file>
 		<file>icons/black/svg/at.svg</file>
 		<file>icons/black/svg/band-aid-line.svg</file>
-		<file>icons/black/svg/book.svg</file>
 		<file>icons/black/svg/booklet.svg</file>
+		<file>icons/black/svg/book.svg</file>
 		<file>icons/black/svg/brush-line.svg</file>
 		<file>icons/black/svg/buzz-controller-line.svg</file>
 		<file>icons/black/svg/camera-video.svg</file>
@@ -72,6 +71,8 @@
 		<file>icons/black/svg/mouse-line.svg</file>
 		<file>icons/black/svg/msd-line.svg</file>
 		<file>icons/black/svg/negcon-line.svg</file>
+		<file>icons/black/svg/padlock-lock.svg</file>
+		<file>icons/black/svg/padlock-unlock.svg</file>
 		<file>icons/black/svg/pause-line.svg</file>
 		<file>icons/black/svg/pencil-line.svg</file>
 		<file>icons/black/svg/pin-filled.svg</file>
@@ -102,10 +103,7 @@
 		<file>icons/black/svg/window-2-line.svg</file>
 		<file>icons/black/svg/zoom-in-line.svg</file>
 		<file>icons/black/svg/zoom-out-line.svg</file>
-		<file>icons/logo.png</file>
-		<file>icons/media-optical-24.png</file>
-		<file>icons/media-optical-gear-24.png</file>
-		<file>icons/media-optical.png</file>
+		<file>icons/PCSX2logo.svg</file>
 		<file>icons/QT.png</file>
 		<file>icons/update.png</file>
 		<file>icons/white/index.theme</file>
@@ -113,8 +111,8 @@
 		<file>icons/white/svg/artboard-2-line.svg</file>
 		<file>icons/white/svg/at.svg</file>
 		<file>icons/white/svg/band-aid-line.svg</file>
-		<file>icons/white/svg/book.svg</file>
 		<file>icons/white/svg/booklet.svg</file>
+		<file>icons/white/svg/book.svg</file>
 		<file>icons/white/svg/brush-line.svg</file>
 		<file>icons/white/svg/buzz-controller-line.svg</file>
 		<file>icons/white/svg/camera-video.svg</file>
@@ -178,6 +176,8 @@
 		<file>icons/white/svg/mouse-line.svg</file>
 		<file>icons/white/svg/msd-line.svg</file>
 		<file>icons/white/svg/negcon-line.svg</file>
+		<file>icons/white/svg/padlock-lock.svg</file>
+		<file>icons/white/svg/padlock-unlock.svg</file>
 		<file>icons/white/svg/pause-line.svg</file>
 		<file>icons/white/svg/pencil-line.svg</file>
 		<file>icons/white/svg/pin-filled.svg</file>

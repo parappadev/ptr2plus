@@ -103,12 +103,16 @@ public:
 	/// Rescans a single file. NOTE: Happens on UI thread.
 	void rescanFile(const std::string& path);
 
+	void doSettings(const char* category = nullptr);
+	void doGameSettings(const char* category = nullptr);
+
 	void openDebugger();
 	void checkMousePosition(int x, int y);
 public Q_SLOTS:
 	void checkForUpdates(bool display_message, bool force_check);
 	void refreshGameList(bool invalidate_cache);
 	void cancelGameListRefresh();
+	void reportInfo(const QString& title, const QString& message);
 	void reportError(const QString& title, const QString& message);
 	bool confirmMessage(const QString& title, const QString& message);
 	void onStatusMessage(const QString& message);
@@ -254,25 +258,22 @@ private:
 	void updateDisplayWidgetCursor();
 
 	SettingsWindow* getSettingsWindow();
-	void doSettings(const char* category = nullptr);
 
 	InputRecordingViewer* getInputRecordingViewer();
 	void updateInputRecordingActions(bool started);
-
-	DebuggerWindow* getDebuggerWindow();
 
 	void doControllerSettings(ControllerSettingsWindow::Category category = ControllerSettingsWindow::Category::Count);
 
 	QString getDiscDevicePath(const QString& title);
 
 	void startGameListEntry(
-		const GameList::Entry* entry, std::optional<s32> save_slot = std::nullopt, std::optional<bool> fast_boot = std::nullopt);
+		const GameList::Entry* entry, std::optional<s32> save_slot = std::nullopt, std::optional<bool> fast_boot = std::nullopt, bool load_backup = false);
 	void setGameListEntryCoverImage(const GameList::Entry* entry);
 	void clearGameListEntryPlayTime(const GameList::Entry* entry);
 	void goToWikiPage(const GameList::Entry* entry);
 
 	std::optional<bool> promptForResumeState(const QString& save_state_path);
-	void loadSaveStateSlot(s32 slot);
+	void loadSaveStateSlot(s32 slot, bool load_backup = false);
 	void loadSaveStateFile(const QString& filename, const QString& state_filename);
 	void populateLoadStateMenu(QMenu* menu, const QString& filename, const QString& serial, quint32 crc);
 	void populateSaveStateMenu(QMenu* menu, const QString& serial, quint32 crc);
@@ -289,8 +290,6 @@ private:
 	ControllerSettingsWindow* m_controller_settings_window = nullptr;
 	InputRecordingViewer* m_input_recording_viewer = nullptr;
 	AutoUpdaterDialog* m_auto_updater_dialog = nullptr;
-
-	DebuggerWindow* m_debugger_window = nullptr;
 
 	QProgressBar* m_status_progress_widget = nullptr;
 	QLabel* m_status_verbose_widget = nullptr;

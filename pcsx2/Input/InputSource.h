@@ -24,11 +24,13 @@ public:
 	virtual void UpdateSettings(SettingsInterface& si, std::unique_lock<std::mutex>& settings_lock) = 0;
 	virtual bool ReloadDevices() = 0;
 	virtual void Shutdown() = 0;
+	virtual bool IsInitialized() = 0;
 
 	virtual void PollEvents() = 0;
 
+	/// InputBinding functions can be called while uninitialized
 	virtual std::optional<InputBindingKey> ParseKeyString(const std::string_view device, const std::string_view binding) = 0;
-	virtual TinyString ConvertKeyToString(InputBindingKey key) = 0;
+	virtual TinyString ConvertKeyToString(InputBindingKey key, bool display = false, bool migration = false) = 0;
 	virtual TinyString ConvertKeyToIcon(InputBindingKey key) = 0;
 
 	/// Enumerates available devices. Returns a pair of the prefix (e.g. SDL-0) and the device name.
@@ -40,6 +42,9 @@ public:
 	/// Retrieves bindings that match the generic bindings for the specified device.
 	/// Returns false if it's not one of our devices.
 	virtual bool GetGenericBindingMapping(const std::string_view device, InputManager::GenericInputBindingMapping* mapping) = 0;
+
+	/// Gets the layout of the controller connected at index.
+	virtual InputLayout GetControllerLayout(u32 index) = 0;
 
 	/// Informs the source of a new vibration motor state. Changes may not take effect until the next PollEvents() call.
 	virtual void UpdateMotorState(InputBindingKey key, float intensity) = 0;

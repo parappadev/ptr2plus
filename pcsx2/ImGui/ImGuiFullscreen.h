@@ -18,6 +18,7 @@
 #include <vector>
 
 class GSTexture;
+enum class InputLayout : u8;
 
 namespace ImGuiFullscreen
 {
@@ -93,13 +94,13 @@ namespace ImGuiFullscreen
 	}
 
 	/// Centers an image within the specified bounds, scaling up or down as needed.
-	ImRect CenterImage(const ImVec2& fit_size, const ImVec2& image_size);
-	ImRect CenterImage(const ImRect& fit_rect, const ImVec2& image_size);
+	ImRect CenterImage(const ImVec2& fit_size, const ImVec2& image_size, bool fill = false);
+	ImRect CenterImage(const ImRect& fit_rect, const ImVec2& image_size, bool fill = false);
 
 	/// Initializes, setting up any state.
 	bool Initialize(const char* placeholder_image_path);
 
-	void SetTheme(bool light);
+	void SetTheme(std::string_view theme);
 	void SetFonts(ImFont* standard_font, ImFont* medium_font, ImFont* large_font);
 	bool UpdateLayoutScale();
 	GSVector2i EstimateGameRect();
@@ -112,6 +113,15 @@ namespace ImGuiFullscreen
 	std::shared_ptr<GSTexture> LoadTexture(std::string_view path);
 	GSTexture* GetCachedTexture(std::string_view name);
 	GSTexture* GetCachedTextureAsync(std::string_view name);
+	enum class SvgScaling : u8
+	{
+		Stretch,
+		Fit,
+		ZoomFill,
+	};
+	std::shared_ptr<GSTexture> LoadSvgTexture(std::string_view path, ImVec2 size, SvgScaling mode = SvgScaling::Stretch);
+	GSTexture* GetCachedSvgTexture(std::string_view name, ImVec2 size, SvgScaling mode = SvgScaling::Stretch);
+	GSTexture* GetCachedSvgTextureAsync(std::string_view name, ImVec2 size, SvgScaling mode = SvgScaling::Stretch);
 	bool InvalidateCachedTexture(const std::string& path);
 	void UploadAsyncTextures();
 
@@ -162,6 +172,8 @@ namespace ImGuiFullscreen
 	void EndPTR2PopupModal();
 
 	bool IsGamepadInputSource();
+	void ReportGamepadLayout(InputLayout layout);
+	InputLayout GetGamepadLayout();
 	void CreateFooterTextString(SmallStringBase& dest, std::span<const std::pair<const char*, std::string_view>> items);
 	void SetFullscreenFooterText(std::string_view text);
 	void SetFullscreenFooterText(std::span<const std::pair<const char*, std::string_view>> items);
@@ -240,7 +252,9 @@ namespace ImGuiFullscreen
 
 	bool BeginHorizontalMenu(const char* name, const ImVec2& position, const ImVec2& size, u32 num_items);
 	void EndHorizontalMenu();
+	bool HorizontalMenuItem(GSTexture* icon, const ImVec2& icon_uv0, const ImVec2& icon_uv1, const char* title, const char* description);
 	bool HorizontalMenuItem(GSTexture* icon, const char* title, const char* description);
+	bool HorizontalMenuSvgItem(const char* svg_path, const char* title, const char* description, SvgScaling mode = SvgScaling::Stretch);
 
 	using FileSelectorCallback = std::function<void(const std::string& path)>;
 	using FileSelectorFilters = std::vector<std::string>;
