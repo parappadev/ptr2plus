@@ -101,11 +101,11 @@
    </item>
    <item row="1" column="1">
     <widget class="QComboBox" name="aspectRatio">
-     <item>
+     <!-- <item>
       <property name="text">
        <string>Fit to Window / Fullscreen</string>
       </property>
-     </item>
+     </item> -->
      <item>
       <property name="text">
        <string>Auto Standard (4:3 Interlaced / 3:2 Progressive)</string>
@@ -121,11 +121,11 @@
        <string>Widescreen (16:9)</string>
       </property>
      </item>
-     <item>
+     <!-- <item>
       <property name="text">
        <string>Native/Full (10:7)</string>
       </property>
-     </item>
+     </item> -->
     </widget>
    </item>
    <item row="4" column="1">

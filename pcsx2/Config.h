@@ -232,11 +232,11 @@ enum class DebugFunctionScanMode
 
 enum class AspectRatioType : u8
 {
-	Stretch, // Stretches to the whole window/display size
+	//Stretch, // Stretches to the whole window/display size
 	RAuto4_3_3_2, // Automatically scales to the target aspect ratio if there's a widescreen patch
 	R4_3,
 	R16_9,
-	R10_7,
+	//R10_7,
 	MaxCount
 };
 
@@ -246,7 +246,7 @@ enum class FMVAspectRatioSwitchType : u8
 	RAuto4_3_3_2,
 	R4_3,
 	R16_9,
-	R10_7,
+	//R10_7,
 	MaxCount
 };
 
