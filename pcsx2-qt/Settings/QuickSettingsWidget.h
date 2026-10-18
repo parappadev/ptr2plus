@@ -34,7 +34,7 @@ private Q_SLOTS:
 	void updateLatencyLabel();
 	void updateVolumeLabel();
 	void onMinimalOutputLatencyChanged();
-	void onOutputVolumeChanged(int new_value);
+	void onStandardVolumeChanged(int new_value);
 	void onOptimalFramePacingChanged();
 	void presetChanged();
 	void onNoInterlacingChanged();

@@ -872,7 +872,7 @@ void GraphicsSettingsWidget::onAspectRatioChange(int index)
 
 void GraphicsSettingsWidget::onNoInterlacingChanged()
 {
-	const bool enabled = m_dialog->getEffectiveBoolValue("EmuCore", "EnableNoInterlacingPatches", true);
+	const bool enabled = dialog()->getEffectiveBoolValue("EmuCore", "EnableNoInterlacingPatches", true);
 	if (enabled)
 		DisableInterlacing();
 	else

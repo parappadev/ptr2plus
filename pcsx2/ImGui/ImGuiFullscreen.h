@@ -220,7 +220,7 @@ namespace ImGuiFullscreen
 		const char* (*to_display_name_function)(s32 value, void* opaque), void* opaque, u32 count, bool enabled, float height, std::pair<ImFont*, float> font,
 		std::pair<ImFont*, float> summary_font);
 
-	void DrawSettingsTextOutline(ImRect title_bb, ImFont* title_font, const char* title, float outline_size, bool enabled, ImVec2 align);
+	void DrawSettingsTextOutline(ImRect title_bb, std::pair<ImFont*, float> title_font, const char* title, float outline_size, bool enabled, ImVec2 align);
 
 	template <typename DataType, typename CountType>
 	static __fi bool EnumChoiceButton(const char* title, const char* summary, DataType* value_pointer,

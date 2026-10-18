@@ -1388,7 +1388,7 @@ void FullscreenUI::Render()
 	{
 		//draw subtitle bubble
 		float subtitle_padding_x = LayoutScale(40.0f);
-		float large_font_height = g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, "test").y;
+		float large_font_height = g_large_font.first->CalcTextSizeA(g_large_font.second, std::numeric_limits<float>::max(), -1.0f, "test").y;
 
 		//subtitle = bottom bubble with setting summaries
 		ImVec2 subtitle_size = ImVec2(s_game_size.x - (s_window_padding.x + subtitle_padding_x) * 2, large_font_height * 3.2f); //LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT + LAYOUT_MENU_BUTTON_Y_PADDING * 4.0f + 2.0f));
@@ -2413,7 +2413,7 @@ void FullscreenUI::DrawInputBindingButton(
 		const ImRect title_bb(bb.Min, ImVec2(text_end, midpoint));
 
 		ImGuiFullscreen::DrawSettingsTextOutline(title_bb, g_large_font, show_type ? title.c_str() : display_name, 2.5f, true, ImVec2(0.0f, 0.0f));
-		const float midpoint = bb.Min.y + g_large_font->FontSize + LayoutScale(4.0f);
+		const float midpoint = bb.Min.y + g_large_font.second + LayoutScale(4.0f);
 
 		ImGui::RenderTextClipped(title_bb.Min, title_bb.Max, show_type ? title.c_str() : display_name, nullptr, nullptr,
 			ImVec2(0.0f, 0.0f), &title_bb);
@@ -2429,7 +2429,7 @@ void FullscreenUI::DrawInputBindingButton(
 		const ImRect summary_bb(ImVec2(bb.Min.x, midpoint), bb.Max);
 
 		ImGuiFullscreen::DrawSettingsTextOutline(title_bb, g_large_font, show_type ? title.c_str() : display_name, 2.5f, true, ImVec2(0.0f, 0.0f));
-		const float midpoint = bb.Min.y + g_large_font->FontSize + LayoutScale(4.0f);
+		const float midpoint = bb.Min.y + g_large_font.second + LayoutScale(4.0f);
 
 		ImGui::PushFont(g_large_font.first, g_large_font.second);
 
@@ -2694,8 +2694,8 @@ void FullscreenUI::DrawIntListSetting(SettingsInterface* bsi, const char* title,
 	}
 }
 void FullscreenUI::DrawIntListPresetSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section, const char* key,
-	int default_value, const char* const* options, size_t option_count, bool translate_options, int option_offset, bool enabled, float height, ImFont* font,
-	ImFont* summary_font)
+	int default_value, const char* const* options, size_t option_count, bool translate_options, int option_offset, bool enabled, float height, std::pair<ImFont*, float> font,
+	std::pair<ImFont*, float> summary_font)
 {
 	FullscreenUI::DrawIntListSetting(bsi, title, summary, section, key,
 		default_value, options, option_count, translate_options, option_offset, enabled, height, font,
@@ -3351,7 +3351,7 @@ void FullscreenUI::DrawStringListSetting(SettingsInterface* bsi, const char* tit
 
 void FullscreenUI::DrawPresetListSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section,
 	const char* key, const char* default_value, const char* const* options, const char* const* option_values, size_t option_count,
-	bool translate_options, bool enabled, float height, ImFont* font, ImFont* summary_font, const char* translation_ctx)
+	bool translate_options, bool enabled, float height, std::pair<ImFont*, float> font, std::pair<ImFont*, float> summary_font, const char* translation_ctx)
 {
 	FullscreenUI::DrawStringListSetting(bsi, title, summary, section,
 		 key,  default_value,  options,  option_values,  option_count,
@@ -3360,7 +3360,7 @@ void FullscreenUI::DrawPresetListSetting(SettingsInterface* bsi, const char* tit
 
 void FullscreenUI::DrawStringListPresetSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section,
 	const char* key, const char* default_value, const char* const* options, const char* const* option_values, size_t option_count,
-	bool translate_options, bool enabled, float height, ImFont* font, ImFont* summary_font, const char* translation_ctx)
+	bool translate_options, bool enabled, float height, std::pair<ImFont*, float> font, std::pair<ImFont*, float> summary_font, const char* translation_ctx)
 {
 	FullscreenUI::DrawStringListSetting(bsi, title, summary, section,
 		key, default_value, options, option_values, option_count,
@@ -4043,7 +4043,7 @@ void FullscreenUI::DrawModMenuWindow()
 	{
 		static constexpr float ITEM_WIDTH = 25.0f;
 
-		static constexpr const char* global_icons[] = {ICON_FA_SLIDERS_H, ICON_FA_SLIDERS_H, ICON_FA_MAGIC};
+		static constexpr const char* global_icons[] = {ICON_FA_SLIDERS, ICON_FA_SLIDERS, ICON_FA_MAGIC};
 		static constexpr ModMenuPage global_pages[] = {ModMenuPage::Mods, ModMenuPage::Priority, ModMenuPage::TexturePacks};
 
 		static constexpr const char* titles[] = {"Mods", "Mod Priority", "Texture Packs"};
@@ -4287,7 +4287,7 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 	const ImGuiStyle& style = ImGui::GetStyle();
 	ImGuiIO& io = ImGui::GetIO();
 
-	float large_font_height = g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, "test").y;
+	float large_font_height = g_large_font.first->CalcTextSizeA(g_large_font.second, std::numeric_limits<float>::max(), -1.0f, "test").y;
 	const float bg_alpha = VMManager::HasValidVM() ? 0.90f : 1.0f;
 	SettingsInterface* bsi = GetEditingSettingsInterface();
 	const bool show_advanced_settings = ShouldShowAdvancedSettings(bsi);
@@ -4373,18 +4373,18 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 			ICON_PF_KEYBOARD_ALT,
 			ICON_FA_TROPHY,
 			ICON_FA_FOLDER_OPEN,
-			ICON_FA_EXCLAMATION_TRIANGLE
+			ICON_FA_TRIANGLE_EXCLAMATION
 		};
-		//static constexpr const char* per_game_icons[] = {ICON_FA_PARAGRAPH, ICON_FA_SLIDERS_H, ICON_FA_MICROCHIP,
+		//static constexpr const char* per_game_icons[] = {ICON_FA_PARAGRAPH, ICON_FA_SLIDERS, ICON_FA_MICROCHIP,
 		//	ICON_FA_FROWN, ICON_FA_MAGIC, ICON_FA_HEADPHONES, ICON_FA_SD_CARD, ICON_FA_GAMEPAD, ICON_FA_BAN};
 		static constexpr const char* ptr2_icons[] = {
 			ICON_PF_STAR,
-			ICON_FA_BAND_AID,
+			ICON_FA_BANDAGE,
 			ICON_FA_INFINITY,
 			ICON_FA_GAMEPAD
 		};
 		static constexpr const char* mods_icons[] = {
-			ICON_FA_SLIDERS_H,
+			ICON_FA_SLIDERS,
 			ICON_FA_LIST
 		};
 
@@ -4518,16 +4518,17 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 		else */
 
 		//tab title
-		g_large_font->Scale = 1.25f;
-		heading_text_size = ImVec2(g_large_font->Scale, g_large_font->Scale) * g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, titles[static_cast<u32>(pages[index])]);
-		ImVec2 max_text_size = ImVec2(g_large_font->Scale, g_large_font->Scale) * g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, "Achievements Settings");
+		//g_large_font->Scale = 1.25f;
+		float scale = 1.25f;
+		heading_text_size = ImVec2(scale, scale) * g_large_font.first->CalcTextSizeA(g_large_font.second, std::numeric_limits<float>::max(), -1.0f, titles[static_cast<u32>(pages[index])]);
+		ImVec2 max_text_size = ImVec2(scale, scale) * g_large_font.first->CalcTextSizeA(g_large_font.second, std::numeric_limits<float>::max(), -1.0f, "Achievements Settings");
 		heading_text_padding_x = (max_text_size.x / 6) * (max_text_size.x / heading_text_size.x);
-
+		float fontsize = g_large_font.second;
 		ImGui::SetCursorPosX(style.FrameBorderSize + style.FramePadding.x + heading_text_padding_x);
-
+		g_large_font.second *= scale;
 		NavTitle(Host::TranslateToCString(TR_CONTEXT, titles[static_cast<u32>(pages[index])]));
-		g_large_font->Scale = 1.0f;
-
+		//g_large_font->Scale = 1.0f;
+		g_large_font.second = fontsize;
 		ImGui::SetCursorPosY(heading_size.y + bevel_thickness); //navbar_pos.y - heading_pos.y);
 		ImGui::SetCursorPosX(navbar_pos.x + navbar_size.x - folder_padding.x - (style.FramePadding.x * 2.0f + style.FrameBorderSize + style.ItemSpacing.x + LayoutScale(ITEM_WIDTH)) - style.FramePadding.x);
 		//ImGui::SetCursorPosX(s_game_size.x - s_window_padding.x - style.FrameBorderSize - LayoutScale(ITEM_WIDTH));
@@ -5076,7 +5077,7 @@ void FullscreenUI::DrawQuickSettingsPage()
 
 	MenuHeading("Audio");
 
-	DrawIntRangeSetting(bsi, FSUI_ICONSTR(ICON_FA_VOLUME_UP, "Output Volume"),
+	DrawIntRangeSetting(bsi, FSUI_ICONSTR(ICON_FA_VOLUME_HIGH, "Output Volume"),
 		FSUI_CSTR("Controls the volume of the audio played on the host."), "SPU2/Output", "OutputVolume", 100,
 		0, 100, "%d%%");
 
@@ -5234,7 +5235,7 @@ void FullscreenUI::DrawInterfaceSettingsPage()
 	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_BOX_ARCHIVE, "Create Save State Backups"),
 		FSUI_CSTR("Creates a backup copy of a save state if it already exists when the save is created. The backup copy has a .backup suffix"),
 		"EmuCore", "BackupSavestate", true);
-	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_INFO_CIRCLE, "Use Save State Selector"),
+	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_CIRCLE_INFO, "Use Save State Selector"),
 		FSUI_CSTR("Show a save state selector UI when switching slots instead of showing a notification bubble."),
 		"EmuCore", "UseSavestateSelector", true);
 
@@ -7916,27 +7917,27 @@ static void FullscreenUI::DrawSubtitleBubble(ImVec2 subtitle_pos, ImVec2 subtitl
 		std::string subtitle_text1 = IsGamepadInputSource() ? ICON_PF_DPAD_UP_DOWN : ICON_PF_ARROW_UP ICON_PF_ARROW_DOWN;
 		std::string subtitle_text = subtitle_text1;
 		ImVec2 text_size1(
-			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text1.c_str()));
+			g_large_font.first->CalcTextSizeA(g_large_font.second, std::numeric_limits<float>::max(), -1.0f, subtitle_text1.c_str()));
 		std::string subtitle_text2 = " ";
 		subtitle_text2 += FSUI_VSTR("Change Selection");
 		subtitle_text += subtitle_text2;
 		ImVec2 text_size2(
-			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text2.c_str()));
+			g_large_font.first->CalcTextSizeA(g_large_font.second, std::numeric_limits<float>::max(), -1.0f, subtitle_text2.c_str()));
 		std::string subtitle_text3 = " ";
 		subtitle_text3 += IsGamepadInputSource() ? ICON_PF_BUTTON_CROSS : ICON_PF_ENTER;
 		subtitle_text += subtitle_text3;
 		ImVec2 text_size3(
-			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text3.c_str()));
+			g_large_font.first->CalcTextSizeA(g_large_font.second, std::numeric_limits<float>::max(), -1.0f, subtitle_text3.c_str()));
 		std::string subtitle_text4 = " ";
 		subtitle_text4 += FSUI_VSTR("Select");
 		subtitle_text += subtitle_text4;
 		ImVec2 text_size4(
-			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text4.c_str()));
+			g_large_font.first->CalcTextSizeA(g_large_font.second, std::numeric_limits<float>::max(), -1.0f, subtitle_text4.c_str()));
 		std::string subtitle_text5 = " ";
 		subtitle_text5 += IsGamepadInputSource() ? ICON_PF_BUTTON_CIRCLE : ICON_PF_ESC;
 		subtitle_text += subtitle_text5;
 		ImVec2 text_size5(
-			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text5.c_str()));
+			g_large_font.first->CalcTextSizeA(g_large_font.second, std::numeric_limits<float>::max(), -1.0f, subtitle_text5.c_str()));
 		std::string subtitle_text6 = " ";
 		if (s_current_main_window != MainWindowType::PauseMenu)
 			subtitle_text6 += FSUI_VSTR("Return To Pause Menu");
@@ -7945,27 +7946,27 @@ static void FullscreenUI::DrawSubtitleBubble(ImVec2 subtitle_pos, ImVec2 subtitl
 		subtitle_text += subtitle_text6;
 
 		ImVec2 subtitle_text_size(
-			g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, subtitle_text.c_str()));
+			g_large_font.first->CalcTextSizeA(g_large_font.second, std::numeric_limits<float>::max(), -1.0f, subtitle_text.c_str()));
 
 		ImVec2 text_pos(0.0f + (s_game_size.x - subtitle_text_size.x) / 2, subtitle_pos.y + subtitle_size.y / 2 - (subtitle_text_size.y * 2) / 3);
 			
 		ImU32 color = ImGui::GetColorU32(UIPrimaryColor);
-		dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text1.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+		dl->AddText(g_large_font.first, g_large_font.second, GameBounds(text_pos), color, subtitle_text1.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
 		text_pos += ImVec2(text_size1.x, 0);
 		color = ImGui::GetColorU32(UIBackgroundTextColor);
-		dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text2.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+		dl->AddText(g_large_font.first, g_large_font.second, GameBounds(text_pos), color, subtitle_text2.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
 		text_pos += ImVec2(text_size2.x, 0);
 		color = ImGui::GetColorU32(UIPrimaryColor);
-		dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text3.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+		dl->AddText(g_large_font.first, g_large_font.second, GameBounds(text_pos), color, subtitle_text3.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
 		text_pos += ImVec2(text_size3.x, 0);
 		color = ImGui::GetColorU32(UIBackgroundTextColor);
-		dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text4.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+		dl->AddText(g_large_font.first, g_large_font.second, GameBounds(text_pos), color, subtitle_text4.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
 		text_pos += ImVec2(text_size4.x, 0);
 		color = ImGui::GetColorU32(UIPrimaryColor);
-		dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text5.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+		dl->AddText(g_large_font.first, g_large_font.second, GameBounds(text_pos), color, subtitle_text5.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
 		text_pos += ImVec2(text_size5.x, 0);
 		color = ImGui::GetColorU32(UIBackgroundTextColor);
-		dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), color, subtitle_text6.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+		dl->AddText(g_large_font.first, g_large_font.second, GameBounds(text_pos), color, subtitle_text6.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
 	}
 	else
 	{
@@ -7973,7 +7974,7 @@ static void FullscreenUI::DrawSubtitleBubble(ImVec2 subtitle_pos, ImVec2 subtitl
 		{
 			const ImU32 text_color = IM_COL32(UIBackgroundTextColor.x * 255, UIBackgroundTextColor.y * 255, UIBackgroundTextColor.z * 255, 255);
 			ImVec2 text_size(
-				g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, ImGuiFullscreen::current_summary.data()));
+				g_large_font.first->CalcTextSizeA(g_large_font.second, std::numeric_limits<float>::max(), -1.0f, ImGuiFullscreen::current_summary.data()));
 
 			ImVec2 text_pos(0.0f + (s_game_size.x - text_size.x) / 2, subtitle_pos.y + subtitle_size.y / 2 - (text_size.y * 2) / 3);
 			if (text_size.x > subtitle_size.x - (LayoutScale(40.0f) * 2))
@@ -7987,7 +7988,7 @@ static void FullscreenUI::DrawSubtitleBubble(ImVec2 subtitle_pos, ImVec2 subtitl
 					text_pos = ImVec2(subtitle_pos.x + LayoutScale(40.0f), subtitle_pos.y + subtitle_size.y / 2 - text_size.y);
 			}
 			//DrawShadowedText(dl, g_medium_font, ImVec2(0.0f, s_game_size.y - heading_size.y - subtitle_size.y), text_color, ImGuiFullscreen::current_summary.data());
-			dl->AddText(g_large_font, g_large_font->FontSize, GameBounds(text_pos), text_color, text.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
+			dl->AddText(g_large_font.first, g_large_font.second, GameBounds(text_pos), text_color, text.c_str(), nullptr, subtitle_size.x - (LayoutScale(40.0f) * 2));
 		}
 	}
 }
@@ -8183,9 +8184,9 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 		//ImVec2 title_pos(s_display_size.x - LayoutScale(10.0f + image_width + 20.0f) - title_size.x,
 		//	s_display_size.y - LayoutScale(LAYOUT_FOOTER_HEIGHT) - LayoutScale(10.0f + image_height));
 		//ImVec2 path_pos(s_display_size.x - LayoutScale(10.0f + image_width + 20.0f) - path_size.x,
-		//	title_pos.y + g_large_font->FontSize + LayoutScale(4.0f));
+		//	title_pos.y + g_large_font.second + LayoutScale(4.0f));
 		//ImVec2 subtitle_pos(s_display_size.x - LayoutScale(10.0f + image_width + 20.0f) - subtitle_size.x,
-		//	(path_string.empty() ? title_pos.y + g_large_font->FontSize : path_pos.y + g_medium_font->FontSize) + LayoutScale(4.0f));
+		//	(path_string.empty() ? title_pos.y + g_large_font.second : path_pos.y + g_medium_font->FontSize) + LayoutScale(4.0f));
 		
 		//Game Info and RetroAchievements Rich Prescense string thingy.. not really needed for ptr2plus..
 		
@@ -8288,7 +8289,7 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 //draw vertical black bar in middle
 	//vertical black bar is as big as the longest text option plus padding (25%)
 	float longest_text_size =
-		g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, "Switch To Software Renderer").x;
+		g_large_font.first->CalcTextSizeA(g_large_font.second, std::numeric_limits<float>::max(), -1.0f, "Switch To Software Renderer").x;
 
 	ImVec2 black_bar_size = ImVec2(longest_text_size * 1.2 + LayoutScale(60.0f), s_game_size.y);
 
@@ -8326,7 +8327,7 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 	const bool just_focused = ResetFocusHere();
 	*/
 
-	ImVec2 options_size = g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, "Test");
+	ImVec2 options_size = g_large_font.first->CalcTextSizeA(g_large_font.second, std::numeric_limits<float>::max(), -1.0f, "Test");
 	options_size.y = (options_size.y + LayoutScale(LAYOUT_MENU_BUTTON_Y_PADDING)) * 10;
 	float options_y_pos = s_game_size.y / 2 - options_size.y / 2;
 
@@ -8349,10 +8350,10 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 	ptr2plus_text = "PTR2 Plus DEV";
 #endif
 	ImVec2 ptr2plus_text_size(
-		g_large_font->CalcTextSizeA(g_large_font->FontSize - 2, std::numeric_limits<float>::max(), -1.0f, "PTR2 Plus DEV"));
+		g_large_font.first->CalcTextSizeA(g_large_font.second - 2, std::numeric_limits<float>::max(), -1.0f, "PTR2 Plus DEV"));
 	ImVec2 ptr2plus_text_pos(s_game_size.x / 2 - ptr2plus_text_size.x / 2, s_window_padding.y);
 
-	dl->AddText(g_large_font, g_large_font->FontSize - 2, GameBounds(ptr2plus_text_pos), ImGui::GetColorU32(UIPrimaryColor), ptr2plus_text.c_str(), nullptr);
+	dl->AddText(g_large_font.first, g_large_font.second - 2, GameBounds(ptr2plus_text_pos), ImGui::GetColorU32(UIPrimaryColor), ptr2plus_text.c_str(), nullptr);
 
 //draw pause menu buttons
 	const ImVec2 window_size(s_game_size.x, s_game_size.y);
@@ -8451,7 +8452,7 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 						s_current_main_window = MainWindowType::None;
 				}
 
-				if (ActiveButtonCenter(ICON_FA_SLIDERS_H " Mod Menu", false))
+				if (ActiveButtonCenter(ICON_FA_SLIDERS " Mod Menu", false))
 					SwitchToModMenu();
 
 				if (expertMode)
@@ -8923,17 +8924,6 @@ void FullscreenUI::DrawSaveStateSelector(bool is_loading)
 				continue;
 			}
 
-			if (grid_x == grid_count_x)
-			{
-				grid_x = 0;
-				ImGui::SetCursorPosX(start_x);
-				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + item_spacing);
-			}
-			else
-			{
-				ImGui::SameLine(start_x + static_cast<float>(grid_x) * (item_width + item_spacing));
-			}
-
 			const SaveStateListEntry& entry = s_save_state_selector_slots[i];
 			const ImGuiID id = window->GetID(static_cast<int>(i));
 			const ImVec2 pos(window->DC.CursorPos);
@@ -9002,6 +8992,18 @@ void FullscreenUI::DrawSaveStateSelector(bool is_loading)
 				}
 			}
 			grid_x++;
+
+			if (grid_x == grid_count_x)
+			{
+				grid_x = 0;
+				ImGui::SetCursorPosX(/*start_x*/ 0.0f);
+				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + item_spacing);
+			}
+			else
+			{
+				ImGui::SameLine(/*start_x*/ + static_cast<float>(grid_x) * (item_width + item_spacing));
+			}
+
 			i++;
 		}
 

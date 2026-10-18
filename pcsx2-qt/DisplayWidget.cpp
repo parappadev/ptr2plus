@@ -409,7 +409,7 @@ bool DisplaySurface::event(QEvent* event)
 				// qt spams resize events, sometimes several time per ms.
 				// since a vulkan resize swap chain event takes between 15 to 25ms this is,
 				// need less to say, unwanted.
-				m_resize_debounce_timer->start(100);
+				m_resize_debounce_timer->start(16);
 			}
 
 			updateCenterPos();

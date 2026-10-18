@@ -1496,13 +1496,13 @@ bool ImGuiFullscreen::ActiveButton(const char* title, bool is_active, bool enabl
 }
 
 bool ImGuiFullscreen::ActiveButtonWithRightText(const char* title, const char* right_title, bool is_active,
-	bool enabled, float height, ImFont* font, bool centered)
+	bool enabled, float height, std::pair<ImFont*, float> font, bool centered)
 {
 	
 	ImGuiWindow* window = ImGui::GetCurrentWindow();
 	float winSize = window->WorkRect.GetWidth();
 	const ImVec2 title_size(
-		font->CalcTextSizeA(font->FontSize, std::numeric_limits<float>::max(), -1.0f, title));
+		font.first->CalcTextSizeA(font.second, std::numeric_limits<float>::max(), -1.0f, title));
 	//centered
 	if (centered)
 		ImGui::SetCursorPosX(winSize / 2 - title_size.x / 2 - LayoutScale(LAYOUT_MENU_BUTTON_X_PADDING) / 2);
@@ -1776,14 +1776,14 @@ bool ImGuiFullscreen::FloatingButton(const char* text, float x, float y, float w
 	return pressed;
 }
 
-void ImGuiFullscreen::DrawSettingsTextOutline(ImRect title_bb, ImFont* title_font, const char* title, float outline_size, bool enabled, ImVec2 align)
+void ImGuiFullscreen::DrawSettingsTextOutline(ImRect title_bb, std::pair<ImFont*, float> title_font, const char* title, float outline_size, bool enabled, ImVec2 align)
 {
 	//float outline_size = 2.5f
 	
 	//make text blurry - broken since the upstream merge
 	//g_medium_font->Scale = title_font->FontSize / g_medium_font->FontSize;
 
-	ImGui::PushFont(title_font);
+	ImGui::PushFont(title_font.first, title_font.second);
 
 	if (enabled)
 		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetColorU32(ImGuiCol_Tab, 0.1f));
@@ -2516,7 +2516,7 @@ void ImGuiFullscreen::DrawPTR2PopupModalBG(ImVec2 win_pos, ImVec2 win_size, cons
 {
 	const char* text_display_end = ImGui::FindRenderedTextEnd(name, nullptr);
 	ImVec2 title_text_size(
-		g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, name, text_display_end));
+		g_large_font.first->CalcTextSizeA(g_large_font.second, std::numeric_limits<float>::max(), -1.0f, name, text_display_end));
 
 	float shading_depth = oldLayoutScale(g_shading_depth);
 	float bottom_bar_padding = shading_depth * 0.625;
@@ -2668,7 +2668,7 @@ bool ImGuiFullscreen::BeginPTR2PopupModal(ImVec2 win_pos, ImVec2 win_size, const
 	ImVec2 inner_win_size;
 	DrawPTR2PopupModalBG(win_pos, win_size, name, inner_win_pos, inner_win_size);
 	
-	ImGui::PushFont(g_large_font);
+	ImGui::PushFont(g_large_font.first, g_large_font.second);
 	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, HEX_TO_IMVEC4(0x9e001f, 0xff));
 	ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, HEX_TO_IMVEC4(0x000000, 0x00));
 	ImGui::PushStyleColor(ImGuiCol_TitleBg, HEX_TO_IMVEC4(0x000000, 0x00)); //UIPrimaryDarkColor);
@@ -2868,7 +2868,7 @@ void ImGuiFullscreen::DrawChoiceDialog()
 	//ptr2popup calcs
 	const char* text_display_end = ImGui::FindRenderedTextEnd(s_choice_dialog_title.c_str(), nullptr);
 	ImVec2 title_text_size(
-		g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, s_choice_dialog_title.c_str(), text_display_end));
+		g_large_font.first->CalcTextSizeA(g_large_font.second, std::numeric_limits<float>::max(), -1.0f, s_choice_dialog_title.c_str(), text_display_end));
 	float bottom_bar_padding = oldLayoutScale(g_shading_depth) * 0.625;
 	float bottom_bar_size = bottom_bar_padding + oldLayoutScale(g_shading_depth) * 2;
 	float title_bar_size = bottom_bar_size + title_text_size.y;
@@ -2878,7 +2878,7 @@ void ImGuiFullscreen::DrawChoiceDialog()
 	for (s32 i = 0; i < static_cast<s32>(s_choice_dialog_options.size()); i++)
 	{
 		auto& option = s_choice_dialog_options[i];
-		ImVec2 option_size = g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, option.first.c_str());
+		ImVec2 option_size = g_large_font.first->CalcTextSizeA(g_large_font.second, std::numeric_limits<float>::max(), -1.0f, option.first.c_str());
 		if (option_size.x > longest_option_text)
 			longest_option_text = option_size.x;
 	}
@@ -2887,7 +2887,7 @@ void ImGuiFullscreen::DrawChoiceDialog()
 	//const float title_height = g_large_font.second + ImGui::GetStyle().FramePadding.y * 2.0f + ImGui::GetStyle().WindowPadding.y * 2.0f;
 	const float height_pad = (s_window_padding.y + LayoutScale(90.0f)) * 2 ;
 	const float height = std::min((s_game_size.y - height_pad), LayoutScale(5.0f) + title_bar_size + bottom_bar_size +
-																		  (LayoutScale(LAYOUT_MENU_BUTTON_Y_PADDING) * 2.0f + g_large_font->FontSize) *
+																		  (LayoutScale(LAYOUT_MENU_BUTTON_Y_PADDING) * 2.0f + g_large_font.second) *
 																		  static_cast<float>(s_choice_dialog_options.size()));
 	
 	ImVec2 win_size = ImVec2(width, height);
@@ -2934,7 +2934,7 @@ void ImGuiFullscreen::DrawChoiceDialog()
 				if (option.second)
 					title += ICON_FA_CHECK " ";
 				title += option.first;
-				ImVec2 option_size = g_large_font->CalcTextSizeA(g_large_font->FontSize, std::numeric_limits<float>::max(), -1.0f, option.first.c_str());
+				ImVec2 option_size = g_large_font.first->CalcTextSizeA(g_large_font.second, std::numeric_limits<float>::max(), -1.0f, option.first.c_str());
 
 				//only center it if it fits in the whole window
 				if (option_size.x < ImGui::GetWindowWidth())

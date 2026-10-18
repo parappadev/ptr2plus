@@ -242,14 +242,17 @@ void QuickSettingsWidget::onMinimalOutputLatencyChanged()
 	updateLatencyLabel();
 }
 
-void QuickSettingsWidget::onOutputVolumeChanged(int new_value)
+void QuickSettingsWidget::onStandardVolumeChanged(int new_value)
 {
 	// only called for base settings
 	pxAssert(!m_dialog->isPerGameSettings());
-	Host::SetBaseIntSettingValue("SPU2/Output", "OutputVolume", new_value);
+	Host::SetBaseIntSettingValue("SPU2/Output", "StandardVolume", new_value);
 	Host::CommitBaseSettingChanges();
-	g_emu_thread->setAudioOutputVolume(new_value, EmuConfig.SPU2.FastForwardVolume);
-
+	//g_emu_thread->setAudioOutputVolume(new_value, EmuConfig.SPU2.FastForwardVolume);
+	g_emu_thread->runOnCPUThread([volume = new_value]() {
+		SPU2::SetOutputVolume(volume);
+		//SPU2::SaveOutputVolume();
+	});
 	updateVolumeLabel();
 }
 
