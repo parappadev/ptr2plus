@@ -648,10 +648,10 @@ GSVector2i ImGuiFullscreen::EstimateGameRect()
 	{
 		targetAr = 16.0f / 9.0f;
 	}
-	else if (EmuConfig.CurrentAspectRatio == AspectRatioType::R10_7)
+	/*else if (EmuConfig.CurrentAspectRatio == AspectRatioType::R10_7)
 	{
 		targetAr = 10.0f / 7.0f;
-	}
+	}*/
 
 	const double arr = targetAr / clientAr;
 	float target_width = f_width;
