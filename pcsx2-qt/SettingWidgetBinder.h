@@ -242,8 +242,8 @@ namespace SettingWidgetBinder
 		static std::optional<QString> getNullableStringValue(const QCheckBox* widget)
 		{
 			return (widget->checkState() == Qt::PartiallyChecked) ?
-					   std::nullopt :
-					   std::optional<QString>(widget->isChecked() ? QStringLiteral("1") : QStringLiteral("0"));
+			           std::nullopt :
+			           std::optional<QString>(widget->isChecked() ? QStringLiteral("1") : QStringLiteral("0"));
 		}
 		static void setNullableStringValue(QCheckBox* widget, std::optional<QString> value)
 		{
@@ -1263,7 +1263,7 @@ namespace SettingWidgetBinder
 
 	static inline void BindWidgetToFileSetting(SettingsInterface* sif, QLineEdit* widget, QAbstractButton* browse_button,
 		QAbstractButton* open_button, QAbstractButton* reset_button, std::string section, std::string key, std::string default_value,
-		const char* filter, bool allow_pergame = false, bool use_relative = true)
+		const QString& filter, bool allow_pergame = false, bool use_relative = true)
 	{
 		using Accessor = SettingAccessor<QLineEdit>;
 

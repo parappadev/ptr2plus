@@ -23,7 +23,7 @@
 #include "common/Timer.h"
 
 #include "fmt/format.h"
-#include "IconsFontAwesome5.h"
+#include "IconsFontAwesome6.h"
 
 #include <algorithm>
 #include <array>
@@ -108,9 +108,20 @@ bool GSRenderer::Merge(int field)
 	}
 	else
 	{
-		if (PCRTCDisplays.PCRTCDisplays[0].enabled)
+		const bool use_rc1 =
+			PCRTCDisplays.PCRTCDisplays[0].enabled &&                    // RC1 enabled.
+				(!(m_regs->PMODE.MMOD == 1 && m_regs->PMODE.ALP == 0) || // Blend RC1 with non-zero alpha.
+				(m_regs->PMODE.AMOD == 0) ||                             // Use alpha of RC1.
+				(feedback_merge && m_regs->EXTBUF.FBIN == 0));           // Use RC1 for feedback merge.
+		const bool use_rc2 =
+			PCRTCDisplays.PCRTCDisplays[1].enabled &&          // RC2 enabled.
+				// Blending RC2 and not overwriting completely with RC1.
+				((m_regs->PMODE.SLBG == 0 && !(use_rc1 && m_regs->PMODE.MMOD == 1 && m_regs->PMODE.ALP == 255)) || 
+				(m_regs->PMODE.AMOD == 1) ||                   // Use alpha of RC2.
+				(feedback_merge && m_regs->EXTBUF.FBIN == 1)); // Use RC2 for feedback merge.
+		if (use_rc1)
 			tex[0] = GetOutput(0, tex_scale[0], y_offset[0]);
-		if (PCRTCDisplays.PCRTCDisplays[1].enabled)
+		if (use_rc2)
 			tex[1] = GetOutput(1, tex_scale[1], y_offset[1]);
 		if (feedback_merge)
 			tex[2] = GetFeedbackOutput(tex_scale[2]);
@@ -551,7 +562,7 @@ bool GSRenderer::BeginPresentFrame(bool frame_skip)
 	}
 
 	// First frame after reopening is definitely going to be trash, so skip it.
-	Host::AddIconOSDMessage("GSDeviceLost", ICON_FA_EXCLAMATION_TRIANGLE,
+	Host::AddIconOSDMessage("GSDeviceLost", ICON_FA_TRIANGLE_EXCLAMATION,
 		TRANSLATE_SV("GS", "Host GPU device encountered an error and was recovered. This may have broken rendering."),
 		Host::OSD_CRITICAL_ERROR_DURATION);
 	return false;
@@ -570,9 +581,24 @@ void GSRenderer::EndPresentFrame()
 
 void GSRenderer::VSync(u32 field, bool registers_written, bool idle_frame)
 {
-	if (GSConfig.SaveInfo && GSConfig.ShouldDump(s_n, g_perfmon.GetFrame()))
+	if (GSConfig.ShouldDump(s_n, g_perfmon.GetFrame()))
 	{
-		DumpGSPrivRegs(*m_regs, GetDrawDumpPath("%05d_f%05lld_vsync_gs_reg.txt", s_n, g_perfmon.GetFrame()));
+		if (GSConfig.SaveInfo)
+		{
+			DumpGSPrivRegs(*m_regs, GetDrawDumpPath("%05d_f%05lld_vsync_gs_reg.txt", s_n, g_perfmon.GetFrame()));
+
+			DumpDrawInfo(false, false, true);
+		}
+
+		if (GSConfig.SaveTransferImages)
+			DumpTransferImages();
+
+		if (GSConfig.SaveFrameStats)
+		{
+			m_perfmon_frame = g_perfmon - m_perfmon_frame;
+			m_perfmon_frame.Dump(GetDrawDumpPath("%05d_f%05lld_frame_stats.txt", s_n, g_perfmon.GetFrame()), GSIsHardwareRenderer());
+			m_perfmon_frame = g_perfmon;
+		}
 	}
 
 	const int fb_sprite_blits = g_perfmon.GetDisplayFramebufferSpriteBlits();
@@ -656,7 +682,7 @@ void GSRenderer::VSync(u32 field, bool registers_written, bool idle_frame)
 				}
 				else if (!cas_log_once)
 				{
-					Host::AddIconOSDMessage("CASUnsupported", ICON_FA_EXCLAMATION_TRIANGLE,
+					Host::AddIconOSDMessage("CASUnsupported", ICON_FA_TRIANGLE_EXCLAMATION,
 						TRANSLATE_SV("GS", "CAS is not available, your graphics driver does not support the required functionality."),
 						10.0f);
 					cas_log_once = true;
@@ -810,20 +836,16 @@ void GSRenderer::VSync(u32 field, bool registers_written, bool idle_frame)
 	}
 }
 
-void GSRenderer::QueueSnapshot(const std::string& path, u32 gsdump_frames)
+void GSRenderer::QueueSnapshot(const std::string& path, const u32 gsdump_frames)
 {
 	if (!m_snapshot.empty())
 		return;
 
 	// Allows for providing a complete path
 	if (path.size() > 4 && StringUtil::EndsWithNoCase(path, ".png"))
-	{
 		m_snapshot = path.substr(0, path.size() - 4);
-	}
 	else
-	{
 		m_snapshot = GSGetBaseSnapshotFilename();
-	}
 
 	// this is really gross, but wx we get the snapshot request after shift...
 	m_dump_frames = gsdump_frames;
@@ -877,7 +899,21 @@ static std::string GSGetBaseFilename()
 
 std::string GSGetBaseSnapshotFilename()
 {
-	// prepend snapshots directory
+	// If organize by game is enabled, use or create a game-specific folder.
+	if (GSConfig.OrganizeSnapshotsByGame)
+	{
+		std::string game_name = VMManager::GetTitle(true);
+		if (!game_name.empty())
+		{
+			Path::SanitizeFileName(&game_name);
+			const std::string game_dir = Path::Combine(EmuFolders::Snapshots, game_name);
+
+			// Make sure the per-game directory exists or that we can successfully create it.
+			if (FileSystem::DirectoryExists(game_dir.c_str()) || FileSystem::CreateDirectoryPath(game_dir.c_str(), false))
+				return Path::Combine(game_dir, GSGetBaseFilename());
+		}
+	}
+
 	return Path::Combine(EmuFolders::Snapshots, GSGetBaseFilename());
 }
 
@@ -1068,7 +1104,7 @@ void DumpGSPrivRegs(const GSPrivRegSet& r, const std::string& filename)
 		if (i == 1 && !r.PMODE.EN2)
 			continue;
 
-		std::fprintf(fp.get(), "DISPFB[%d] BP=%05x BW=%u PSM=%u DBX=%u DBY=%u\n",
+		std::fprintf(fp.get(), "DISPFB%d: { BP: 0x%05x, BW: %u, PSM: %u, DBX: %u, DBY: %u }\n",
 			i,
 			r.DISP[i].DISPFB.Block(),
 			r.DISP[i].DISPFB.FBW,
@@ -1076,7 +1112,7 @@ void DumpGSPrivRegs(const GSPrivRegSet& r, const std::string& filename)
 			r.DISP[i].DISPFB.DBX,
 			r.DISP[i].DISPFB.DBY);
 
-		std::fprintf(fp.get(), "DISPLAY[%d] DX=%u DY=%u DW=%u DH=%u MAGH=%u MAGV=%u\n",
+		std::fprintf(fp.get(), "DISPLAY%d: { DX: %u, DY: %u, DW: %u, DH: %u, MAGH: %u, MAGV: %u }\n",
 			i,
 			r.DISP[i].DISPLAY.DX,
 			r.DISP[i].DISPLAY.DY,
@@ -1086,7 +1122,7 @@ void DumpGSPrivRegs(const GSPrivRegSet& r, const std::string& filename)
 			r.DISP[i].DISPLAY.MAGV);
 	}
 
-	std::fprintf(fp.get(), "PMODE EN1=%u EN2=%u CRTMD=%u MMOD=%u AMOD=%u SLBG=%u ALP=%u\n",
+	std::fprintf(fp.get(), "PMODE: { EN1: %u, EN2: %u, CRTMD: %u, MMOD: %u, AMOD: %u, SLBG: %u, ALP: %u }\n",
 		r.PMODE.EN1,
 		r.PMODE.EN2,
 		r.PMODE.CRTMD,
@@ -1095,7 +1131,8 @@ void DumpGSPrivRegs(const GSPrivRegSet& r, const std::string& filename)
 		r.PMODE.SLBG,
 		r.PMODE.ALP);
 
-	std::fprintf(fp.get(), "SMODE1 CLKSEL=%u CMOD=%u EX=%u GCONT=%u LC=%u NVCK=%u PCK2=%u PEHS=%u PEVS=%u PHS=%u PRST=%u PVS=%u RC=%u SINT=%u SLCK=%u SLCK2=%u SPML=%u T1248=%u VCKSEL=%u VHP=%u XPCK=%u\n",
+	std::fprintf(fp.get(),
+		"SMODE1: { CLKSEL: %u, CMOD: %u, EX: %u, GCONT: %u, LC: %u, NVCK: %u, PCK2: %u, PEHS: %u, PEVS: %u, PHS: %u, PRST: %u, PVS: %u, RC: %u, SINT: %u, SLCK: %u, SLCK2: %u, SPML: %u, T1248: %u, VCKSEL: %u, VHP: %u, XPCK: %u }\n",
 		r.SMODE1.CLKSEL,
 		r.SMODE1.CMOD,
 		r.SMODE1.EX,
@@ -1118,24 +1155,24 @@ void DumpGSPrivRegs(const GSPrivRegSet& r, const std::string& filename)
 		r.SMODE1.VHP,
 		r.SMODE1.XPCK);
 
-	std::fprintf(fp.get(), "SMODE2 INT=%u FFMD=%u DPMS=%u\n",
+	std::fprintf(fp.get(), "SMODE2: { INT: %u, FFMD: %u, DPMS: %u }\n",
 		r.SMODE2.INT,
 		r.SMODE2.FFMD,
 		r.SMODE2.DPMS);
 
-	std::fprintf(fp.get(), "SRFSH %08x_%08x\n",
+	std::fprintf(fp.get(), "SRFSH: { U32_0: 0x%08x, U32_1: 0x%08x }\n",
 		r.SRFSH.U32[0],
 		r.SRFSH.U32[1]);
 
-	std::fprintf(fp.get(), "SYNCH1 %08x_%08x\n",
+	std::fprintf(fp.get(), "SYNCH1: { U32_0: 0x%08x, U32_1: 0x%08x }\n",
 		r.SYNCH1.U32[0],
 		r.SYNCH1.U32[1]);
 
-	std::fprintf(fp.get(), "SYNCH2 %08x_%08x\n",
+	std::fprintf(fp.get(), "SYNCH2: { U32_0: 0x%08x, U32_1: 0x%08x }\n",
 		r.SYNCH2.U32[0],
 		r.SYNCH2.U32[1]);
 
-	std::fprintf(fp.get(), "SYNCV VBP=%u VBPE=%u VDP=%u VFP=%u VFPE=%u VS=%u\n",
+	std::fprintf(fp.get(), "SYNCV: { VBP: %u, VBPE: %u, VDP: %u, VFP: %u, VFPE: %u, VS: %u }\n",
 		r.SYNCV.VBP,
 		r.SYNCV.VBPE,
 		r.SYNCV.VDP,
@@ -1143,21 +1180,21 @@ void DumpGSPrivRegs(const GSPrivRegSet& r, const std::string& filename)
 		r.SYNCV.VFPE,
 		r.SYNCV.VS);
 
-	std::fprintf(fp.get(), "CSR %08x_%08x\n",
+	std::fprintf(fp.get(), "CSR: { U32_0: 0x%08x, U32_1: 0x%08x }\n",
 		r.CSR.U32[0],
 		r.CSR.U32[1]);
 
-	std::fprintf(fp.get(), "BGCOLOR B=%u G=%u R=%u\n",
+	std::fprintf(fp.get(), "BGCOLOR: { B: %u, G: %u, R: %u }\n",
 		r.BGCOLOR.B,
 		r.BGCOLOR.G,
 		r.BGCOLOR.R);
 
-	std::fprintf(fp.get(), "EXTBUF BP=0x%x BW=%u FBIN=%u WFFMD=%u EMODA=%u EMODC=%u WDX=%u WDY=%u\n",
+	std::fprintf(fp.get(), "EXTBUF: { BP: 0x%05x, BW: %u, FBIN: %u, WFFMD: %u, EMODA: %u, EMODC: %u, WDX: %u, WDY: %u }\n",
 		r.EXTBUF.EXBP, r.EXTBUF.EXBW, r.EXTBUF.FBIN, r.EXTBUF.WFFMD,
 		r.EXTBUF.EMODA, r.EXTBUF.EMODC, r.EXTBUF.WDX, r.EXTBUF.WDY);
 
-	std::fprintf(fp.get(), "EXTDATA SX=%u SY=%u SMPH=%u SMPV=%u WW=%u WH=%u\n",
+	std::fprintf(fp.get(), "EXTDATA: { SX: %u, SY: %u, SMPH: %u, SMPV: %u, WW: %u, WH: %u }\n",
 		r.EXTDATA.SX, r.EXTDATA.SY, r.EXTDATA.SMPH, r.EXTDATA.SMPV, r.EXTDATA.WW, r.EXTDATA.WH);
 
-	std::fprintf(fp.get(), "EXTWRITE EN=%u\n", r.EXTWRITE.WRITE);
+	std::fprintf(fp.get(), "EXTWRITE: { EN: %u }\n", r.EXTWRITE.WRITE);
 }

@@ -84,7 +84,6 @@ static std::mutex s_instance_mutex;
 // Device extensions that are required for PCSX2.
 static constexpr const char* s_required_device_extensions[] = {
 	VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
-	VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME,
 };
 
 GSDeviceVK::GSDeviceVK()
@@ -207,8 +206,18 @@ bool GSDeviceVK::SelectInstanceExtensions(ExtensionList* extension_list, const W
 	if (enable_debug_utils && !SupportsExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, false))
 		Console.Warning("VK: Debug report requested, but extension is not available.");
 
-	oe->vk_ext_swapchain_maintenance1 = (wi.type != WindowInfo::Type::Surfaceless &&
-										 SupportsExtension(VK_EXT_SURFACE_MAINTENANCE_1_EXTENSION_NAME, false));
+	oe->vk_swapchain_maintenance1 = wi.type != WindowInfo::Type::Surfaceless;
+	if (wi.type != WindowInfo::Type::Surfaceless)
+	{
+		oe->vk_swapchain_maintenance1 = true;
+		// VK_EXT_swapchain_maintenance1 requires VK_EXT_surface_maintenance1.
+		// VK_KHR_swapchain_maintenance1 might require VK_KHR_surface_maintenance1 (It does on Nvidia).
+		// If either VK_KHR_surface_maintenance1 is supported, or VK_EXT_swapchain_maintenance1 is unsupported, don't try VK_EXT_swapchain_maintenance1.
+		oe->vk_swapchain_maintenance1_is_khr = SupportsExtension(VK_KHR_SURFACE_MAINTENANCE_1_EXTENSION_NAME, false) ||
+			!SupportsExtension(VK_EXT_SURFACE_MAINTENANCE_1_EXTENSION_NAME, false);
+	}
+	else
+		oe->vk_swapchain_maintenance1 = false;
 
 	// Needed for exclusive fullscreen control.
 	SupportsExtension(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME, false);
@@ -401,14 +410,6 @@ bool GSDeviceVK::SelectDeviceExtensions(ExtensionList* extension_list, bool enab
 			return false;
 	}
 
-	// MoltenVK does not support VK_EXT_line_rasterization. We want it for other platforms,
-	// but on Mac, the implicit line rasterization apparently matches Bresenham anyway.
-#ifdef __APPLE__
-	static constexpr bool require_line_rasterization = false;
-#else
-	static constexpr bool require_line_rasterization = true;
-#endif
-
 	m_optional_extensions.vk_ext_provoking_vertex = SupportsExtension(VK_EXT_PROVOKING_VERTEX_EXTENSION_NAME, false);
 	m_optional_extensions.vk_ext_memory_budget = SupportsExtension(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME, false);
 	m_optional_extensions.vk_ext_calibrated_timestamps =
@@ -417,9 +418,20 @@ bool GSDeviceVK::SelectDeviceExtensions(ExtensionList* extension_list, bool enab
 		SupportsExtension(VK_EXT_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_EXTENSION_NAME, false);
 	m_optional_extensions.vk_ext_attachment_feedback_loop_layout =
 		SupportsExtension(VK_EXT_ATTACHMENT_FEEDBACK_LOOP_LAYOUT_EXTENSION_NAME, false);
-	m_optional_extensions.vk_ext_line_rasterization = SupportsExtension(VK_EXT_LINE_RASTERIZATION_EXTENSION_NAME,
-		require_line_rasterization);
+	m_optional_extensions.vk_ext_line_rasterization = SupportsExtension(VK_EXT_LINE_RASTERIZATION_EXTENSION_NAME, false);
 	m_optional_extensions.vk_khr_driver_properties = SupportsExtension(VK_KHR_DRIVER_PROPERTIES_EXTENSION_NAME, false);
+
+	if (m_optional_extensions.vk_swapchain_maintenance1)
+	{
+		const bool khr_swapchain_maintenance1 = SupportsExtension(VK_KHR_SWAPCHAIN_MAINTENANCE_1_EXTENSION_NAME, false);
+		// vk_swapchain_maintenance1_is_khr will be set if we havn't enabled VK_EXT_surface_maintenance1
+		// This will happen if either the VK_EXT_surface_maintenance1 was unsupported, or we instead found the KHR version.
+		// As the EXT version depends on the surface maintenance1 extension, we need to check that aswell.
+		m_optional_extensions.vk_swapchain_maintenance1 = khr_swapchain_maintenance1 ? khr_swapchain_maintenance1 :
+			(!m_optional_extensions.vk_swapchain_maintenance1_is_khr && SupportsExtension(VK_EXT_SWAPCHAIN_MAINTENANCE_1_EXTENSION_NAME, false));
+
+		m_optional_extensions.vk_swapchain_maintenance1_is_khr = khr_swapchain_maintenance1;
+	}
 
 	// glslang generates debug info instructions before phi nodes at the beginning of blocks when non-semantic debug info
 	// is enabled, triggering errors by spirv-val. Gate it by an environment variable if you want source debugging until
@@ -429,10 +441,6 @@ bool GSDeviceVK::SelectDeviceExtensions(ExtensionList* extension_list, bool enab
 		m_optional_extensions.vk_khr_shader_non_semantic_info =
 			SupportsExtension(VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME, false);
 	}
-
-	m_optional_extensions.vk_ext_swapchain_maintenance1 =
-		m_optional_extensions.vk_ext_swapchain_maintenance1 &&
-		SupportsExtension(VK_EXT_SWAPCHAIN_MAINTENANCE_1_EXTENSION_NAME, false);
 
 #ifdef _WIN32
 	m_optional_extensions.vk_ext_full_screen_exclusive =
@@ -621,8 +629,10 @@ bool GSDeviceVK::CreateDevice(VkSurfaceKHR surface, bool enable_validation_layer
 		VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LINE_RASTERIZATION_FEATURES_EXT};
 	VkPhysicalDeviceAttachmentFeedbackLoopLayoutFeaturesEXT attachment_feedback_loop_feature = {
 		VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ATTACHMENT_FEEDBACK_LOOP_LAYOUT_FEATURES_EXT};
-	VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT swapchain_maintenance1_feature = {
+	VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT swapchain_maintenance1_ext_feature = {
 		VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_EXT};
+	VkPhysicalDeviceSwapchainMaintenance1FeaturesKHR swapchain_maintenance1_khr_feature = {
+		VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_KHR};
 
 	if (m_optional_extensions.vk_ext_provoking_vertex)
 	{
@@ -644,10 +654,18 @@ bool GSDeviceVK::CreateDevice(VkSurfaceKHR surface, bool enable_validation_layer
 		attachment_feedback_loop_feature.attachmentFeedbackLoopLayout = VK_TRUE;
 		Vulkan::AddPointerToChain(&device_info, &attachment_feedback_loop_feature);
 	}
-	if (m_optional_extensions.vk_ext_swapchain_maintenance1)
+	if (m_optional_extensions.vk_swapchain_maintenance1)
 	{
-		swapchain_maintenance1_feature.swapchainMaintenance1 = VK_TRUE;
-		Vulkan::AddPointerToChain(&device_info, &swapchain_maintenance1_feature);
+		if (m_optional_extensions.vk_swapchain_maintenance1_is_khr)
+		{
+			swapchain_maintenance1_khr_feature.swapchainMaintenance1 = VK_TRUE;
+			Vulkan::AddPointerToChain(&device_info, &swapchain_maintenance1_khr_feature);
+		}
+		else
+		{
+			swapchain_maintenance1_ext_feature.swapchainMaintenance1 = VK_TRUE;
+			Vulkan::AddPointerToChain(&device_info, &swapchain_maintenance1_ext_feature);
+		}
 	}
 
 	VkResult res = vkCreateDevice(m_physical_device, &device_info, nullptr, &m_device);
@@ -668,8 +686,8 @@ bool GSDeviceVK::CreateDevice(VkSurfaceKHR surface, bool enable_validation_layer
 		vkGetDeviceQueue(m_device, m_present_queue_family_index, 0, &m_present_queue);
 	}
 	m_spinning_supported = m_spin_queue_family_index != queue_family_count &&
-						   queue_family_properties[m_graphics_queue_family_index].timestampValidBits > 0 &&
-						   m_device_properties.limits.timestampPeriod > 0;
+	                       queue_family_properties[m_graphics_queue_family_index].timestampValidBits > 0 &&
+	                       m_device_properties.limits.timestampPeriod > 0;
 	m_spin_queue_is_graphics_queue =
 		m_spin_queue_family_index == m_graphics_queue_family_index && spin_queue_index == 0;
 
@@ -714,8 +732,10 @@ bool GSDeviceVK::ProcessDeviceExtensions()
 		VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LINE_RASTERIZATION_FEATURES_EXT};
 	VkPhysicalDeviceRasterizationOrderAttachmentAccessFeaturesEXT rasterization_order_access_feature = {
 		VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_FEATURES_EXT};
-	VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT swapchain_maintenance1_feature = {
+	VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT swapchain_maintenance1_ext_feature = {
 		VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_EXT, nullptr, VK_TRUE};
+	VkPhysicalDeviceSwapchainMaintenance1FeaturesKHR swapchain_maintenance1_khr_feature = {
+		VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_KHR, nullptr, VK_TRUE};
 	VkPhysicalDeviceAttachmentFeedbackLoopLayoutFeaturesEXT attachment_feedback_loop_feature = {
 		VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ATTACHMENT_FEEDBACK_LOOP_LAYOUT_FEATURES_EXT};
 
@@ -728,8 +748,10 @@ bool GSDeviceVK::ProcessDeviceExtensions()
 		Vulkan::AddPointerToChain(&features2, &rasterization_order_access_feature);
 	if (m_optional_extensions.vk_ext_attachment_feedback_loop_layout)
 		Vulkan::AddPointerToChain(&features2, &attachment_feedback_loop_feature);
-	if (m_optional_extensions.vk_ext_swapchain_maintenance1)
-		Vulkan::AddPointerToChain(&features2, &swapchain_maintenance1_feature);
+	if (m_optional_extensions.vk_swapchain_maintenance1 && m_optional_extensions.vk_swapchain_maintenance1_is_khr)
+		Vulkan::AddPointerToChain(&features2, &swapchain_maintenance1_khr_feature);
+	if (m_optional_extensions.vk_swapchain_maintenance1 && !m_optional_extensions.vk_swapchain_maintenance1_is_khr)
+		Vulkan::AddPointerToChain(&features2, &swapchain_maintenance1_ext_feature);
 
 	// query
 	vkGetPhysicalDeviceFeatures2(m_physical_device, &features2);
@@ -764,15 +786,10 @@ bool GSDeviceVK::ProcessDeviceExtensions()
 		return false;
 	}
 
-	if (!line_rasterization_feature.bresenhamLines)
+	if (m_optional_extensions.vk_ext_line_rasterization && !line_rasterization_feature.bresenhamLines)
 	{
-		// See note in SelectDeviceExtensions().
-		Console.Error("VK: bresenhamLines is not supported.");
-#ifndef __APPLE__
-		return false;
-#else
+		Console.Warning("VK: bresenhamLines is not supported.");
 		m_optional_extensions.vk_ext_line_rasterization = false;
-#endif
 	}
 
 	// VK_EXT_calibrated_timestamps checking
@@ -809,8 +826,9 @@ bool GSDeviceVK::ProcessDeviceExtensions()
 			m_optional_extensions.vk_ext_calibrated_timestamps = false;
 	}
 
-	m_optional_extensions.vk_ext_swapchain_maintenance1 &=
-		(swapchain_maintenance1_feature.swapchainMaintenance1 == VK_TRUE);
+	m_optional_extensions.vk_swapchain_maintenance1 &= m_optional_extensions.vk_swapchain_maintenance1_is_khr ?
+		(swapchain_maintenance1_khr_feature.swapchainMaintenance1 == VK_TRUE) :	
+		(swapchain_maintenance1_ext_feature.swapchainMaintenance1 == VK_TRUE);
 
 	Console.WriteLn(
 		"VK_EXT_provoking_vertex is %s", m_optional_extensions.vk_ext_provoking_vertex ? "supported" : "NOT supported");
@@ -820,8 +838,9 @@ bool GSDeviceVK::ProcessDeviceExtensions()
 		m_optional_extensions.vk_ext_calibrated_timestamps ? "supported" : "NOT supported");
 	Console.WriteLn("VK_EXT_rasterization_order_attachment_access is %s",
 		m_optional_extensions.vk_ext_rasterization_order_attachment_access ? "supported" : "NOT supported");
-	Console.WriteLn("VK_EXT_swapchain_maintenance1 is %s",
-		m_optional_extensions.vk_ext_swapchain_maintenance1 ? "supported" : "NOT supported");
+	Console.WriteLn("VK_%s_swapchain_maintenance1 is %s",
+		m_optional_extensions.vk_swapchain_maintenance1_is_khr ? "KHR" : "EXT",
+		m_optional_extensions.vk_swapchain_maintenance1 ? "supported" : "NOT supported");
 	Console.WriteLn("VK_EXT_full_screen_exclusive is %s",
 		m_optional_extensions.vk_ext_full_screen_exclusive ? "supported" : "NOT supported");
 	Console.WriteLn("VK_KHR_driver_properties is %s",
@@ -1104,7 +1123,7 @@ bool GSDeviceVK::SetGPUTimingEnabled(bool enabled)
 void GSDeviceVK::ScanForCommandBufferCompletion()
 {
 	for (u32 check_index = (m_current_frame + 1) % NUM_COMMAND_BUFFERS; check_index != m_current_frame;
-		 check_index = (check_index + 1) % NUM_COMMAND_BUFFERS)
+	     check_index = (check_index + 1) % NUM_COMMAND_BUFFERS)
 	{
 		FrameResources& resources = m_frame_resources[check_index];
 		if (resources.fence_counter <= m_completed_fence_counter)
@@ -1281,7 +1300,8 @@ void GSDeviceVK::SubmitCommandBuffer(VKSwapChain* present_swap_chain)
 		{
 			// VK_ERROR_OUT_OF_DATE_KHR is not fatal, just means we need to recreate our swap chain.
 			if (res == VK_ERROR_OUT_OF_DATE_KHR)
-				ResizeWindow(0, 0, m_window_info.surface_scale);
+				// Defer until next frame, otherwise resizing would invalidate swapchain before next present.
+				m_resize_requested = true;
 			else
 				LOG_VULKAN_ERROR(res, "vkQueuePresentKHR failed: ");
 
@@ -2198,6 +2218,8 @@ bool GSDeviceVK::UpdateWindow()
 
 void GSDeviceVK::ResizeWindow(s32 new_window_width, s32 new_window_height, float new_window_scale)
 {
+	m_resize_requested = false;
+
 	if (!m_swap_chain || (m_swap_chain->GetWidth() == static_cast<u32>(new_window_width) &&
 							 m_swap_chain->GetHeight() == static_cast<u32>(new_window_height)))
 	{
@@ -2305,10 +2327,9 @@ GSDevice::PresentResult GSDeviceVK::BeginPresent(bool frame_skip)
 		return PresentResult::FrameSkipped;
 	}
 
-	VkResult res = m_swap_chain->AcquireNextImage();
+	VkResult res = m_resize_requested ? VK_ERROR_OUT_OF_DATE_KHR : m_swap_chain->AcquireNextImage();
 	if (res != VK_SUCCESS)
 	{
-		LOG_VULKAN_ERROR(res, "vkAcquireNextImageKHR() failed: ");
 		m_swap_chain->ReleaseCurrentImage();
 
 		if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR)
@@ -2328,6 +2349,8 @@ GSDevice::PresentResult GSDeviceVK::BeginPresent(bool frame_skip)
 
 			res = m_swap_chain->AcquireNextImage();
 		}
+		else
+			LOG_VULKAN_ERROR(res, "vkAcquireNextImageKHR() failed: ");
 
 		// This can happen when multiple resize events happen in quick succession.
 		// In this case, just wait until the next frame to try again.
@@ -2616,6 +2639,7 @@ bool GSDeviceVK::CheckFeatures()
 	m_features.framebuffer_fetch =
 		m_optional_extensions.vk_ext_rasterization_order_attachment_access && !GSConfig.DisableFramebufferFetch;
 	m_features.texture_barrier = GSConfig.OverrideTextureBarriers != 0;
+	m_features.multidraw_fb_copy = false;
 	m_features.broken_point_sampler = false;
 
 	// geometryShader is needed because gl_PrimitiveID is part of the Geometry SPIR-V Execution Model.
@@ -2655,6 +2679,7 @@ bool GSDeviceVK::CheckFeatures()
 	DevCon.WriteLn("Optional features:%s%s%s%s%s", m_features.primitive_id ? " primitive_id" : "",
 		m_features.texture_barrier ? " texture_barrier" : "", m_features.framebuffer_fetch ? " framebuffer_fetch" : "",
 		m_features.provoking_vertex_last ? " provoking_vertex_last" : "", m_features.vs_expand ? " vs_expand" : "");
+
 	DevCon.WriteLn("Using %s for point expansion and %s for line expansion.",
 		m_features.point_expand ? "hardware" : "vertex expanding",
 		m_features.line_expand ? "hardware" : "vertex expanding");
@@ -2734,8 +2759,8 @@ VkFormat GSDeviceVK::LookupNativeFormat(GSTexture::Format format) const
 	}};
 
 	return (format != GSTexture::Format::DepthStencil || m_features.stencil_buffer) ?
-			   s_format_mapping[static_cast<int>(format)] :
-			   VK_FORMAT_D32_SFLOAT;
+	           s_format_mapping[static_cast<int>(format)] :
+	           VK_FORMAT_D32_SFLOAT;
 }
 
 GSTexture* GSDeviceVK::CreateSurface(GSTexture::Type type, int width, int height, int levels, GSTexture::Format format)
@@ -2759,48 +2784,31 @@ std::unique_ptr<GSDownloadTexture> GSDeviceVK::CreateDownloadTexture(u32 width, 
 
 void GSDeviceVK::CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r, u32 destX, u32 destY)
 {
-	g_perfmon.Put(GSPerfMon::TextureCopies, 1);
+	// Empty rect, abort copy.
+	if (r.rempty())
+	{
+		GL_INS("VK: CopyRect rect empty.");
+		return;
+	}
 
 	GSTextureVK* const sTexVK = static_cast<GSTextureVK*>(sTex);
 	GSTextureVK* const dTexVK = static_cast<GSTextureVK*>(dTex);
-	const GSVector4i dtex_rc(0, 0, dTexVK->GetWidth(), dTexVK->GetHeight());
+	const GSVector4i dst_rect(0, 0, dTexVK->GetWidth(), dTexVK->GetHeight());
+	const bool full_draw_copy = dst_rect.eq(r);
 
+	// Source is cleared, if destination is a render target, we can carry the clear forward.
 	if (sTexVK->GetState() == GSTexture::State::Cleared)
 	{
-		// source is cleared. if destination is a render target, we can carry the clear forward
 		if (dTexVK->IsRenderTargetOrDepthStencil())
 		{
-			if (dtex_rc.eq(r))
-			{
-				// pass it forward if we're clearing the whole thing
-				if (sTexVK->IsDepthStencil())
-					dTexVK->SetClearDepth(sTexVK->GetClearDepth());
-				else
-					dTexVK->SetClearColor(sTexVK->GetClearColor());
-
+			if (ProcessClearsBeforeCopy(sTex, dTex, full_draw_copy))
 				return;
-			}
 
-			if (dTexVK->GetState() == GSTexture::State::Cleared)
-			{
-				// destination is cleared, if it's the same colour and rect, we can just avoid this entirely
-				if (dTexVK->IsDepthStencil())
-				{
-					if (dTexVK->GetClearDepth() == sTexVK->GetClearDepth())
-						return;
-				}
-				else
-				{
-					if (dTexVK->GetClearColor() == sTexVK->GetClearColor())
-						return;
-				}
-			}
-
-			// otherwise we need to do an attachment clear
+			// Do an attachment clear.
 			const bool depth = (dTexVK->GetType() == GSTexture::Type::DepthStencil);
-			OMSetRenderTargets(depth ? nullptr : dTexVK, depth ? dTexVK : nullptr, dtex_rc);
+			OMSetRenderTargets(depth ? nullptr : dTexVK, depth ? dTexVK : nullptr, dst_rect);
 			BeginRenderPassForStretchRect(
-				dTexVK, dtex_rc, GSVector4i(destX, destY, destX + r.width(), destY + r.height()));
+				dTexVK, dst_rect, GSVector4i(destX, destY, destX + r.width(), destY + r.height()));
 
 			// so use an attachment clear
 			VkClearAttachment ca;
@@ -2812,6 +2820,7 @@ void GSDeviceVK::CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r,
 
 			const VkClearRect cr = {{{0, 0}, {static_cast<u32>(r.width()), static_cast<u32>(r.height())}}, 0u, 1u};
 			vkCmdClearAttachments(GetCurrentCommandBuffer(), 1, &ca, 1, &cr);
+
 			return;
 		}
 
@@ -2819,9 +2828,11 @@ void GSDeviceVK::CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r,
 		sTexVK->CommitClear();
 	}
 
+	g_perfmon.Put(GSPerfMon::TextureCopies, 1);
+
 	// if the destination has been cleared, and we're not overwriting the whole thing, commit the clear first
 	// (the area outside of where we're copying to)
-	if (dTexVK->GetState() == GSTexture::State::Cleared && !dtex_rc.eq(r))
+	if (dTexVK->GetState() == GSTexture::State::Cleared && !full_draw_copy)
 		dTexVK->CommitClear();
 
 	// *now* we can do a normal image copy.
@@ -2848,31 +2859,16 @@ void GSDeviceVK::CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r,
 	dTexVK->SetState(GSTexture::State::Dirty);
 }
 
-void GSDeviceVK::StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect,
-	ShaderConvert shader /* = ShaderConvert::COPY */, bool linear /* = true */)
+void GSDeviceVK::DoStretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect,
+	GSHWDrawConfig::ColorMaskSelector cms, ShaderConvert shader, bool linear)
 {
-	pxAssert(HasDepthOutput(shader) == (dTex && dTex->GetType() == GSTexture::Type::DepthStencil));
-	pxAssert(linear ? SupportsBilinear(shader) : SupportsNearest(shader));
-
-	GL_INS("StretchRect(%d) {%d,%d} %dx%d -> {%d,%d) %dx%d", shader, int(sRect.left), int(sRect.top),
-		int(sRect.right - sRect.left), int(sRect.bottom - sRect.top), int(dRect.left), int(dRect.top),
-		int(dRect.right - dRect.left), int(dRect.bottom - dRect.top));
-
-	DoStretchRect(static_cast<GSTextureVK*>(sTex), sRect, static_cast<GSTextureVK*>(dTex), dRect,
-		dTex ? m_convert[static_cast<int>(shader)] : m_present[static_cast<int>(shader)], linear,
-		ShaderConvertWriteMask(shader) == 0xf);
-}
-
-void GSDeviceVK::StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, bool red,
-	bool green, bool blue, bool alpha, ShaderConvert shader)
-{
-	GL_PUSH("ColorCopy Red:%d Green:%d Blue:%d Alpha:%d", red, green, blue, alpha);
-
-	const u32 index = (red ? 1 : 0) | (green ? 2 : 0) | (blue ? 4 : 0) | (alpha ? 8 : 0);
-	const bool allow_discard = (index == 0xf);
-	int rta_offset = (shader == ShaderConvert::RTA_CORRECTION) ? 16 : 0;
-	DoStretchRect(static_cast<GSTextureVK*>(sTex), sRect, static_cast<GSTextureVK*>(dTex), dRect, m_color_copy[index + rta_offset],
-		false, allow_discard);
+	const bool allow_discard = (cms.wrgba == 0xf);
+	VkPipeline state;
+	if (HasVariableWriteMask(shader))
+		state = m_color_copy[GetShaderIndexForMask(shader, cms.wrgba)];
+	else
+		state = dTex ? m_convert[static_cast<int>(shader)] : m_present[static_cast<int>(shader)];
+	DoStretchRect(static_cast<GSTextureVK*>(sTex), sRect, static_cast<GSTextureVK*>(dTex), dRect, state, linear, allow_discard);
 }
 
 void GSDeviceVK::PresentRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect,
@@ -2994,10 +2990,10 @@ void GSDeviceVK::DoMultiStretchRects(
 		BeginRenderPassForStretchRect(dTex, rc, rc, false);
 	SetUtilityTexture(rects[0].src, rects[0].linear ? m_linear_sampler : m_point_sampler);
 
-	pxAssert(shader == ShaderConvert::COPY || shader == ShaderConvert::RTA_CORRECTION || rects[0].wmask.wrgba == 0xf);
-	int rta_bit = (shader == ShaderConvert::RTA_CORRECTION) ? 16 : 0;
-	SetPipeline(
-		(rects[0].wmask.wrgba != 0xf) ? m_color_copy[rects[0].wmask.wrgba | rta_bit] : m_convert[static_cast<int>(shader)]);
+	pxAssert(HasVariableWriteMask(shader) || rects[0].wmask.wrgba == 0xf);
+	SetPipeline((rects[0].wmask.wrgba != 0xf) ?
+		m_color_copy[GetShaderIndexForMask(shader, rects[0].wmask.wrgba)] :
+		m_convert[static_cast<int>(shader)]);
 
 	if (ApplyUtilityState())
 		DrawIndexedPrimitive();
@@ -3181,11 +3177,12 @@ void GSDeviceVK::FilteredDownsampleTexture(GSTexture* sTex, GSTexture* dTex, u32
 		int downsample_factor;
 		int pad0;
 		float weight;
-		float pad1[3];
+		float step_multiplier;
+		float pad1[2];
 	};
 
 	const Uniforms uniforms = {
-		clamp_min, static_cast<int>(downsample_factor), 0, static_cast<float>(downsample_factor * downsample_factor)};
+		clamp_min, static_cast<int>(downsample_factor), 0, static_cast<float>(downsample_factor * downsample_factor), (GSConfig.UserHacks_NativeScaling > GSNativeScaling::Aggressive) ? 2.0f : 1.0f};
 	SetUtilityPushConstants(&uniforms, sizeof(uniforms));
 
 	const ShaderConvert shader = ShaderConvert::DOWNSAMPLE_COPY;
@@ -3212,12 +3209,10 @@ void GSDeviceVK::DoMerge(GSTexture* sTex[3], GSVector4* sRect, GSTexture* dTex, 
 	EndRenderPass();
 
 	// transition everything before starting the new render pass
-	const bool has_input_0 =
-		(sTex[0] && (sTex[0]->GetState() == GSTexture::State::Dirty ||
-						(sTex[0]->GetState() == GSTexture::State::Cleared || sTex[0]->GetClearColor() != 0)));
+	const bool has_input_0 = (sTex[0] &&
+		(sTex[0]->GetState() == GSTexture::State::Dirty || (sTex[0]->GetState() == GSTexture::State::Cleared || sTex[0]->GetClearColor() != 0)));
 	const bool has_input_1 = (PMODE.SLBG == 0 || feedback_write_2_but_blend_bg) && sTex[1] &&
-							 (sTex[1]->GetState() == GSTexture::State::Dirty ||
-								 (sTex[1]->GetState() == GSTexture::State::Cleared || sTex[1]->GetClearColor() != 0));
+		(sTex[1]->GetState() == GSTexture::State::Dirty || (sTex[1]->GetState() == GSTexture::State::Cleared || sTex[1]->GetClearColor() != 0));
 	if (has_input_0)
 	{
 		static_cast<GSTextureVK*>(sTex[0])->CommitClear();
@@ -3370,13 +3365,13 @@ void GSDeviceVK::DoFXAA(GSTexture* sTex, GSTexture* dTex)
 	static_cast<GSTextureVK*>(dTex)->TransitionToLayout(GSTextureVK::Layout::ShaderReadOnly);
 }
 
-void GSDeviceVK::IASetVertexBuffer(const void* vertex, size_t stride, size_t count)
+void GSDeviceVK::IASetVertexBuffer(const void* vertex, size_t stride, size_t count, size_t align_multiplier)
 {
 	const u32 size = static_cast<u32>(stride) * static_cast<u32>(count);
-	if (!m_vertex_stream_buffer.ReserveMemory(size, static_cast<u32>(stride)))
+	if (!m_vertex_stream_buffer.ReserveMemory(size, static_cast<u32>(stride) * align_multiplier))
 	{
 		ExecuteCommandBufferAndRestartRenderPass(false, "Uploading bytes to vertex buffer");
-		if (!m_vertex_stream_buffer.ReserveMemory(size, static_cast<u32>(stride)))
+		if (!m_vertex_stream_buffer.ReserveMemory(size, static_cast<u32>(stride) * align_multiplier))
 			pxFailRel("Failed to reserve space for vertices");
 	}
 
@@ -3626,7 +3621,6 @@ static void AddShaderHeader(std::stringstream& ss)
 
 	ss << "#version 460 core\n";
 	ss << "#extension GL_EXT_samplerless_texture_functions : require\n";
-	ss << "#extension GL_ARB_shader_draw_parameters : require\n";
 
 	if (!features.texture_barrier)
 		ss << "#define DISABLE_TEXTURE_BARRIER 1\n";
@@ -3841,15 +3835,14 @@ bool GSDeviceVK::CreateRenderPasses()
 						{
 							for (u32 opa = VK_ATTACHMENT_LOAD_OP_LOAD; opa <= VK_ATTACHMENT_LOAD_OP_DONT_CARE; opa++)
 							{
-								for (u32 opb = VK_ATTACHMENT_LOAD_OP_LOAD; opb <= VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-									 opb++)
+								for (u32 opb = VK_ATTACHMENT_LOAD_OP_LOAD; opb <= VK_ATTACHMENT_LOAD_OP_DONT_CARE; opb++)
 								{
 									const VkFormat rp_rt_format =
 										(rt != 0) ? ((colclip != 0) ? colclip_rt_format : rt_format) : VK_FORMAT_UNDEFINED;
 									const VkFormat rp_depth_format = (ds != 0) ? depth_format : VK_FORMAT_UNDEFINED;
 									const VkAttachmentLoadOp opc = (!stencil || !m_features.stencil_buffer) ?
-																	   VK_ATTACHMENT_LOAD_OP_DONT_CARE :
-																	   VK_ATTACHMENT_LOAD_OP_LOAD;
+									                                   VK_ATTACHMENT_LOAD_OP_DONT_CARE :
+									                                   VK_ATTACHMENT_LOAD_OP_LOAD;
 									GET(m_tfx_render_pass[rt][ds][colclip][stencil][fbl][dsp][opa][opb], rp_rt_format,
 										rp_depth_format, (fbl != 0), (dsp != 0), static_cast<VkAttachmentLoadOp>(opa),
 										static_cast<VkAttachmentLoadOp>(opb), static_cast<VkAttachmentLoadOp>(opc));
@@ -3912,8 +3905,7 @@ bool GSDeviceVK::CompileConvertPipelines()
 	gpb.SetNoBlendingState();
 	gpb.SetVertexShader(vs);
 
-	for (ShaderConvert i = ShaderConvert::COPY; static_cast<int>(i) < static_cast<int>(ShaderConvert::Count);
-		 i = static_cast<ShaderConvert>(static_cast<int>(i) + 1))
+	for (ShaderConvert i = ShaderConvert::COPY; i < ShaderConvert::Count; i = static_cast<ShaderConvert>(static_cast<int>(i) + 1))
 	{
 		const bool depth = HasDepthOutput(i);
 		const int index = static_cast<int>(i);
@@ -4124,8 +4116,7 @@ bool GSDeviceVK::CompilePresentPipelines()
 	gpb.SetNoStencilState();
 	gpb.SetRenderPass(m_swap_chain_render_pass, 0);
 
-	for (PresentShader i = PresentShader::COPY; static_cast<int>(i) < static_cast<int>(PresentShader::Count);
-		 i = static_cast<PresentShader>(static_cast<int>(i) + 1))
+	for (PresentShader i = PresentShader::COPY; i < PresentShader::Count; i = static_cast<PresentShader>(static_cast<int>(i) + 1))
 	{
 		const int index = static_cast<int>(i);
 
@@ -4440,6 +4431,8 @@ void GSDeviceVK::RenderImGui()
 	const ImDrawData* draw_data = ImGui::GetDrawData();
 	if (draw_data->CmdListsCount == 0)
 		return;
+
+	UpdateImGuiTextures();
 
 	const float uniforms[2][2] = {{
 									  2.0f / static_cast<float>(m_window_info.surface_width),
@@ -5590,7 +5583,6 @@ GSTextureVK* GSDeviceVK::SetupPrimitiveTrackingDATE(GSHWDrawConfig& config)
 
 void GSDeviceVK::RenderHW(GSHWDrawConfig& config)
 {
-
 	const GSVector2i rtsize(config.rt ? config.rt->GetSize() : config.ds->GetSize());
 	GSTextureVK* draw_rt = static_cast<GSTextureVK*>(config.rt);
 	GSTextureVK* draw_ds = static_cast<GSTextureVK*>(config.ds);
@@ -5624,7 +5616,7 @@ void GSDeviceVK::RenderHW(GSHWDrawConfig& config)
 		// If we have a colclip in progress, we need to use the colclip texture, but we can't check this later as there's a chicken/egg problem with the pipe setup.
 		GSTexture* backup_rt = config.rt;
 
-		if(colclip_rt)
+		if (colclip_rt)
 			config.rt = colclip_rt;
 
 		date_image = SetupPrimitiveTrackingDATE(config);
@@ -5723,24 +5715,6 @@ void GSDeviceVK::RenderHW(GSHWDrawConfig& config)
 			break;
 	}
 
-	if (config.require_one_barrier && !m_features.texture_barrier)
-	{
-		// requires a copy of the RT
-		draw_rt_clone = static_cast<GSTextureVK*>(CreateTexture(rtsize.x, rtsize.y, 1, colclip_rt ? GSTexture::Format::ColorClip : GSTexture::Format::Color, true));
-		if (draw_rt_clone)
-		{
-			EndRenderPass();
-
-			GL_PUSH("VK: Copy RT to temp texture for fbmask {%d,%d %dx%d}", config.drawarea.left, config.drawarea.top,
-				config.drawarea.width(), config.drawarea.height());
-
-			CopyRect(draw_rt, draw_rt_clone, config.drawarea, config.drawarea.left, config.drawarea.top);
-			PSSetShaderResource(2, draw_rt_clone, true);
-		}
-		else
-			Console.Warning("VK: Failed to allocate temp texture for RT copy.");
-	}
-
 	// Switch to colclip target for colclip hw rendering
 	if (pipe.ps.colclip_hw)
 	{
@@ -5818,6 +5792,26 @@ void GSDeviceVK::RenderHW(GSHWDrawConfig& config)
 		pipe.feedback_loop_flags |= m_current_framebuffer_feedback_loop;
 	}
 
+	if (draw_rt && (config.require_one_barrier || (config.tex && config.tex == config.rt)) && !m_features.texture_barrier)
+	{
+		// Requires a copy of the RT.
+		draw_rt_clone = static_cast<GSTextureVK*>(CreateTexture(rtsize.x, rtsize.y, 1, draw_rt->GetFormat(), true));
+		if (draw_rt_clone)
+		{
+			GL_PUSH("VK: Copy RT to temp texture {%d,%d %dx%d}",
+				config.drawarea.left, config.drawarea.top,
+				config.drawarea.width(), config.drawarea.height());
+			EndRenderPass();
+			CopyRect(draw_rt, draw_rt_clone, config.drawarea, config.drawarea.left, config.drawarea.top);
+			if (config.require_one_barrier)
+				PSSetShaderResource(2, draw_rt_clone, true);
+			if (config.tex && config.tex == config.rt)
+				PSSetShaderResource(0, draw_rt_clone, true);
+		}
+		else
+			Console.Warning("VK: Failed to allocate temp texture for RT copy.");
+	}
+
 	// We don't need the very first barrier if this is the first draw after switching to feedback loop,
 	// because the layout change in itself enforces the execution dependency. colclip hw needs a barrier between
 	// setup and the first draw to read it. TODO: Make colclip hw use subpasses instead.
@@ -5852,8 +5846,9 @@ void GSDeviceVK::RenderHW(GSHWDrawConfig& config)
 
 		// Only draw to the active area of the colclip hw target. Except when depth is cleared, we need to use the full
 		// buffer size, otherwise it'll only clear the draw part of the depth buffer.
-		const GSVector4i render_area = (pipe.ps.colclip_hw && (config.colclip_mode == GSHWDrawConfig::ColClipMode::ConvertAndResolve) && ds_op != VK_ATTACHMENT_LOAD_OP_CLEAR) ? config.drawarea :
-																							   GSVector4i::loadh(rtsize);
+		const GSVector4i render_area = (pipe.ps.colclip_hw && (config.colclip_mode == GSHWDrawConfig::ColClipMode::ConvertAndResolve) && ds_op != VK_ATTACHMENT_LOAD_OP_CLEAR)
+		                             ? config.drawarea
+		                             : GSVector4i::loadh(rtsize);
 
 		if (is_clearing_rt)
 		{
@@ -5921,6 +5916,7 @@ void GSDeviceVK::RenderHW(GSHWDrawConfig& config)
 			SetBlendConstants(config.blend_multi_pass.blend.constant);
 
 		pipe.bs = config.blend_multi_pass.blend;
+		pipe.ps.no_color1 = config.blend_multi_pass.no_color1;
 		pipe.ps.blend_hw = config.blend_multi_pass.blend_hw;
 		pipe.ps.dither = config.blend_multi_pass.dither;
 		if (BindDrawPipeline(pipe))
@@ -6038,7 +6034,8 @@ void GSDeviceVK::UpdateHWPipelineSelector(GSHWDrawConfig& config, PipelineSelect
 
 void GSDeviceVK::UploadHWDrawVerticesAndIndices(const GSHWDrawConfig& config)
 {
-	IASetVertexBuffer(config.verts, sizeof(GSVertex), config.nverts);
+	IASetVertexBuffer(config.verts, sizeof(GSVertex), config.nverts, GetVertexAlignment(config.vs.expand));
+	m_vertex.start *= GetExpansionFactor(config.vs.expand);
 
 	if (config.vs.UseExpandIndexBuffer())
 	{
@@ -6066,7 +6063,7 @@ VkImageMemoryBarrier GSDeviceVK::GetColorBufferBarrier(GSTextureVK* rt) const
 VkDependencyFlags GSDeviceVK::GetColorBufferBarrierFlags() const
 {
 	return UseFeedbackLoopLayout() ? (VK_DEPENDENCY_BY_REGION_BIT | VK_DEPENDENCY_FEEDBACK_LOOP_BIT_EXT) :
-									 VK_DEPENDENCY_BY_REGION_BIT;
+	                                 VK_DEPENDENCY_BY_REGION_BIT;
 }
 
 void GSDeviceVK::SendHWDraw(const GSHWDrawConfig& config, GSTextureVK* draw_rt,
@@ -6085,59 +6082,35 @@ void GSDeviceVK::SendHWDraw(const GSHWDrawConfig& config, GSTextureVK* draw_rt,
 	const VkDependencyFlags barrier_flags = GetColorBufferBarrierFlags();
 	if (full_barrier)
 	{
+		pxAssert(config.drawlist && !config.drawlist->empty());
+
 		const VkImageMemoryBarrier barrier = GetColorBufferBarrier(draw_rt);
 		const u32 indices_per_prim = config.indices_per_prim;
+		const u32 draw_list_size = static_cast<u32>(config.drawlist->size());
 
-		if (config.drawlist)
+		GL_PUSH("Split the draw");
+		g_perfmon.Put(
+			GSPerfMon::Barriers, static_cast<u32>(draw_list_size) - static_cast<u32>(skip_first_barrier));
+
+		u32 p = 0;
+		u32 n = 0;
+
+		if (skip_first_barrier)
 		{
-			GL_PUSH("Split the draw (SPRITE)");
-			g_perfmon.Put(
-				GSPerfMon::Barriers, static_cast<u32>(config.drawlist->size()) - static_cast<u32>(skip_first_barrier));
-
-			const u32 indices_per_prim = config.indices_per_prim;
-			const u32 draw_list_size = static_cast<u32>(config.drawlist->size());
-			const VkImageMemoryBarrier barrier = GetColorBufferBarrier(draw_rt);
-			u32 p = 0;
-			u32 n = 0;
-
-			if (skip_first_barrier)
-			{
-				const u32 count = (*config.drawlist)[n] * indices_per_prim;
-				DrawIndexedPrimitive(p, count);
-				p += count;
-				++n;
-			}
-
-			for (; n < draw_list_size; n++)
-			{
-				vkCmdPipelineBarrier(GetCurrentCommandBuffer(), VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-					VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, barrier_flags, 0, nullptr, 0, nullptr, 1, &barrier);
-
-				const u32 count = (*config.drawlist)[n] * indices_per_prim;
-				DrawIndexedPrimitive(p, count);
-				p += count;
-			}
+			const u32 count = (*config.drawlist)[n] * indices_per_prim;
+			DrawIndexedPrimitive(p, count);
+			p += count;
+			++n;
 		}
-		else
+
+		for (; n < draw_list_size; n++)
 		{
-			GL_PUSH("Split single draw in %d draw", config.nindices / indices_per_prim);
-			g_perfmon.Put(
-				GSPerfMon::Barriers, (config.nindices / indices_per_prim) - static_cast<u32>(skip_first_barrier));
+			vkCmdPipelineBarrier(GetCurrentCommandBuffer(), VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+				VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, barrier_flags, 0, nullptr, 0, nullptr, 1, &barrier);
 
-			u32 p = 0;
-			if (skip_first_barrier)
-			{
-				DrawIndexedPrimitive(p, indices_per_prim);
-				p += indices_per_prim;
-			}
-
-			for (; p < config.nindices; p += indices_per_prim)
-			{
-				vkCmdPipelineBarrier(GetCurrentCommandBuffer(), VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-					VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, barrier_flags, 0, nullptr, 0, nullptr, 1, &barrier);
-
-				DrawIndexedPrimitive(p, indices_per_prim);
-			}
+			const u32 count = (*config.drawlist)[n] * indices_per_prim;
+			DrawIndexedPrimitive(p, count);
+			p += count;
 		}
 
 		return;

@@ -209,7 +209,7 @@ void DockManager::loadLayouts()
 					break;
 				}
 
-				new_name = QString("%1 #%2").arg(name).arg(i);
+				new_name = tr("%1 #%2").arg(name).arg(i);
 			}
 		}
 
@@ -393,7 +393,10 @@ void DockManager::createWindowsMenu(QMenu* menu)
 		const auto description_iterator = DockTables::DEBUGGER_VIEWS.find(type);
 		pxAssert(description_iterator != DockTables::DEBUGGER_VIEWS.end());
 
-		QAction* action = add_another_menu->addAction(description_iterator->second.display_name);
+		QString display_name = QCoreApplication::translate(
+			"DebuggerView", description_iterator->second.display_name);
+
+		QAction* action = add_another_menu->addAction(display_name);
 		connect(action, &QAction::triggered, this, [this, type]() {
 			if (m_current_layout == DockLayout::INVALID_INDEX)
 				return;

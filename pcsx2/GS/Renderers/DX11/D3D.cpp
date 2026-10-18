@@ -15,7 +15,7 @@
 #include "common/StringUtil.h"
 #include "common/Path.h"
 
-#include "IconsFontAwesome5.h"
+#include "IconsFontAwesome6.h"
 
 #include <appmodel.h>
 #include <array>
@@ -409,7 +409,7 @@ GSRendererType D3D::GetPreferredRenderer()
 			return true;
 
 		Host::AddIconOSDMessage("VKDriverUnsupported", ICON_FA_TV, TRANSLATE_STR("GS",
-			"The Vulkan renderer was automatically selected, but no compatible devices were found.\n"
+			"The Vulkan graphics API was automatically selected, but no compatible devices were found.\n"
 			"       You should update all graphics drivers in your system, including any integrated GPUs\n"
 			"       to use the Vulkan renderer."), Host::OSD_WARNING_DURATION);
 		return false;

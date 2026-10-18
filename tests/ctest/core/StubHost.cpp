@@ -6,7 +6,6 @@
 #include "pcsx2/GameList.h"
 #include "pcsx2/Host.h"
 #include "pcsx2/ImGui/FullscreenUI.h"
-#include "pcsx2/ImGui/ImGuiAnimated.h"
 #include "pcsx2/ImGui/ImGuiFullscreen.h"
 #include "pcsx2/ImGui/ImGuiManager.h"
 #include "pcsx2/Input/InputManager.h"
@@ -45,11 +44,6 @@ void Host::ReportInfoAsync(const std::string_view title, const std::string_view 
 
 void Host::ReportErrorAsync(const std::string_view title, const std::string_view message)
 {
-}
-
-bool Host::ConfirmMessage(const std::string_view title, const std::string_view message)
-{
-	return true;
 }
 
 void Host::OpenURL(const std::string_view url)

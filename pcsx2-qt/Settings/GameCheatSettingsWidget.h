@@ -8,6 +8,8 @@
 
 #include "ui_GameCheatSettingsWidget.h"
 
+#include "SettingsWidget.h"
+
 #include "pcsx2/Patch.h"
 
 #include "common/HeterogeneousContainers.h"
@@ -21,17 +23,16 @@ namespace GameList
 	struct Entry;
 }
 
-class SettingsWindow;
-
-class GameCheatSettingsWidget : public QWidget
+class GameCheatSettingsWidget : public SettingsWidget
 {
 	Q_OBJECT
 
 public:
-	GameCheatSettingsWidget(SettingsWindow* dialog, QWidget* parent);
+	GameCheatSettingsWidget(SettingsWindow* settings_dialog, QWidget* parent);
 	~GameCheatSettingsWidget();
 
 	void disableAllCheats();
+	bool eventFilter(QObject* watched, QEvent* event) override;
 
 protected:
 	void resizeEvent(QResizeEvent* event) override;
@@ -39,6 +40,7 @@ protected:
 private Q_SLOTS:
 	void onCheatListItemDoubleClicked(const QModelIndex& index);
 	void onCheatListItemChanged(QStandardItem* item);
+	void onCheatListItemHovered(const QModelIndex& index);
 	void onReloadClicked();
 	void updateListEnabled();
 	void reloadList();
@@ -50,8 +52,13 @@ private:
 	void setStateForAll(bool enabled);
 	void setStateRecursively(QStandardItem* parent, bool enabled);
 
+	enum Roles
+	{
+		NAME_ROLE = Qt::UserRole,
+		PLACE_ROLE = Qt::UserRole + 1
+	};
+
 	Ui::GameCheatSettingsWidget m_ui;
-	SettingsWindow* m_dialog;
 	QStandardItemModel* m_model = nullptr;
 	QSortFilterProxyModel* m_model_proxy = nullptr;
 

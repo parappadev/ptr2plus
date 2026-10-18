@@ -179,9 +179,9 @@ void DebuggerWindow::clearToolBarState()
 
 void DebuggerWindow::setupFonts()
 {
-	m_font_size = Host::GetBaseIntSettingValue("Debugger/UserInterface", "FontSize", DEFAULT_FONT_SIZE);
+	m_font_size = Host::GetBaseIntSettingValue("Debugger/UserInterface", "FontSize", QApplication::font().pointSize());
 	if (m_font_size < MINIMUM_FONT_SIZE || m_font_size > MAXIMUM_FONT_SIZE)
-		m_font_size = DEFAULT_FONT_SIZE;
+		m_font_size = QApplication::font().pointSize();
 
 	m_ui.actionIncreaseFontSize->setShortcuts(QKeySequence::ZoomIn);
 	connect(m_ui.actionIncreaseFontSize, &QAction::triggered, this, [this]() {
@@ -208,7 +208,7 @@ void DebuggerWindow::setupFonts()
 	});
 
 	connect(m_ui.actionResetFontSize, &QAction::triggered, this, [this]() {
-		m_font_size = DEFAULT_FONT_SIZE;
+		m_font_size = QApplication::font().pointSize();
 
 		updateFontActions();
 		updateTheme();
@@ -222,7 +222,7 @@ void DebuggerWindow::updateFontActions()
 {
 	m_ui.actionIncreaseFontSize->setEnabled(m_font_size < MAXIMUM_FONT_SIZE);
 	m_ui.actionDecreaseFontSize->setEnabled(m_font_size > MINIMUM_FONT_SIZE);
-	m_ui.actionResetFontSize->setEnabled(m_font_size != DEFAULT_FONT_SIZE);
+	m_ui.actionResetFontSize->setEnabled(m_font_size != QApplication::font().pointSize());
 }
 
 void DebuggerWindow::saveFontSize()
@@ -238,18 +238,24 @@ int DebuggerWindow::fontSize()
 
 void DebuggerWindow::updateTheme()
 {
+	// Detect recursive StyleChange events caused by updating the stylesheet.
+	if (m_is_updating_theme)
+		return;
+
+	m_is_updating_theme = true;
+
 	// TODO: Migrate away from stylesheets to improve performance.
-	if (m_font_size != DEFAULT_FONT_SIZE)
-	{
-		int size = m_font_size + QApplication::font().pointSize() - DEFAULT_FONT_SIZE;
-		setStyleSheet(QString("* { font-size: %1pt; } QTabBar { font-size: %2pt; }").arg(size).arg(size + 1));
-	}
-	else
-	{
+	setStyleSheet(QString("font-size: %1pt;").arg(m_font_size));
+
+	// HACK: Improve performance for the default font size setting. It seems we
+	// need to call setStyleSheet twice here otherwise some widgets do not
+	// update properly.
+	if (m_font_size == QApplication::font().pointSize())
 		setStyleSheet(QString());
-	}
 
 	dockManager().updateTheme();
+
+	m_is_updating_theme = false;
 }
 
 void DebuggerWindow::saveWindowGeometry()
@@ -535,6 +541,12 @@ void DebuggerWindow::onStepOut()
 	});
 
 	this->repaint();
+}
+
+void DebuggerWindow::changeEvent(QEvent* event)
+{
+	if (event->type() == QEvent::PaletteChange || event->type() == QEvent::StyleChange)
+		updateTheme();
 }
 
 void DebuggerWindow::closeEvent(QCloseEvent* event)

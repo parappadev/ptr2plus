@@ -42,49 +42,53 @@ echo INSTALLDIR=%INSTALLDIR%
 
 cd "%BUILDDIR%"
 
-set FREETYPE=2.13.3
-set HARFBUZZ=11.2.0
-set LIBJPEGTURBO=3.1.0
-set LIBPNG=1648
-set SDL=SDL3-3.2.14
-set QT=6.9.0
-set QTMINOR=6.9
+set FREETYPE=2.14.1
+set HARFBUZZ=12.2.0
+set LIBJPEGTURBO=3.1.2
+set LIBPNG=1653
+set LIBPNGLONG=1.6.53
+set SDL=SDL3-3.2.26
+set QT=6.10.1
+set QTMINOR=6.10
+set QTAPNG=1.3.0
 set LZ4=1.10.0
-set WEBP=1.5.0
+set WEBP=1.6.0
 set ZLIB=1.3.1
 set ZLIBSHORT=131
 set ZSTD=1.5.7
-set KDDOCKWIDGETS=2.2.3
-set PLUTOVG=0.0.13
-set PLUTOSVG=0.0.6
+set KDDOCKWIDGETS=2.4.0
+set PLUTOVG=1.3.2
+set PLUTOSVG=0.0.7
 
-set SHADERC=2024.1
-set SHADERC_GLSLANG=142052fa30f9eca191aa9dcf65359fcaed09eeec
-set SHADERC_SPIRVHEADERS=5e3ad389ee56fca27c9705d093ae5387ce404df4
-set SHADERC_SPIRVTOOLS=dd4b663e13c07fea4fbb3f70c1c91c86731099f7
+set SHADERC=2025.4
+set SHADERC_GLSLANG=7a47e2531cb334982b2a2dd8513dca0a3de4373d
+set SHADERC_SPIRVHEADERS=b824a462d4256d720bebb40e78b9eb8f78bbb305
+set SHADERC_SPIRVTOOLS=971a7b6e8d7740035bbff089bbbf9f42951ecfd5
 
-call :downloadfile "freetype-%FREETYPE%.tar.gz" https://sourceforge.net/projects/freetype/files/freetype2/%FREETYPE%/freetype-%FREETYPE%.tar.gz/download 5c3a8e78f7b24c20b25b54ee575d6daa40007a5f4eea2845861c3409b3021747 || goto error
-call :downloadfile "harfbuzz-%HARFBUZZ%.zip" https://github.com/harfbuzz/harfbuzz/archive/refs/tags/%HARFBUZZ%.zip 850cb5e38e21106c0abba86c5b73f8f74b9a32d7725505901d081080b0d3f0b3 || goto error
-call :downloadfile "lpng%LIBPNG%.zip" https://download.sourceforge.net/libpng/lpng1648.zip 2e5f080360f77376eb2bfa9e2ed773b9c7728159aba47b638ad53ca839379040 || goto error
-call :downloadfile "libjpeg-turbo-%LIBJPEGTURBO%.tar.gz" "https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/%LIBJPEGTURBO%/libjpeg-turbo-%LIBJPEGTURBO%.tar.gz" 9564c72b1dfd1d6fe6274c5f95a8d989b59854575d4bbee44ade7bc17aa9bc93 || goto error
-call :downloadfile "libwebp-%WEBP%.tar.gz" "https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-%WEBP%.tar.gz" 7d6fab70cf844bf6769077bd5d7a74893f8ffd4dfb42861745750c63c2a5c92c || goto error
-call :downloadfile "%SDL%.zip" "https://libsdl.org/release/%SDL%.zip" 46a17d3ea71fe2580a7f43ca7da286c5b9106dd761e2fd5533bb113e5d86b633 || goto error
-call :downloadfile "qtbase-everywhere-src-%QT%.zip" "https://download.qt.io/official_releases/qt/%QTMINOR%/%QT%/submodules/qtbase-everywhere-src-%QT%.zip" 513df15a6365a40f6230ec9463ad8c71b824e181d4b661dac9707e103b24ae0c || goto error
-call :downloadfile "qtimageformats-everywhere-src-%QT%.zip" "https://download.qt.io/official_releases/qt/%QTMINOR%/%QT%/submodules/qtimageformats-everywhere-src-%QT%.zip" d428fd17a0d3f92c48a30f1d23806bf20352fbce2e80e5bbee27fa80576480ee || goto error
-call :downloadfile "qtsvg-everywhere-src-%QT%.zip" "https://download.qt.io/official_releases/qt/%QTMINOR%/%QT%/submodules/qtsvg-everywhere-src-%QT%.zip" 54bf06afeb67035f1c6afcd00beec755c0d776626b4cce9ab56992a55215ba69 || goto error
-call :downloadfile "qttools-everywhere-src-%QT%.zip" "https://download.qt.io/official_releases/qt/%QTMINOR%/%QT%/submodules/qttools-everywhere-src-%QT%.zip" 5f8a94a161bd2e71a82f478dc19f4ec77ac95a50709f5a68d5951001ed6bb856 || goto error
-call :downloadfile "qttranslations-everywhere-src-%QT%.zip" "https://download.qt.io/official_releases/qt/%QTMINOR%/%QT%/submodules/qttranslations-everywhere-src-%QT%.zip" 5885ce1a114615cc5fa69e459f069d3fe2bcb1320fd9cc162821f3920ef44735 || goto error
+call :downloadfile "freetype-%FREETYPE%.tar.gz" https://sourceforge.net/projects/freetype/files/freetype2/%FREETYPE%/freetype-%FREETYPE%.tar.gz/download 174d9e53402e1bf9ec7277e22ec199ba3e55a6be2c0740cb18c0ee9850fc8c34 || goto error
+call :downloadfile "harfbuzz-%HARFBUZZ%.zip" https://github.com/harfbuzz/harfbuzz/archive/refs/tags/%HARFBUZZ%.zip 31490c781bacd2ce56862555b11c51c964977c39f14f51b817dfaecf0be089fe || goto error
+call :downloadfile "lpng%LIBPNG%.zip" https://download.sourceforge.net/libpng/lpng1653.zip 140566abc64bb2320cb35f1d154d1cb3eb7174a12234d33bfdffb446bdc0a1d2 || goto error
+call :downloadfile "lpng%LIBPNG%-apng.patch.gz" https://download.sourceforge.net/libpng-apng/libpng-%LIBPNGLONG%-apng.patch.gz 452a1a290bd0cf18737fad0057dc17b7fdf10a73eda2d6d4f31ba04fda25ef2c || goto error
+call :downloadfile "libjpeg-turbo-%LIBJPEGTURBO%.tar.gz" "https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/%LIBJPEGTURBO%/libjpeg-turbo-%LIBJPEGTURBO%.tar.gz" 8f0012234b464ce50890c490f18194f913a7b1f4e6a03d6644179fa0f867d0cf || goto error
+call :downloadfile "libwebp-%WEBP%.tar.gz" "https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-%WEBP%.tar.gz" e4ab7009bf0629fd11982d4c2aa83964cf244cffba7347ecd39019a9e38c4564 || goto error
+call :downloadfile "%SDL%.zip" "https://libsdl.org/release/%SDL%.zip" 739356eef1192fff9d641c320a8f5ef4a10506b8927def4b9ceb764c7e947369 || goto error
+call :downloadfile "qtbase-everywhere-src-%QT%.zip" "https://download.qt.io/official_releases/qt/%QTMINOR%/%QT%/submodules/qtbase-everywhere-src-%QT%.zip" c43f471a808b07fc541528410e94ce89c6745bdc1d744492e19911d35fbf7d33 || goto error
+call :downloadfile "qtimageformats-everywhere-src-%QT%.zip" "https://download.qt.io/official_releases/qt/%QTMINOR%/%QT%/submodules/qtimageformats-everywhere-src-%QT%.zip" 2d828d8c999fdd18167937c071781c22321c643b04a106c714411c2356cdb26d || goto error
+call :downloadfile "qtsvg-everywhere-src-%QT%.zip" "https://download.qt.io/official_releases/qt/%QTMINOR%/%QT%/submodules/qtsvg-everywhere-src-%QT%.zip" ddd74a417d2397eb085d047a9b6ba52b76e748055817f728fe691f8456035d23 || goto error
+call :downloadfile "qttools-everywhere-src-%QT%.zip" "https://download.qt.io/official_releases/qt/%QTMINOR%/%QT%/submodules/qttools-everywhere-src-%QT%.zip" db8e49ed50912c3c064a4f9ada7791c09eccec5a8d53463a19608eaab17679f0 || goto error
+call :downloadfile "qttranslations-everywhere-src-%QT%.zip" "https://download.qt.io/official_releases/qt/%QTMINOR%/%QT%/submodules/qttranslations-everywhere-src-%QT%.zip" 868eb651e395d48ade5932ef2c386e606e054eb5888ebe5284fbd8cb63ed935a || goto error
+call :downloadfile "QtApng-%QTAPNG%.zip" "https://github.com/jurplel/QtApng/archive/refs/tags/%QTAPNG%.zip" 5176082cdd468047a7eb1ec1f106b032f57df207aa318d559b29606b00d159ac || goto error
 call :downloadfile "lz4-%LZ4%.zip" "https://github.com/lz4/lz4/archive/refs/tags/v%LZ4%.zip" 3224b4c80f351f194984526ef396f6079bd6332dd9825c72ac0d7a37b3cdc565 || goto error
-call :downloadfile "zlib%ZLIBSHORT%.zip" "https://zlib.net/zlib%ZLIBSHORT%.zip" 72af66d44fcc14c22013b46b814d5d2514673dda3d115e64b690c1ad636e7b17 || goto error
+call :downloadfile "zlib%ZLIBSHORT%.zip" "https://github.com/madler/zlib/releases/download/v%ZLIB%/zlib%ZLIBSHORT%.zip" 72af66d44fcc14c22013b46b814d5d2514673dda3d115e64b690c1ad636e7b17 || goto error
 call :downloadfile "zstd-%ZSTD%.zip" "https://github.com/facebook/zstd/archive/refs/tags/v%ZSTD%.zip" 7897bc5d620580d9b7cd3539c44b59d78f3657d33663fe97a145e07b4ebd69a4 || goto error
-call :downloadfile "KDDockWidgets-%KDDOCKWIDGETS%.zip" "https://github.com/KDAB/KDDockWidgets/archive/v%KDDOCKWIDGETS%.zip" 1ba8e5b48f3b4d47d2de7121529d448532200fa36d9ed21f93909f6eb03f61cb || goto error
-call :downloadfile "plutovg-%PLUTOVG%.zip" "https://github.com/sammycage/plutovg/archive/v%PLUTOVG%.zip" e313baaa7c934503ef601c909661a84e5b795dfa12f0354721cac7a9c27be47e || goto error
-call :downloadfile "plutosvg-%PLUTOSVG%.zip" "https://github.com/sammycage/plutosvg/archive/v%PLUTOSVG%.zip" 24826a70d0b168a66eb16ec9d7eeeba0d4ca9d4babc1199889d374918008426e || goto error
+call :downloadfile "KDDockWidgets-%KDDOCKWIDGETS%.zip" "https://github.com/KDAB/KDDockWidgets/archive/v%KDDOCKWIDGETS%.zip" 47ddb48197872055f0adf8e90a7235f8a3b795ca1ee3a28ac2c504c673ae3806 || goto error
+call :downloadfile "plutovg-%PLUTOVG%.zip" "https://github.com/sammycage/plutovg/archive/v%PLUTOVG%.zip" 4fe4e48f28aa80171b2166d45c0976ab0f21eecedb52cd4c3ef73b5afb48fac9 || goto error
+call :downloadfile "plutosvg-%PLUTOSVG%.zip" "https://github.com/sammycage/plutosvg/archive/v%PLUTOSVG%.zip" 82dee2c57ad712bdd6d6d81d3e76249d89caa4b5a4214353660fd5adff12201a || goto error
 
-call :downloadfile "shaderc-%SHADERC%.zip" "https://github.com/google/shaderc/archive/refs/tags/v%SHADERC%.zip" 6c9f42ed6bf42750f5369b089909abfdcf0101488b4a1f41116d5159d00af8e7 || goto error
-call :downloadfile "shaderc-glslang-%SHADERC_GLSLANG%.zip" "https://github.com/KhronosGroup/glslang/archive/%SHADERC_GLSLANG%.zip" 03ad8a6fa987af4653d0cfe6bdaed41bcf617f1366a151fb1574da75950cd3e8 || goto error
-call :downloadfile "shaderc-spirv-headers-%SHADERC_SPIRVHEADERS%.zip" "https://github.com/KhronosGroup/SPIRV-Headers/archive/%SHADERC_SPIRVHEADERS%.zip" fa59a54334feaba5702b9c25724c3f4746123865769b36dd5a28d9ef5e9d39ab || goto error
-call :downloadfile "shaderc-spirv-tools-%SHADERC_SPIRVTOOLS%.zip" "https://github.com/KhronosGroup/SPIRV-Tools/archive/%SHADERC_SPIRVTOOLS%.zip" bf385994c20293485b378c27dfdbd77a31b949deabccd9218a977f173eda9f6f || goto error
+call :downloadfile "shaderc-%SHADERC%.zip" "https://github.com/google/shaderc/archive/refs/tags/v%SHADERC%.zip" fab72d1a38eacea52710d18edb95dfd75db894ad869675d07a1eb26827da9b15 || goto error
+call :downloadfile "shaderc-glslang-%SHADERC_GLSLANG%.zip" "https://github.com/KhronosGroup/glslang/archive/%SHADERC_GLSLANG%.zip" 4a118247386ffba9160113f146f2189ba5abe3995db357114d7112ede6bd3cd1 || goto error
+call :downloadfile "shaderc-spirv-headers-%SHADERC_SPIRVHEADERS%.zip" "https://github.com/KhronosGroup/SPIRV-Headers/archive/%SHADERC_SPIRVHEADERS%.zip" 9a38cb3b14484f5038d78cd5df89404f2f5b389a6ad91f9f1df4ae71bb9490dc || goto error
+call :downloadfile "shaderc-spirv-tools-%SHADERC_SPIRVTOOLS%.zip" "https://github.com/KhronosGroup/SPIRV-Tools/archive/%SHADERC_SPIRVTOOLS%.zip" a26383c836a84fab5b03aed5d98e8e27d6c0a9cdbc3b0f462ccfe0a11a3d91ea || goto error
 
 if %DEBUG%==1 (
   echo Building debug and release libraries...
@@ -92,7 +96,7 @@ if %DEBUG%==1 (
   echo Building release libraries...
 )
 
-set FORCEPDB=-DCMAKE_SHARED_LINKER_FLAGS_RELEASE="/DEBUG"
+set FORCEPDB=-DCMAKE_SHARED_LINKER_FLAGS_RELEASE="/DEBUG" -DCMAKE_SHARED_LINKER_FLAGS_MINSIZEREL="/DEBUG"
 set ARM64TOOLCHAIN=-DCMAKE_TOOLCHAIN_FILE="%SCRIPTDIR%\cmake-toolchain-windows-arm64.cmake"
 
 echo Building Zlib...
@@ -107,7 +111,10 @@ cd .. || goto error
 echo Building libpng...
 rmdir /S /Q "lpng%LIBPNG%"
 %SEVENZIP% x "lpng%LIBPNG%.zip" || goto error
+rem apng not in released libpng yet
+%SEVENZIP% x "lpng%LIBPNG%-apng.patch.gz" -aoa || goto error
 cd "lpng%LIBPNG%" || goto error
+%PATCH% -p1 < "../libpng-%LIBPNGLONG%-apng.patch" || goto error
 cmake %ARM64TOOLCHAIN% -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="%INSTALLDIR%" -DCMAKE_INSTALL_PREFIX="%INSTALLDIR%" -DBUILD_SHARED_LIBS=ON -DBUILD_SHARED_LIBS=ON -DPNG_TESTS=OFF -DPNG_STATIC=OFF -DPNG_SHARED=ON -DPNG_TOOLS=OFF -B build -G Ninja || goto error
 cmake --build build --parallel || goto error
 ninja -C build install || goto error
@@ -190,7 +197,7 @@ cd .. || goto error
 if %DEBUG%==1 (
   set QTBUILDSPEC=-DCMAKE_CONFIGURATION_TYPES="Release;Debug" -G "Ninja Multi-Config"
 ) else (
-  set QTBUILDSPEC=-DCMAKE_BUILD_TYPE=Release -G Ninja
+  set QTBUILDSPEC=-DCMAKE_BUILD_TYPE=MinSizeRel -G Ninja
 )
 
 echo Building Qt base...
@@ -247,6 +254,22 @@ ninja install || goto error
 cd ..\.. || goto error
 
 if %DEBUG%==1 (
+  set QTAPNGBUILDSPEC=-DCMAKE_CONFIGURATION_TYPES="Release;Debug" -DCMAKE_CROSS_CONFIGS=all -DCMAKE_DEFAULT_BUILD_TYPE=Release -DCMAKE_DEFAULT_CONFIGS=all -G "Ninja Multi-Config"
+) else (
+  set QTAPNGBUILDSPEC=-DCMAKE_BUILD_TYPE=Release -G Ninja
+)
+
+echo Building Qt APNG...
+rmdir /S /Q "QtApng-%QTAPNG%"
+%SEVENZIP% x "QtApng-%QTAPNG%.zip" || goto error
+cd "QtApng-%QTAPNG%" || goto error
+%PATCH% -p1 < "%SCRIPTDIR%\..\common\qtapng-cmake.patch" || goto error
+cmake -B build %ARM64TOOLCHAIN% -DCMAKE_PREFIX_PATH="%INSTALLDIR%" -DCMAKE_INSTALL_PREFIX="%INSTALLDIR%" %FORCEPDB% %QTAPNGBUILDSPEC% || goto error
+cmake --build build --parallel || goto error
+ninja -C build install || goto error
+cd .. || goto error
+
+if %DEBUG%==1 (
   set KDDOCKWIDGETSBUILDSPEC=-DCMAKE_CONFIGURATION_TYPES="Release;Debug" -DCMAKE_CROSS_CONFIGS=all -DCMAKE_DEFAULT_BUILD_TYPE=Release -DCMAKE_DEFAULT_CONFIGS=all -G "Ninja Multi-Config"
 ) else (
   rem kddockwidgets slightly changes the name of the dll depending on if CMAKE_BUILD_TYPE or CMAKE_CONFIGURATION_TYPES is used
@@ -259,7 +282,6 @@ echo "Building KDDockWidgets..."
 rmdir /S /Q "KDDockWidgets-%KDDOCKWIDGETS%"
 %SEVENZIP% x "KDDockWidgets-%KDDOCKWIDGETS%.zip" || goto error
 cd "KDDockWidgets-%KDDOCKWIDGETS%" || goto error
-%PATCH% -p1 < "%SCRIPTDIR%\..\common\kddockwidgets-dodgy-include.patch" || goto error
 cmake -B build %ARM64TOOLCHAIN% -DCMAKE_PREFIX_PATH="%INSTALLDIR%" -DCMAKE_INSTALL_PREFIX="%INSTALLDIR%" -DKDDockWidgets_QT6=true -DKDDockWidgets_EXAMPLES=false -DKDDockWidgets_FRONTENDS=qtwidgets %KDDOCKWIDGETSBUILDSPEC% || goto error
 cmake --build build --parallel || goto error
 ninja -C build install || goto error

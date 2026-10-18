@@ -99,7 +99,7 @@ __ri void Log::WriteToConsole(LOGLEVEL level, ConsoleColors color, std::string_v
 	static constexpr size_t BUFFER_SIZE = 512;
 
 	SmallStackString<BUFFER_SIZE> buffer;
-	buffer.reserve(32 + message.length());
+	buffer.reserve(static_cast<u32>(32 + message.length()));
 	buffer.append(s_ansi_color_codes[color]);
 
 	if (s_log_timestamps)
@@ -335,7 +335,7 @@ bool Log::SetFileOutputLevel(LOGLEVEL level, std::string path)
 
 	const bool was_enabled = (s_file_level > LOGLEVEL_NONE);
 	const bool new_enabled = (level > LOGLEVEL_NONE && !path.empty());
-	if (was_enabled != new_enabled || (new_enabled && path == s_file_path))
+	if (was_enabled != new_enabled || (new_enabled && path != s_file_path))
 	{
 		if (new_enabled)
 		{

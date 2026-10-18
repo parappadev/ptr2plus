@@ -43,22 +43,8 @@ STRIP=strip
 
 declare -a MANUAL_LIBS=(
 	"libshaderc_shared.so.1"
-)
-
-declare -a MANUAL_QT_LIBS=(
-	"libQt6WaylandEglClientHwIntegration.so.6"
-)
-
-declare -a MANUAL_QT_PLUGINS=(
-	"wayland-decoration-client"
-	"wayland-graphics-integration-client"
-	"wayland-shell-integration"
-)
-
-declare -a REMOVE_LIBS=(
-	'libwayland-client.so*'
-	'libwayland-cursor.so*'
-	'libwayland-egl.so*'
+	"libharfbuzz.so.0"
+	"libfreetype.so.6"
 )
 
 set -e
@@ -66,7 +52,6 @@ set -e
 LINUXDEPLOY=./linuxdeploy-x86_64.AppImage
 LINUXDEPLOY_PLUGIN_QT=./linuxdeploy-plugin-qt-x86_64.AppImage
 APPIMAGETOOL=./appimagetool-x86_64.AppImage
-PATCHELF=patchelf
 
 if [ ! -f "$LINUXDEPLOY" ]; then
 	"$PCSX2DIR/tools/retry.sh" wget -O "$LINUXDEPLOY" https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
@@ -79,7 +64,7 @@ if [ ! -f "$LINUXDEPLOY_PLUGIN_QT" ]; then
 fi
 
 if [ ! -f "$APPIMAGETOOL" ]; then
-	"$PCSX2DIR/tools/retry.sh" wget -O "$APPIMAGETOOL" https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+	"$PCSX2DIR/tools/retry.sh" wget -O "$APPIMAGETOOL" https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
 	chmod +x "$APPIMAGETOOL"
 fi
 
@@ -87,21 +72,16 @@ OUTDIR=$(realpath "./$APPDIRNAME")
 rm -fr "$OUTDIR"
 
 echo "Locating extra libraries..."
-EXTRA_LIBS_ARGS=""
+EXTRA_LIBS_ARGS=()
 for lib in "${MANUAL_LIBS[@]}"; do
 	srcpath=$(find "$DEPSDIR" -name "$lib")
 	if [ ! -f "$srcpath" ]; then
-		echo "Missinge extra library $lib. Exiting."
+		echo "Missing extra library $lib. Exiting."
 		exit 1
 	fi
 
 	echo "Found $lib at $srcpath."
-
-	if [ "$EXTRA_LIBS_ARGS" == "" ]; then
-		EXTRA_LIBS_ARGS="--library=$srcpath"
-	else
-		EXTRA_LIBS_ARGS="$EXTRA_LIBS_ARGS,$srcpath"
-	fi
+	EXTRA_LIBS_ARGS+=( "--library=$srcpath" )
 done
 
 # Why the nastyness? linuxdeploy strips our main binary, and there's no option to turn it off.
@@ -125,54 +105,19 @@ cp "$PCSX2DIR/.github/workflows/scripts/linux/pcsx2-qt.desktop" "net.pcsx2.PCSX2
 cp "$PCSX2DIR/bin/resources/icons/AppIconLarge.png" "PCSX2.png"
 
 echo "Running linuxdeploy to create AppDir..."
-EXTRA_QT_PLUGINS="core;gui;svg;waylandclient;widgets;xcbqpa" \
-EXTRA_PLATFORM_PLUGINS="libqwayland-egl.so;libqwayland-generic.so" \
+# The wayland platform plugin requires the plugins deployed for the waylandcompositor module
+# Interestingly, specifying the module doesn't copy the module, only the required plugins for it
+# https://github.com/linuxdeploy/linuxdeploy-plugin-qt/issues/160#issuecomment-2655543893
+EXTRA_QT_MODULES="core;gui;svg;waylandclient;waylandcompositor;widgets;xcbqpa" \
+EXTRA_PLATFORM_PLUGINS="libqwayland.so" \
 DEPLOY_PLATFORM_THEMES="1" \
 QMAKE="$DEPSDIR/bin/qmake" \
 NO_STRIP="1" \
-$LINUXDEPLOY --plugin qt --appdir="$OUTDIR" --executable="$BUILDDIR/bin/pcsx2-qt" $EXTRA_LIBS_ARGS \
+$LINUXDEPLOY --plugin qt --appdir="$OUTDIR" --executable="$BUILDDIR/bin/pcsx2-qt" ${EXTRA_LIBS_ARGS[@]} \
 --desktop-file="net.pcsx2.PCSX2.desktop" --icon-file="PCSX2.png"
 
 echo "Copying resources into AppDir..."
 cp -a "$BUILDDIR/bin/resources" "$OUTDIR/usr/bin"
-
-# LinuxDeploy's Qt plugin doesn't include Wayland support. So manually copy in the additional Wayland libraries.
-echo "Copying Qt Wayland libraries..."
-for lib in "${MANUAL_QT_LIBS[@]}"; do
-	srcpath="$DEPSDIR/lib/$lib"
-	dstpath="$OUTDIR/usr/lib/$lib"
-	echo "  $srcpath -> $dstpath"
-	cp "$srcpath" "$dstpath"
-	$PATCHELF --set-rpath '$ORIGIN' "$dstpath"
-done
-
-# .. and plugins.
-echo "Copying Qt Wayland plugins..."
-for GROUP in "${MANUAL_QT_PLUGINS[@]}"; do
-	srcpath="$DEPSDIR/plugins/$GROUP"
-	dstpath="$OUTDIR/usr/plugins/$GROUP"
-	echo "  $srcpath -> $dstpath"
-	mkdir -p "$dstpath"
-
-	for srcsopath in $(find "$DEPSDIR/plugins/$GROUP" -iname '*.so'); do
-		# This is ../../ because it's usually plugins/group/name.so
-		soname=$(basename "$srcsopath")
-		dstsopath="$dstpath/$soname"
-		echo "    $srcsopath -> $dstsopath"
-		cp "$srcsopath" "$dstsopath"
-		$PATCHELF --set-rpath '$ORIGIN/../../lib:$ORIGIN' "$dstsopath"
-	done
-done
-
-# Why do we have to manually remove these libs? Because the linuxdeploy Qt plugin
-# copies them, not the "main" linuxdeploy binary, and plugins don't inherit the
-# include list...
-for lib in "${REMOVE_LIBS[@]}"; do
-	for libpath in $(find "$OUTDIR/usr/lib" -name "$lib"); do
-		echo "    Removing problematic library ${libpath}."
-		rm -f "$libpath"
-	done
-done
 
 # Restore unstripped deps (for cache).
 rm -fr "$DEPSDIR"

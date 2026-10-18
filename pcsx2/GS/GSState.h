@@ -4,6 +4,7 @@
 #pragma once
 
 #include "GS/GS.h"
+#include "GS/GSPerfMon.h"
 #include "GS/GSLocalMemory.h"
 #include "GS/GSDrawingContext.h"
 #include "GS/GSDrawingEnvironment.h"
@@ -38,8 +39,8 @@ private:
 	void GIFPackedRegHandlerSTQ(const GIFPackedReg* RESTRICT r);
 	void GIFPackedRegHandlerUV(const GIFPackedReg* RESTRICT r);
 	void GIFPackedRegHandlerUV_Hack(const GIFPackedReg* RESTRICT r);
-	template<u32 prim, u32 adc, bool auto_flush, bool index_swap> void GIFPackedRegHandlerXYZF2(const GIFPackedReg* RESTRICT r);
-	template<u32 prim, u32 adc, bool auto_flush, bool index_swap> void GIFPackedRegHandlerXYZ2(const GIFPackedReg* RESTRICT r);
+	template<u32 prim, u32 adc, bool auto_flush> void GIFPackedRegHandlerXYZF2(const GIFPackedReg* RESTRICT r);
+	template<u32 prim, u32 adc, bool auto_flush> void GIFPackedRegHandlerXYZ2(const GIFPackedReg* RESTRICT r);
 	void GIFPackedRegHandlerFOG(const GIFPackedReg* RESTRICT r);
 	void GIFPackedRegHandlerA_D(const GIFPackedReg* RESTRICT r);
 	void GIFPackedRegHandlerNOP(const GIFPackedReg* RESTRICT r);
@@ -55,8 +56,8 @@ private:
 	GIFPackedRegHandlerC m_fpGIFPackedRegHandlerSTQRGBAXYZF2[8] = {};
 	GIFPackedRegHandlerC m_fpGIFPackedRegHandlerSTQRGBAXYZ2[8] = {};
 
-	template<u32 prim, bool auto_flush, bool index_swap> void GIFPackedRegHandlerSTQRGBAXYZF2(const GIFPackedReg* RESTRICT r, u32 size);
-	template<u32 prim, bool auto_flush, bool index_swap> void GIFPackedRegHandlerSTQRGBAXYZ2(const GIFPackedReg* RESTRICT r, u32 size);
+	template<u32 prim, bool auto_flush> void GIFPackedRegHandlerSTQRGBAXYZF2(const GIFPackedReg* RESTRICT r, u32 size);
+	template<u32 prim, bool auto_flush> void GIFPackedRegHandlerSTQRGBAXYZ2(const GIFPackedReg* RESTRICT r, u32 size);
 	void GIFPackedRegHandlerNOP(const GIFPackedReg* RESTRICT r, u32 size);
 
 	template<int i> void ApplyTEX0(GIFRegTEX0& TEX0);
@@ -68,8 +69,8 @@ private:
 	void GIFRegHandlerST(const GIFReg* RESTRICT r);
 	void GIFRegHandlerUV(const GIFReg* RESTRICT r);
 	void GIFRegHandlerUV_Hack(const GIFReg* RESTRICT r);
-	template<u32 prim, u32 adc, bool auto_flush, bool index_swap> void GIFRegHandlerXYZF2(const GIFReg* RESTRICT r);
-	template<u32 prim, u32 adc, bool auto_flush, bool index_swap> void GIFRegHandlerXYZ2(const GIFReg* RESTRICT r);
+	template<u32 prim, u32 adc, bool auto_flush> void GIFRegHandlerXYZF2(const GIFReg* RESTRICT r);
+	template<u32 prim, u32 adc, bool auto_flush> void GIFRegHandlerXYZ2(const GIFReg* RESTRICT r);
 	template<int i> void GIFRegHandlerTEX0(const GIFReg* RESTRICT r);
 	template<int i> void GIFRegHandlerCLAMP(const GIFReg* RESTRICT r);
 	void GIFRegHandlerFOG(const GIFReg* RESTRICT r);
@@ -102,8 +103,7 @@ private:
 	void GIFRegHandlerTRXDIR(const GIFReg* RESTRICT r);
 	void GIFRegHandlerHWREG(const GIFReg* RESTRICT r);
 
-	template<bool auto_flush, bool index_swap>
-	void SetPrimHandlers();
+	template<bool auto_flush> void SetPrimHandlers();
 
 	struct GSTransferBuffer
 	{
@@ -137,6 +137,7 @@ protected:
 	struct
 	{
 		GSVertex* buff;
+		GSVertex* buff_copy;            // same size buffer to copy/modify the original buffer
 		u32 head, tail, next, maxcount; // head: first vertex, tail: last vertex + 1, next: last indexed + 1
 		u32 xy_tail;
 		GSVector4i xy[4];
@@ -170,13 +171,12 @@ protected:
 	void UpdateVertexKick();
 
 	void GrowVertexBuffer();
-	bool IsAutoFlushDraw(u32 prim);
-	template<u32 prim, bool index_swap>
-	void HandleAutoFlush();
+	bool IsAutoFlushDraw(u32 prim, int& tex_layer);
+	template<u32 prim> void HandleAutoFlush();
+	bool EarlyDetectShuffle(u32 prim);
 	void CheckCLUTValidity(u32 prim);
 
-	template <u32 prim, bool auto_flush, bool index_swap>
-	void VertexKick(u32 skip);
+	template <u32 prim, bool auto_flush> void VertexKick(u32 skip);
 
 	// following functions need m_vt to be initialized
 
@@ -217,6 +217,7 @@ public:
 		GSVector4i rect;
 		int draw;
 		bool zero_clear;
+		bool ee_to_gs;
 	};
 
 	enum NoGapsType
@@ -239,7 +240,9 @@ public:
 	std::unique_ptr<GSDumpBase> m_dump;
 	bool m_scissor_invalid = false;
 	bool m_quad_check_valid = false;
+	bool m_quad_check_valid_shuffle = false;
 	bool m_are_quads = false;
+	bool m_are_quads_shuffle = false;
 	bool m_nativeres = false;
 	bool m_mipmap = false;
 	bool m_texflush_flag = false;
@@ -263,7 +266,24 @@ public:
 	static int s_last_transfer_draw_n;
 	static int s_transfer_n;
 
+	GSPerfMon m_perfmon_frame; // Track stat across a frame.
+	GSPerfMon m_perfmon_draw;  // Track stat across a draw.
+
 	static constexpr u32 STATE_VERSION = 9;
+
+	#define PRIM_REG_MASK 0x7FF
+	#define MIPTBP_REG_MASK ((1ULL << 60) - 1ULL)
+	#define CLAMP_REG_MASK ((1ULL << 44) - 1ULL)
+	#define TEX1_REG_MASK 0xFFF001803FDULL
+	#define XYOFFSET_REG_MASK 0x0000FFFF0000FFFFULL
+	#define TEXA_REG_MASK 0xFF000080FFULL
+	#define FOGCOL_REG_MASK 0xFFFFFF
+	#define SCISSOR_REG_MASK 0x7FF07FF07FF07FFULL
+	#define ALPHA_REG_MASK 0xFF000000FFULL
+	#define DIMX_REG_MASK 0x7777777777777777ULL
+	#define FRAME_REG_MASK 0xFFFFFFFF3F3F01FFULL
+	#define ZBUF_REG_MASK 0x10F0001FFULL
+	#define TEST_REG_MASK 0x7FFFF
 
 	enum REG_DIRTY
 	{
@@ -320,6 +340,7 @@ public:
 
 	PRIM_OVERLAP m_prim_overlap = PRIM_OVERLAP_UNKNOW;
 	std::vector<size_t> m_drawlist;
+	std::vector<GSVector4i> m_drawlist_bbox;
 
 	struct GSPCRTCRegs
 	{
@@ -443,10 +464,18 @@ public:
 	u8* GetRegsMem() const { return reinterpret_cast<u8*>(m_regs); }
 	void SetRegsMem(u8* basemem) { m_regs = reinterpret_cast<GSPrivRegSet*>(basemem); }
 
+	void DumpDrawInfo(bool dump_regs, bool dump_verts, bool dump_transfers);
 	void DumpVertices(const std::string& filename);
-
+	void DumpTransferList(const std::string& filename);
+	void DumpTransferImages();
+	
+	template<bool shuffle_check>
+	bool TrianglesAreQuadsImpl();
 	bool TrianglesAreQuads(bool shuffle_check = false);
-	PRIM_OVERLAP PrimitiveOverlap();
+	template <u32 primclass>
+	PRIM_OVERLAP GetPrimitiveOverlapDrawlistImpl(bool save_drawlist = false, bool save_bbox = false, float bbox_scale = 1.0f);
+	PRIM_OVERLAP GetPrimitiveOverlapDrawlist(bool save_drawlist = false, bool save_bbox = false, float bbox_scale = 1.0f);
+	PRIM_OVERLAP PrimitiveOverlap(bool save_drawlist = false);
 	bool SpriteDrawWithoutGaps();
 	void CalculatePrimitiveCoversWithoutGaps();
 	GIFRegTEX0 GetTex0Layer(u32 lod);

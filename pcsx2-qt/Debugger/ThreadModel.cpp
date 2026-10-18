@@ -13,7 +13,7 @@ ThreadModel::ThreadModel(DebugInterface& cpu, QObject* parent)
 
 int ThreadModel::rowCount(const QModelIndex&) const
 {
-	return m_cpu.GetThreadList().size();
+	return static_cast<int>(m_threads.size());
 }
 
 int ThreadModel::columnCount(const QModelIndex&) const
@@ -23,13 +23,11 @@ int ThreadModel::columnCount(const QModelIndex&) const
 
 QVariant ThreadModel::data(const QModelIndex& index, int role) const
 {
-	const std::vector<std::unique_ptr<BiosThread>> threads = m_cpu.GetThreadList();
-
 	size_t row = static_cast<size_t>(index.row());
-	if (row >= threads.size())
+	if (row >= m_threads.size())
 		return QVariant();
 
-	const BiosThread* thread = threads[row].get();
+	const BiosThread* thread = m_threads[row].get();
 
 	if (role == Qt::DisplayRole)
 	{
@@ -128,5 +126,6 @@ QVariant ThreadModel::headerData(int section, Qt::Orientation orientation, int r
 void ThreadModel::refreshData()
 {
 	beginResetModel();
+	m_threads = m_cpu.GetThreadList();
 	endResetModel();
 }

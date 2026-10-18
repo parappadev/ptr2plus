@@ -92,6 +92,7 @@
     <addaction name="actionMemoryCardSettings"/>
     <addaction name="actionDEV9Settings"/>
     <addaction name="actionFolderSettings"/>
+    <addaction name="separator"/>
     <addaction name="actionControllerSettings"/>
     <addaction name="actionHotkeySettings"/>
     <addaction name="actionAchievementSettings"/>
@@ -112,7 +113,7 @@
     </property>
     <widget class="QMenu" name="menuDebugSwitchRenderer">
      <property name="title">
-      <string>&amp;Switch Renderer</string>
+      <string>&amp;Switch Graphics API</string>
      </property>
      <property name="icon">
       <iconset theme="brush-line"/>
@@ -229,6 +230,7 @@
    <addaction name="separator"/>
    <addaction name="actionToolbarSettings"/>
    <addaction name="actionToolbarControllerSettings"/>
+   <addaction name="actionToolbarHotkeySettings"/>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
   <action name="actionStartFile">
@@ -419,6 +421,14 @@
    </property>
    <property name="text">
     <string>&amp;Hotkeys</string>
+   </property>
+  </action>
+  <action name="actionToolbarHotkeySettings">
+   <property name="icon">
+    <iconset theme="keyboard-line"/>
+   </property>
+   <property name="text">
+    <string comment="In Toolbar">Hotkeys</string>
    </property>
   </action>
   <action name="actionGraphicsSettings">
@@ -808,7 +818,7 @@
   </action>
   <action name="actionDebugger">
    <property name="icon">
-    <iconset theme="heart-circle-line"/>
+    <iconset theme="bug-line"/>
    </property>
    <property name="text">
     <string>&amp;Open Debugger</string>
@@ -1000,7 +1010,7 @@
     <iconset theme="camera-video"/>
    </property>
    <property name="text">
-    <string>&amp;Video Capture</string>
+    <string comment="In Toolbar">&amp;Video Capture</string>
    </property>
   </action>
   <action name="actionEditCheats">

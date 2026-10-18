@@ -47,10 +47,19 @@
 
 #include "svnrev.h"
 
+// Down here because X11 has a lot of defines that can conflict
+#if defined(__linux__)
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <sys/select.h>
+#include <unistd.h>
+#endif
+
 namespace GSRunner
 {
 	static void InitializeConsole();
 	static bool InitializeConfig();
+	static void SettingsOverride();
 	static bool ParseCommandLineArgs(int argc, char* argv[], VMBootParameters& params);
 	static void DumpStats();
 
@@ -103,49 +112,13 @@ bool GSRunner::InitializeConfig()
 	if (!VMManager::PerformEarlyHardwareChecks(&error))
 		return false;
 
-	ImGuiManager::SetFontPathAndRange(Path::Combine(EmuFolders::Resources, "fonts" FS_OSPATH_SEPARATOR_STR "Roboto-Regular.ttf"), {});
+	ImGuiManager::SetFontPath(Path::Combine(EmuFolders::Resources, "fonts" FS_OSPATH_SEPARATOR_STR "Roboto-Regular.ttf"));
 
 	// don't provide an ini path, or bother loading. we'll store everything in memory.
 	MemorySettingsInterface& si = s_settings_interface;
 	Host::Internal::SetBaseSettingsLayer(&si);
 
 	VMManager::SetDefaultSettings(si, true, true, true, true, true);
-
-	// complete as quickly as possible
-	si.SetBoolValue("EmuCore/GS", "FrameLimitEnable", false);
-	si.SetIntValue("EmuCore/GS", "VsyncEnable", false);
-
-	// Force screenshot quality settings to something more performant, overriding any defaults good for users.
-	si.SetIntValue("EmuCore/GS", "ScreenshotFormat", static_cast<int>(GSScreenshotFormat::PNG));
-	si.SetIntValue("EmuCore/GS", "ScreenshotQuality", 10);
-
-	// ensure all input sources are disabled, we're not using them
-	si.SetBoolValue("InputSources", "SDL", false);
-	si.SetBoolValue("InputSources", "XInput", false);
-
-	// we don't need any sound output
-	si.SetStringValue("SPU2/Output", "OutputModule", "nullout");
-
-	// none of the bindings are going to resolve to anything
-	Pad::ClearPortBindings(si, 0);
-	si.ClearSection("Hotkeys");
-
-	// force logging
-	si.SetBoolValue("Logging", "EnableSystemConsole", !s_no_console);
-	si.SetBoolValue("Logging", "EnableTimestamps", true);
-	si.SetBoolValue("Logging", "EnableVerbose", true);
-
-	// and show some stats :)
-	si.SetBoolValue("EmuCore/GS", "OsdShowFPS", true);
-	si.SetBoolValue("EmuCore/GS", "OsdShowResolution", true);
-	si.SetBoolValue("EmuCore/GS", "OsdShowGSStats", true);
-
-	// remove memory cards, so we don't have sharing violations
-	for (u32 i = 0; i < 2; i++)
-	{
-		si.SetBoolValue("MemoryCards", fmt::format("Slot{}_Enable", i + 1).c_str(), false);
-		si.SetStringValue("MemoryCards", fmt::format("Slot{}_Filename", i + 1).c_str(), "");
-	}
 
 	VMManager::Internal::LoadStartupSettings();
 	return true;
@@ -200,16 +173,6 @@ void Host::ReportErrorAsync(const std::string_view title, const std::string_view
 		ERROR_LOG("ReportErrorAsync: {}: {}", title, message);
 	else if (!message.empty())
 		ERROR_LOG("ReportErrorAsync: {}", message);
-}
-
-bool Host::ConfirmMessage(const std::string_view title, const std::string_view message)
-{
-	if (!title.empty() && !message.empty())
-		ERROR_LOG("ConfirmMessage: {}: {}", title, message);
-	else if (!message.empty())
-		ERROR_LOG("ConfirmMessage: {}", message);
-
-	return true;
 }
 
 void Host::OpenURL(const std::string_view url)
@@ -473,8 +436,8 @@ static void PrintCommandLineHelp(const char* progname)
 	std::fprintf(stderr, "  -help: Displays this information and exits.\n");
 	std::fprintf(stderr, "  -version: Displays version information and exits.\n");
 	std::fprintf(stderr, "  -dumpdir <dir>: Frame dump directory (will be dumped as filename_frameN.png).\n");
-	std::fprintf(stderr, "  -dump [rt|tex|z|f|a|i]: Enabling dumping of render target, texture, z buffer, frame, "
-		"alphas, and info (context, vertices), respectively, per draw. Generates lots of data.\n");
+	std::fprintf(stderr, "  -dump [rt|tex|z|f|a|i|tr|ds|fs]: Enabling dumping of render target, texture, z buffer, frame, "
+		"alphas, and info (context, vertices, list of transfers), transfers images, draw stats, frame stats, respectively, per draw. Generates lots of data.\n");
 	std::fprintf(stderr, "  -dumprange N[,L,B]: Start dumping from draw N (base 0), stops after L draws, and only "
 		"those draws that are multiples of B (intersection of -dumprange and -dumprangef used)."
 		"Defaults to 0,-1,1 (all draws). Only used if -dump used.\n");
@@ -558,6 +521,12 @@ bool GSRunner::ParseCommandLineArgs(int argc, char* argv[], VMBootParameters& pa
 					s_settings_interface.SetBoolValue("EmuCore/GS", "SaveAlpha", true);
 				if (str.find("i") != std::string::npos)
 					s_settings_interface.SetBoolValue("EmuCore/GS", "SaveInfo", true);
+				if (str.find("tr") != std::string::npos)
+					s_settings_interface.SetBoolValue("EmuCore/GS", "SaveTransferImages", true);
+				if (str.find("ds") != std::string::npos)
+					s_settings_interface.SetBoolValue("EmuCore/GS", "SaveDrawStats", true);
+				if (str.find("fs") != std::string::npos)
+					s_settings_interface.SetBoolValue("EmuCore/GS", "SaveFrameStats", true);
 				continue;
 			}
 			else if (CHECK_ARG_PARAM("-dumprange"))
@@ -699,6 +668,28 @@ bool GSRunner::ParseCommandLineArgs(int argc, char* argv[], VMBootParameters& pa
 
 				continue;
 			}
+			else if (CHECK_ARG_PARAM("-ini"))
+			{
+				std::string path = std::string(StringUtil::StripWhitespace(argv[++i]));
+				if (!FileSystem::FileExists(path.c_str()))
+				{
+					Console.ErrorFmt("INI file {} does not exit.", path);
+					return false;
+				}
+
+				INISettingsInterface si_ini(path);
+
+				if (!si_ini.Load())
+				{
+					Console.ErrorFmt("Unable to load INI settings from {}.", path);
+					return false;
+				}
+
+				for (const auto& [key, value] : si_ini.GetKeyValueList("EmuCore/GS"))
+					s_settings_interface.SetStringValue("EmuCore/GS", key.c_str(), value.c_str());
+
+				continue;
+			}
 			else if (CHECK_ARG_PARAM("-upscale"))
 			{
 				const float upscale = StringUtil::FromChars<float>(argv[++i]).value_or(0.0f);
@@ -729,7 +720,7 @@ bool GSRunner::ParseCommandLineArgs(int argc, char* argv[], VMBootParameters& pa
 			else if (CHECK_ARG("-noshadercache"))
 			{
 				Console.WriteLn("Disabling shader cache");
-				s_settings_interface.SetBoolValue("EmuCore/GS", "disable_shader_cache", true);
+				s_settings_interface.SetBoolValue("EmuCore/GS", "DisableShaderCache", true);
 				continue;
 			}
 			else if (CHECK_ARG("-window"))
@@ -803,6 +794,45 @@ bool GSRunner::ParseCommandLineArgs(int argc, char* argv[], VMBootParameters& pa
 	return true;
 }
 
+void GSRunner::SettingsOverride()
+{
+	// complete as quickly as possible
+	s_settings_interface.SetBoolValue("EmuCore/GS", "FrameLimitEnable", false);
+	s_settings_interface.SetIntValue("EmuCore/GS", "VsyncEnable", false);
+
+	// Force screenshot quality settings to something more performant, overriding any defaults good for users.
+	s_settings_interface.SetIntValue("EmuCore/GS", "ScreenshotFormat", static_cast<int>(GSScreenshotFormat::PNG));
+	s_settings_interface.SetIntValue("EmuCore/GS", "ScreenshotQuality", 10);
+
+	// ensure all input sources are disabled, we're not using them
+	s_settings_interface.SetBoolValue("InputSources", "SDL", false);
+	s_settings_interface.SetBoolValue("InputSources", "XInput", false);
+
+	// we don't need any sound output
+	s_settings_interface.SetStringValue("SPU2/Output", "OutputModule", "nullout");
+
+	// none of the bindings are going to resolve to anything
+	Pad::ClearPortBindings(s_settings_interface, 0);
+	s_settings_interface.ClearSection("Hotkeys");
+
+	// force logging
+	s_settings_interface.SetBoolValue("Logging", "EnableSystemConsole", !s_no_console);
+	s_settings_interface.SetBoolValue("Logging", "EnableTimestamps", true);
+	s_settings_interface.SetBoolValue("Logging", "EnableVerbose", true);
+
+	// and show some stats :)
+	s_settings_interface.SetBoolValue("EmuCore/GS", "OsdShowFPS", true);
+	s_settings_interface.SetBoolValue("EmuCore/GS", "OsdShowResolution", true);
+	s_settings_interface.SetBoolValue("EmuCore/GS", "OsdShowGSStats", true);
+
+	// remove memory cards, so we don't have sharing violations
+	for (u32 i = 0; i < 2; i++)
+	{
+		s_settings_interface.SetBoolValue("MemoryCards", fmt::format("Slot{}_Enable", i + 1).c_str(), false);
+		s_settings_interface.SetStringValue("MemoryCards", fmt::format("Slot{}_Filename", i + 1).c_str(), "");
+	}
+}
+
 void GSRunner::DumpStats()
 {
 	std::atomic_thread_fence(std::memory_order_acquire);
@@ -821,16 +851,27 @@ void GSRunner::DumpStats()
 #define main real_main
 #endif
 
-static void CPUThreadMain(VMBootParameters* params) {
-	if (VMManager::Initialize(*params))
+static void CPUThreadMain(VMBootParameters* params, std::atomic<int>* ret)
+{
+	ret->store(EXIT_FAILURE);
+
+	if (VMManager::Internal::CPUThreadInitialize())
 	{
-		// run until end
-		GSDumpReplayer::SetLoopCount(s_loop_count);
-		VMManager::SetState(VMState::Running);
-		while (VMManager::GetState() == VMState::Running)
-			VMManager::Execute();
-		VMManager::Shutdown(false);
-		GSRunner::DumpStats();
+		// apply new settings (e.g. pick up renderer change)
+		VMManager::ApplySettings();
+		GSDumpReplayer::SetIsDumpRunner(true);
+
+		if (VMManager::Initialize(*params) == VMBootResult::StartupSuccess)
+		{
+			// run until end
+			GSDumpReplayer::SetLoopCount(s_loop_count);
+			VMManager::SetState(VMState::Running);
+			while (VMManager::GetState() == VMState::Running)
+				VMManager::Execute();
+			VMManager::Shutdown(false);
+			GSRunner::DumpStats();
+			ret->store(EXIT_SUCCESS);
+		}
 	}
 
 	VMManager::Internal::CPUThreadShutdown();
@@ -852,27 +893,23 @@ int main(int argc, char* argv[])
 	if (!GSRunner::ParseCommandLineArgs(argc, argv, params))
 		return EXIT_FAILURE;
 
-	if (!VMManager::Internal::CPUThreadInitialize())
-		return EXIT_FAILURE;
-
 	if (s_use_window.value_or(true) && !GSRunner::CreatePlatformWindow())
 	{
 		Console.Error("Failed to create window.");
 		return EXIT_FAILURE;
 	}
 
-	// apply new settings (e.g. pick up renderer change)
-	VMManager::ApplySettings();
-	GSDumpReplayer::SetIsDumpRunner(true);
+	// Override settings that shouldn't be picked up from defaults or INIs.
+	GSRunner::SettingsOverride();
 
-	std::thread cputhread(CPUThreadMain, &params);
+	std::atomic<int> thread_ret;
+	std::thread cputhread(CPUThreadMain, &params, &thread_ret);
 	GSRunner::PumpPlatformMessages(/*forever=*/true);
 	cputhread.join();
 
-	VMManager::Internal::CPUThreadShutdown();
 	GSRunner::DestroyPlatformWindow();
 
-	return EXIT_SUCCESS;
+	return thread_ret.load();
 }
 
 void Host::PumpMessagesOnCPUThread()
@@ -1084,4 +1121,118 @@ void GSRunner::StopPlatformMessagePump()
 	CocoaTools::StopMainThreadEventLoop();
 }
 
+#elif defined(__linux__)
+static Display* s_display = nullptr;
+static Window s_window = None;
+static WindowInfo s_wi;
+static std::atomic<bool> s_shutdown_requested{false};
+
+bool GSRunner::CreatePlatformWindow()
+{
+	pxAssertRel(!s_display && s_window == None, "Tried to create window when there already was one!");
+
+	s_display = XOpenDisplay(nullptr);
+	if (!s_display)
+	{
+		Console.Error("Failed to open X11 display");
+		return false;
+	}
+
+	int screen = DefaultScreen(s_display);
+	Window root = RootWindow(s_display, screen);
+
+	s_window = XCreateSimpleWindow(s_display, root, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, 1,
+		BlackPixel(s_display, screen), WhitePixel(s_display, screen));
+
+	if (s_window == None)
+	{
+		Console.Error("Failed to create X11 window");
+		XCloseDisplay(s_display);
+		s_display = nullptr;
+		return false;
+	}
+
+	XStoreName(s_display, s_window, "PCSX2 GS Runner");
+	XSelectInput(s_display, s_window, StructureNotifyMask);
+	XMapWindow(s_display, s_window);
+
+	s_wi.type = WindowInfo::Type::X11;
+	s_wi.display_connection = s_display;
+	s_wi.window_handle = reinterpret_cast<void*>(s_window);
+	s_wi.surface_width = WINDOW_WIDTH;
+	s_wi.surface_height = WINDOW_HEIGHT;
+	s_wi.surface_scale = 1.0f;
+
+	XFlush(s_display);
+	PumpPlatformMessages();
+	return true;
+}
+
+void GSRunner::DestroyPlatformWindow()
+{
+	if (s_display && s_window != None)
+	{
+		XDestroyWindow(s_display, s_window);
+		s_window = None;
+	}
+
+	if (s_display)
+	{
+		XCloseDisplay(s_display);
+		s_display = nullptr;
+	}
+}
+
+std::optional<WindowInfo> GSRunner::GetPlatformWindowInfo()
+{
+	WindowInfo wi;
+	if (s_display && s_window != None)
+		wi = s_wi;
+	else
+		wi.type = WindowInfo::Type::Surfaceless;
+	return wi;
+}
+
+void GSRunner::PumpPlatformMessages(bool forever)
+{
+	if (!s_display)
+		return;
+
+	do
+	{
+		while (XPending(s_display) > 0)
+		{
+			XEvent event;
+			XNextEvent(s_display, &event);
+
+			switch (event.type)
+			{
+				case ConfigureNotify:
+				{
+					const XConfigureEvent& configure = event.xconfigure;
+					s_wi.surface_width = static_cast<u32>(configure.width);
+					s_wi.surface_height = static_cast<u32>(configure.height);
+					break;
+				}
+				case DestroyNotify:
+					return;
+				default:
+					break;
+			}
+		}
+
+		if (s_shutdown_requested.load())
+			return;
+
+		if (forever)
+		{
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		}
+	} while (forever && !s_shutdown_requested.load());
+}
+
+void GSRunner::StopPlatformMessagePump()
+{
+	s_shutdown_requested.store(true);
+}
 #endif // _WIN32 / __APPLE__

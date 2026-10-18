@@ -5,7 +5,7 @@
 
 #include "common/Console.h"
 #include "Host.h"
-#include "IconsFontAwesome5.h"
+#include "IconsFontAwesome6.h"
 #include "IconsPromptFont.h"
 #include "Input/InputManager.h"
 #include "StateWrapper.h"
@@ -24,6 +24,11 @@ namespace usb_pad
 	const char* TrainDevice::TypeName() const
 	{
 		return "TrainController";
+	}
+
+	const char* TrainDevice::IconName() const
+	{
+		return ICON_FA_TRAIN;
 	}
 
 	std::span<const char*> TrainDevice::SubTypes() const

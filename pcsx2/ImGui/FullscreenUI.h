@@ -10,6 +10,7 @@
 #include <ctime>
 #include <string>
 #include <memory>
+#include <optional>
 
 struct Pcsx2Config;
 
@@ -26,6 +27,8 @@ namespace FullscreenUI
 	void OpenPauseMenu();
 	bool OpenAchievementsWindow();
 	bool OpenLeaderboardsWindow();
+	void ReportStateLoadError(const std::string& message, std::optional<s32> slot, bool backup);
+	void ReportStateSaveError(const std::string& message, std::optional<s32> slot);
 
 	// NOTE: Only call from GS thread.
 	bool IsAchievementsWindowOpen();
@@ -40,6 +43,9 @@ namespace FullscreenUI
 	void Render();
 	void InvalidateCoverCache();
 	TinyString TimeToPrintableString(time_t t);
+	
+	bool CreateHardDriveWithProgress(const std::string& filePath, int sizeInGB, bool use48BitLBA = true);
+	void CancelAllHddOperations();
 } // namespace FullscreenUI
 
 // Host UI triggers from Big Picture mode.

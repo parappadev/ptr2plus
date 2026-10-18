@@ -38,25 +38,26 @@ if [ "${INSTALLDIR:0:1}" != "/" ]; then
 	INSTALLDIR="$PWD/$INSTALLDIR"
 fi
 
-FREETYPE=2.13.3
-HARFBUZZ=11.2.0
-SDL=SDL3-3.2.14
+FREETYPE=2.14.1
+HARFBUZZ=12.2.0
+SDL=SDL3-3.2.26
 ZSTD=1.5.7
 LZ4=1.10.0
-LIBPNG=1.6.48
-LIBJPEGTURBO=3.1.0
-LIBWEBP=1.5.0
-FFMPEG=6.0
+LIBPNG=1.6.53
+LIBJPEGTURBO=3.1.2
+LIBWEBP=1.6.0
+FFMPEG=8.0
 MOLTENVK=1.2.9
-QT=6.7.3
-KDDOCKWIDGETS=2.2.3
-PLUTOVG=0.0.13
-PLUTOSVG=0.0.6
+QT=6.10.1
+QTAPNG=1.3.0
+KDDOCKWIDGETS=2.4.0
+PLUTOVG=1.3.2
+PLUTOSVG=0.0.7
 
-SHADERC=2024.1
-SHADERC_GLSLANG=142052fa30f9eca191aa9dcf65359fcaed09eeec
-SHADERC_SPIRVHEADERS=5e3ad389ee56fca27c9705d093ae5387ce404df4
-SHADERC_SPIRVTOOLS=dd4b663e13c07fea4fbb3f70c1c91c86731099f7
+SHADERC=2025.4
+SHADERC_GLSLANG=7a47e2531cb334982b2a2dd8513dca0a3de4373d
+SHADERC_SPIRVHEADERS=b824a462d4256d720bebb40e78b9eb8f78bbb305
+SHADERC_SPIRVTOOLS=971a7b6e8d7740035bbff089bbbf9f42951ecfd5
 
 mkdir -p deps-build
 cd deps-build
@@ -77,28 +78,30 @@ CMAKE_ARCH_ARM64=-DCMAKE_OSX_ARCHITECTURES="arm64"
 CMAKE_ARCH_UNIVERSAL=-DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"
 
 cat > SHASUMS <<EOF
-0550350666d427c74daeb85d5ac7bb353acba5f76956395995311a9c6f063289  freetype-$FREETYPE.tar.xz
-16c0204704f3ebeed057aba100fe7db18d71035505cb10e595ea33d346457fc8  harfbuzz-$HARFBUZZ.tar.gz
-b7e7dc05011b88c69170fe18935487b2559276955e49113f8c1b6b72c9b79c1f  $SDL.tar.gz
+32427e8c471ac095853212a37aef816c60b42052d4d9e48230bab3bdf2936ccc  freetype-$FREETYPE.tar.xz
+f63fc519f150465bd0bdafcdf3d0e9c23474f4c474171cd515ea1b3a72c081fb  harfbuzz-$HARFBUZZ.tar.gz
+dad488474a51a0b01d547cd2834893d6299328d2e30f479a3564088b5476bae2  $SDL.tar.gz
 eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3  zstd-$ZSTD.tar.gz
 537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b  lz4-$LZ4.tar.gz
-46fd06ff37db1db64c0dc288d78a3f5efd23ad9ac41561193f983e20937ece03  libpng-$LIBPNG.tar.xz
-7d6fab70cf844bf6769077bd5d7a74893f8ffd4dfb42861745750c63c2a5c92c  libwebp-$LIBWEBP.tar.gz
-9564c72b1dfd1d6fe6274c5f95a8d989b59854575d4bbee44ade7bc17aa9bc93  libjpeg-turbo-$LIBJPEGTURBO.tar.gz
-57be87c22d9b49c112b6d24bc67d42508660e6b718b3db89c44e47e289137082  ffmpeg-$FFMPEG.tar.xz
+1d3fb8ccc2932d04aa3663e22ef5ef490244370f4e568d7850165068778d98d4  libpng-$LIBPNG.tar.xz
+e4ab7009bf0629fd11982d4c2aa83964cf244cffba7347ecd39019a9e38c4564  libwebp-$LIBWEBP.tar.gz
+452a1a290bd0cf18737fad0057dc17b7fdf10a73eda2d6d4f31ba04fda25ef2c  libpng-$LIBPNG-apng.patch.gz
+8f0012234b464ce50890c490f18194f913a7b1f4e6a03d6644179fa0f867d0cf  libjpeg-turbo-$LIBJPEGTURBO.tar.gz
+b2751fccb6cc4c77708113cd78b561059b6fa904b24162fa0be2d60273d27b8e  ffmpeg-$FFMPEG.tar.xz
 f415a09385030c6510a936155ce211f617c31506db5fbc563e804345f1ecf56e  v$MOLTENVK.tar.gz
-8ccbb9ab055205ac76632c9eeddd1ed6fc66936fc56afc2ed0fd5d9e23da3097  qtbase-everywhere-src-$QT.tar.xz
-9fd58144081654c3373768dd96ead294023830927b14fe3d3c1ef641fb324753  qtimageformats-everywhere-src-$QT.tar.xz
-40142cb71fb1e07ad612bc361b67f5d54cd9367f9979ae6b86124a064deda06b  qtsvg-everywhere-src-$QT.tar.xz
-f03bb7df619cd9ac9dba110e30b7bcab5dd88eb8bdc9cc752563b4367233203f  qttools-everywhere-src-$QT.tar.xz
-dcc762acac043b9bb5e4d369b6d6f53e0ecfcf76a408fe0db5f7ef071c9d6dc8  qttranslations-everywhere-src-$QT.tar.xz
-eb3b5f0c16313d34f208d90c2fa1e588a23283eed63b101edd5422be6165d528  shaderc-$SHADERC.tar.gz
-aa27e4454ce631c5a17924ce0624eac736da19fc6f5a2ab15a6c58da7b36950f  shaderc-glslang-$SHADERC_GLSLANG.tar.gz
-5d866ce34a4b6908e262e5ebfffc0a5e11dd411640b5f24c85a80ad44c0d4697  shaderc-spirv-headers-$SHADERC_SPIRVHEADERS.tar.gz
-03ee1a2c06f3b61008478f4abe9423454e53e580b9488b47c8071547c6a9db47  shaderc-spirv-tools-$SHADERC_SPIRVTOOLS.tar.gz
-b8529755b2d54205341766ae168e83177c6120660539f9afba71af6bca4b81ec  KDDockWidgets-$KDDOCKWIDGETS.tar.gz
-f49d62709d6bf1808ddc9b8f71e22a755484f75c7bbb0fb368f7fb2ffc7cf645  plutovg-$PLUTOVG.tar.gz
-01f8aee511bd587a602a166642a96522cc9522efd1e38c2d00e4fbc0aa22d7a0  plutosvg-$PLUTOSVG.tar.gz
+5a6226f7e23db51fdc3223121eba53f3f5447cf0cc4d6cb82a3a2df7a65d265d  qtbase-everywhere-src-$QT.tar.xz
+498eabdf2381db96f808942b3e3c765f6360fe6c0e9961f0a45ff7a4c68d7a72  qtimageformats-everywhere-src-$QT.tar.xz
+c02f355a58f3bbcf404a628bf488b6aeb2d84a94c269afdb86f6e529343ab01f  qtsvg-everywhere-src-$QT.tar.xz
+8148408380ffea03101a26305c812b612ea30dbc07121e58707601522404d49b  qttools-everywhere-src-$QT.tar.xz
+8e49a2df88a12c376a479ae7bd272a91cf57ebb4e7c0cf7341b3565df99d2314  qttranslations-everywhere-src-$QT.tar.xz
+f1d3be3489f758efe1a8f12118a212febbe611aa670af32e0159fa3c1feab2a6  QtApng-$QTAPNG.tar.gz
+8a89fb6612ace8954470aae004623374a8fc8b7a34a4277bee5527173b064faf  shaderc-$SHADERC.tar.gz
+272d2725b140e09e85b96eecdc59c2e00c1a14cda2301767e1bf3c363a44b931  shaderc-glslang-$SHADERC_GLSLANG.tar.gz
+c693867f10a7760ef1bcf85419d51783586768cc2c601d03841bc6a8b2554b9c  shaderc-spirv-headers-$SHADERC_SPIRVHEADERS.tar.gz
+06b0a042f2e121e954badb4fd78c9e2d4bc7ed6087eceb26ab559c23cf94334f  shaderc-spirv-tools-$SHADERC_SPIRVTOOLS.tar.gz
+51dbf24fe72e43dd7cb9a289d3cab47112010f1a2ed69b6fc8ac0dff31991ed2  KDDockWidgets-$KDDOCKWIDGETS.tar.gz
+7bd4e79ce18b1d47517e7e91fbb7cf19d4f01942804a519bc7c0bf32b6325dd5  plutovg-$PLUTOVG.tar.gz
+78561b571ac224030cdc450ca2986b4de915c2ba7616004a6d71a379bffd15f3  plutosvg-$PLUTOSVG.tar.gz
 EOF
 
 curl -C - -L \
@@ -108,6 +111,7 @@ curl -C - -L \
 	-O "https://github.com/facebook/zstd/releases/download/v$ZSTD/zstd-$ZSTD.tar.gz" \
 	-O "https://github.com/lz4/lz4/releases/download/v$LZ4/lz4-$LZ4.tar.gz" \
 	-O "https://downloads.sourceforge.net/project/libpng/libpng16/$LIBPNG/libpng-$LIBPNG.tar.xz" \
+	-O "https://download.sourceforge.net/libpng-apng/libpng-$LIBPNG-apng.patch.gz" \
 	-O "https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/$LIBJPEGTURBO/libjpeg-turbo-$LIBJPEGTURBO.tar.gz" \
 	-O "https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-$LIBWEBP.tar.gz" \
 	-O "https://ffmpeg.org/releases/ffmpeg-$FFMPEG.tar.xz" \
@@ -117,6 +121,7 @@ curl -C - -L \
 	-O "https://download.qt.io/archive/qt/${QT%.*}/$QT/submodules/qtsvg-everywhere-src-$QT.tar.xz" \
 	-O "https://download.qt.io/archive/qt/${QT%.*}/$QT/submodules/qttools-everywhere-src-$QT.tar.xz" \
 	-O "https://download.qt.io/archive/qt/${QT%.*}/$QT/submodules/qttranslations-everywhere-src-$QT.tar.xz" \
+	-o "QtApng-$QTAPNG.tar.gz" "https://github.com/jurplel/QtApng/archive/refs/tags/$QTAPNG.tar.gz" \
 	-o "shaderc-$SHADERC.tar.gz" "https://github.com/google/shaderc/archive/refs/tags/v$SHADERC.tar.gz" \
 	-o "shaderc-glslang-$SHADERC_GLSLANG.tar.gz" "https://github.com/KhronosGroup/glslang/archive/$SHADERC_GLSLANG.tar.gz" \
 	-o "shaderc-spirv-headers-$SHADERC_SPIRVHEADERS.tar.gz" "https://github.com/KhronosGroup/SPIRV-Headers/archive/$SHADERC_SPIRVHEADERS.tar.gz" \
@@ -200,7 +205,9 @@ cd ..
 echo "Installing libpng..."
 rm -fr "libpng-$LIBPNG"
 tar xf "libpng-$LIBPNG.tar.xz"
+gunzip -d -f "libpng-$LIBPNG-apng.patch.gz"
 cd "libpng-$LIBPNG"
+patch -p1 < "../libpng-$LIBPNG-apng.patch"
 cmake "${CMAKE_COMMON[@]}" "$CMAKE_ARCH_X64" -DBUILD_SHARED_LIBS=ON -DPNG_TESTS=OFF -DPNG_FRAMEWORK=OFF -B build
 make -C build "-j$NPROCS"
 cmake "${CMAKE_COMMON[@]}" "$CMAKE_ARCH_ARM64" -DBUILD_SHARED_LIBS=ON -DPNG_TESTS=OFF -DPNG_FRAMEWORK=OFF -DPNG_ARM_NEON=on -B build-arm64
@@ -278,6 +285,10 @@ echo "Installing Qt Base..."
 rm -fr "qtbase-everywhere-src-$QT"
 tar xf "qtbase-everywhere-src-$QT.tar.xz"
 cd "qtbase-everywhere-src-$QT"
+
+# Patch Qt to support macOS 11
+patch -p1 < "$SCRIPTDIR/qt-macos11compat.patch"
+
 # since we don't have a direct reference to QtSvg, it doesn't deployed directly from the main binary
 # (only indirectly from iconengines), and the libqsvg.dylib imageformat plugin does not get deployed.
 # We could run macdeployqt twice, but that's even more janky than patching it.
@@ -313,7 +324,7 @@ tar xf "qtsvg-everywhere-src-$QT.tar.xz"
 cd "qtsvg-everywhere-src-$QT"
 mkdir build
 cd build
-"$INSTALLDIR/bin/qt-configure-module" .. -- "${CMAKE_COMMON[@]}" "$CMAKE_ARCH_UNIVERSAL"
+"$INSTALLDIR/bin/qt-configure-module" .. -- "${CMAKE_COMMON[@]}" "$CMAKE_ARCH_UNIVERSAL" -DQT_GENERATE_SBOM=OFF
 make "-j$NPROCS"
 make install
 cd ../..
@@ -324,7 +335,7 @@ tar xf "qtimageformats-everywhere-src-$QT.tar.xz"
 cd "qtimageformats-everywhere-src-$QT"
 mkdir build
 cd build
-"$INSTALLDIR/bin/qt-configure-module" .. -- "${CMAKE_COMMON[@]}" "$CMAKE_ARCH_UNIVERSAL" -DFEATURE_system_webp=ON
+"$INSTALLDIR/bin/qt-configure-module" .. -- "${CMAKE_COMMON[@]}" "$CMAKE_ARCH_UNIVERSAL" -DQT_GENERATE_SBOM=OFF -DFEATURE_system_webp=ON
 make "-j$NPROCS"
 make install
 cd ../..
@@ -335,7 +346,7 @@ tar xf "qttools-everywhere-src-$QT.tar.xz"
 cd "qttools-everywhere-src-$QT"
 mkdir build
 cd build
-"$INSTALLDIR/bin/qt-configure-module" .. -- "${CMAKE_COMMON[@]}" "$CMAKE_ARCH_UNIVERSAL" -DFEATURE_assistant=OFF -DFEATURE_clang=OFF -DFEATURE_designer=OFF -DFEATURE_kmap2qmap=OFF -DFEATURE_pixeltool=OFF -DFEATURE_pkg_config=OFF -DFEATURE_qev=OFF -DFEATURE_qtattributionsscanner=OFF -DFEATURE_qtdiag=OFF -DFEATURE_qtplugininfo=OFF
+"$INSTALLDIR/bin/qt-configure-module" .. -- "${CMAKE_COMMON[@]}" "$CMAKE_ARCH_UNIVERSAL" -DQT_GENERATE_SBOM=OFF -DFEATURE_assistant=OFF -DFEATURE_clang=OFF -DFEATURE_designer=OFF -DFEATURE_kmap2qmap=OFF -DFEATURE_pixeltool=OFF -DFEATURE_pkg_config=OFF -DFEATURE_qev=OFF -DFEATURE_qtattributionsscanner=OFF -DFEATURE_qtdiag=OFF -DFEATURE_qtplugininfo=OFF
 make "-j$NPROCS"
 make install
 cd ../..
@@ -364,19 +375,28 @@ tar xf "qttranslations-everywhere-src-$QT.tar.xz"
 cd "qttranslations-everywhere-src-$QT"
 mkdir build
 cd build
-"$INSTALLDIR/bin/qt-configure-module" .. -- "${CMAKE_COMMON[@]}" "$CMAKE_ARCH_UNIVERSAL"
+"$INSTALLDIR/bin/qt-configure-module" .. -- "${CMAKE_COMMON[@]}" "$CMAKE_ARCH_UNIVERSAL" -DQT_GENERATE_SBOM=OFF
 make "-j$NPROCS"
 make install
 cd ../..
+
+echo "Building Qt APNG..."
+rm -fr "QtApng-$QTAPNG"
+tar xf "QtApng-$QTAPNG.tar.gz"
+cd "QtApng-$QTAPNG"
+patch -p1 < "$SCRIPTDIR/../common/qtapng-cmake.patch"
+cmake "${CMAKE_COMMON[@]}" "$CMAKE_ARCH_UNIVERSAL" -B build
+make -C build "-j$NPROCS"
+make -C build install
+cd ..
 
 echo "Building KDDockWidgets..."
 rm -fr "KDDockWidgets-$KDDOCKWIDGETS"
 tar xf "KDDockWidgets-$KDDOCKWIDGETS.tar.gz"
 cd "KDDockWidgets-$KDDOCKWIDGETS"
-patch -p1 < "$SCRIPTDIR/../common/kddockwidgets-dodgy-include.patch"
 cmake "${CMAKE_COMMON[@]}" "$CMAKE_ARCH_UNIVERSAL" -DKDDockWidgets_QT6=true -DKDDockWidgets_EXAMPLES=false -DKDDockWidgets_FRONTENDS=qtwidgets -B build
-cmake --build build --parallel
-cmake --install build
+make -C build "-j$NPROCS"
+make -C build install
 cd ..
 
 echo "Building PlutoVG..."

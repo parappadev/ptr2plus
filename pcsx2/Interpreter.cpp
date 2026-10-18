@@ -30,7 +30,7 @@ static bool intExitExecution = false;
 static fastjmp_buf intJmpBuf;
 static u32 intLastBranchTo;
 
-static void intEventTest();
+void intEventTest();
 
 void intUpdateCPUCycles()
 {
@@ -73,7 +73,10 @@ void intBreakpoint(bool memcheck)
 {
 	const u32 pc = cpuRegs.pc;
  	if (CBreakPoints::CheckSkipFirst(BREAKPOINT_EE, pc) != 0)
+	{
+		CBreakPoints::ClearSkipFirst(BREAKPOINT_EE);
 		return;
+	}
 
 	if (!memcheck)
 	{
@@ -90,7 +93,7 @@ void intBreakpoint(bool memcheck)
 void intMemcheck(u32 op, u32 bits, bool store)
 {
 	// compute accessed address
-	u32 start = cpuRegs.GPR.r[(op >> 21) & 0x1F].UD[0];
+	u32 start = cpuRegs.GPR.r[(op >> 21) & 0x1F].UL[0];
 	if (static_cast<s16>(op) != 0)
 		start += static_cast<s16>(op);
 	if (bits == 128)
@@ -167,6 +170,8 @@ static void execI()
 		intBreakpoint(false);
 
 	intCheckMemcheck();
+
+	CBreakPoints::CommitClearSkipFirst(BREAKPOINT_EE);
 #endif
 
 	const u32 pc = cpuRegs.pc;
@@ -558,7 +563,7 @@ static void intReset()
 	branch2 = 0;
 }
 
-static void intEventTest()
+void intEventTest()
 {
 	// Perform counters, ints, and IOP updates:
 	_cpuEventTest_Shared();

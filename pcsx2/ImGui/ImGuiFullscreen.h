@@ -5,7 +5,7 @@
 
 #include "common/Pcsx2Defs.h"
 
-#include "IconsFontAwesome5.h"
+#include "IconsFontAwesome6.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 
@@ -43,10 +43,10 @@ namespace ImGuiFullscreen
 	static constexpr float LAYOUT_HORIZONTAL_MENU_ITEM_WIDTH = 250.0f;
 
 	extern std::string current_summary;
-
-	extern ImFont* g_standard_font;
-	extern ImFont* g_medium_font;
-	extern ImFont* g_large_font;
+	
+	extern std::pair<ImFont*, float> g_standard_font;
+	extern std::pair<ImFont*, float> g_medium_font;
+	extern std::pair<ImFont*, float> g_large_font;
 
 	extern ImVec2 s_display_size;
 	extern ImVec2 s_game_size;
@@ -101,8 +101,10 @@ namespace ImGuiFullscreen
 	bool Initialize(const char* placeholder_image_path);
 
 	void SetTheme(std::string_view theme);
-	void SetFonts(ImFont* standard_font, ImFont* medium_font, ImFont* large_font);
+	void SetFont(ImFont* standard_font);
 	bool UpdateLayoutScale();
+	void UpdateFontScale();
+
 	GSVector2i EstimateGameRect();
 
 	/// Shuts down, optionally clearing all state (including notifications).
@@ -177,6 +179,8 @@ namespace ImGuiFullscreen
 	void CreateFooterTextString(SmallStringBase& dest, std::span<const std::pair<const char*, std::string_view>> items);
 	void SetFullscreenFooterText(std::string_view text);
 	void SetFullscreenFooterText(std::span<const std::pair<const char*, std::string_view>> items);
+	void AppendToFullscreenFooterText(std::span<const std::pair<const char*, std::string_view>> items);
+	void QueueFooterHint(std::span<const std::pair<const char*, std::string_view>> items);
 	void DrawFullscreenFooter();
 
 	void PrerenderMenuButtonBorder();
@@ -191,37 +195,37 @@ namespace ImGuiFullscreen
 	void MenuHeading(const char* title, bool draw_line = true);
 	bool MenuHeadingButton(const char* title, const char* value = nullptr, bool enabled = true, bool draw_line = true);
 	bool ActiveButton(const char* title, bool is_active, bool enabled = true, float height = LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY,
-		ImFont* font = g_large_font);
+		std::pair<ImFont*, float> font = g_large_font);
 	bool ActiveButtonCenter(const char* title, bool is_active, bool enabled = true, float height = LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY,
-		ImFont* font = g_large_font);
+		std::pair<ImFont*, float> = g_large_font);
 	bool ActiveButtonWithRightText(const char* title, const char* right_title, bool is_active, bool enabled = true,
-		float height = LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY, ImFont* font = g_large_font, bool centered = false);
+		float height = LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY, std::pair<ImFont*, float> font = g_large_font, bool centered = false);
 	bool MenuButton(const char* title, const char* summary, bool enabled = true, float height = LAYOUT_MENU_BUTTON_HEIGHT, bool outline = true,
-		ImFont* font = g_large_font, ImFont* summary_font = g_medium_font);
+		std::pair<ImFont*, float> font = g_large_font, std::pair<ImFont*, float> summary_font = g_medium_font);
 	bool MenuButtonWithoutSummary(const char* title, bool enabled = true, float height = LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY,
-		ImFont* font = g_large_font, const ImVec2& text_align = ImVec2(0.0f, 0.0f));
+		std::pair<ImFont*, float> font = g_large_font, const ImVec2& text_align = ImVec2(0.0f, 0.0f));
 	bool MenuButtonWithValue(const char* title, const char* summary, const char* value, bool enabled = true,
-		float height = LAYOUT_MENU_BUTTON_HEIGHT, ImFont* font = g_large_font, ImFont* summary_font = g_medium_font);
+		float height = LAYOUT_MENU_BUTTON_HEIGHT, std::pair<ImFont*, float> font = g_large_font, std::pair<ImFont*, float> summary_font = g_medium_font);
 	bool MenuImageButton(const char* title, const char* summary, ImTextureID user_texture_id, const ImVec2& image_size, bool enabled = true,
 		float height = LAYOUT_MENU_BUTTON_HEIGHT, const ImVec2& uv0 = ImVec2(0.0f, 0.0f), const ImVec2& uv1 = ImVec2(1.0f, 1.0f),
-		ImFont* font = g_large_font, ImFont* summary_font = g_medium_font);
+		std::pair<ImFont*, float> font = g_large_font, std::pair<ImFont*, float> summary_font = g_medium_font);
 	bool FloatingButton(const char* text, float x, float y, float width = -1.0f, float height = LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY,
-		float anchor_x = 0.0f, float anchor_y = 0.0f, bool enabled = true, ImFont* font = g_large_font, ImVec2* out_position = nullptr,
+		float anchor_x = 0.0f, float anchor_y = 0.0f, bool enabled = true, std::pair<ImFont*, float> font = g_large_font, ImVec2* out_position = nullptr,
 		bool repeat_button = false);
 	bool ToggleButton(const char* title, const char* summary, bool* v, bool enabled = true, float height = LAYOUT_MENU_BUTTON_HEIGHT,
-		ImFont* font = g_large_font, ImFont* summary_font = g_medium_font);
+		std::pair<ImFont*, float> font = g_large_font, std::pair<ImFont*, float> summary_font = g_medium_font);
 	bool ThreeWayToggleButton(const char* title, const char* summary, std::optional<bool>* v, bool enabled = true,
-		float height = LAYOUT_MENU_BUTTON_HEIGHT, ImFont* font = g_large_font, ImFont* summary_font = g_medium_font);
+		float height = LAYOUT_MENU_BUTTON_HEIGHT, std::pair<ImFont*, float> font = g_large_font, std::pair<ImFont*, float> summary_font = g_medium_font);
 	bool EnumChoiceButtonImpl(const char* title, const char* summary, s32* value_pointer,
-		const char* (*to_display_name_function)(s32 value, void* opaque), void* opaque, u32 count, bool enabled, float height, ImFont* font,
-		ImFont* summary_font);
+		const char* (*to_display_name_function)(s32 value, void* opaque), void* opaque, u32 count, bool enabled, float height, std::pair<ImFont*, float> font,
+		std::pair<ImFont*, float> summary_font);
 
 	void DrawSettingsTextOutline(ImRect title_bb, ImFont* title_font, const char* title, float outline_size, bool enabled, ImVec2 align);
 
 	template <typename DataType, typename CountType>
 	static __fi bool EnumChoiceButton(const char* title, const char* summary, DataType* value_pointer,
 		const char* (*to_display_name_function)(DataType value), CountType count, bool enabled = true,
-		float height = LAYOUT_MENU_BUTTON_HEIGHT, ImFont* font = g_large_font, ImFont* summary_font = g_medium_font)
+		float height = LAYOUT_MENU_BUTTON_HEIGHT, std::pair<ImFont*, float> font = g_large_font, std::pair<ImFont*, float> summary_font = g_medium_font)
 	{
 		s32 value = static_cast<s32>(*value_pointer);
 		auto to_display_name_wrapper = [](s32 value, void* opaque) -> const char* {
@@ -242,13 +246,13 @@ namespace ImGuiFullscreen
 
 	void BeginNavBar(float x_padding = LAYOUT_MENU_BUTTON_X_PADDING, float y_padding = LAYOUT_MENU_BUTTON_Y_PADDING);
 	void EndNavBar();
-	void NavTitle(const char* title, float height = LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY, ImFont* font = g_large_font);
+	void NavTitle(const char* title, float height = LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY, std::pair<ImFont*, float> font = g_large_font);
 	void RightAlignNavButtons(u32 num_items = 0, float item_width = LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY,
 		float item_height = LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY);
 	bool NavButton(const char* title, bool is_active, bool enabled = true, float width = -1.0f,
-		float height = LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY, ImFont* font = g_large_font);
+		float height = LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY, std::pair<ImFont*, float> font = g_large_font);
 	bool NavTab(const char* title, bool is_active, bool enabled, float width, float height, const ImVec4& background,
-		ImFont* font = g_large_font);
+		std::pair<ImFont*, float> font = g_large_font);
 
 	bool BeginHorizontalMenu(const char* name, const ImVec2& position, const ImVec2& size, u32 num_items);
 	void EndHorizontalMenu();
@@ -271,29 +275,38 @@ namespace ImGuiFullscreen
 
 	using InputStringDialogCallback = std::function<void(std::string text)>;
 	bool IsInputDialogOpen();
+	enum class InputFilterType : u8
+	{
+		None,
+		Numeric,
+		IPAddress
+	};
+
 	void OpenInputStringDialog(
-		std::string title, std::string message, std::string caption, std::string ok_button_text, InputStringDialogCallback callback);
+		std::string title, std::string message, std::string caption, std::string ok_button_text, InputStringDialogCallback callback,
+		std::string default_value = std::string(), InputFilterType filter_type = InputFilterType::None);
 	void CloseInputDialog();
 
 	using ConfirmMessageDialogCallback = std::function<void(bool)>;
 	using InfoMessageDialogCallback = std::function<void()>;
 	using MessageDialogCallback = std::function<void(s32)>;
 	bool IsMessageBoxDialogOpen();
-	void OpenConfirmMessageDialog(std::string title, std::string message, ConfirmMessageDialogCallback callback,
-		std::string yes_button_text = ICON_FA_CHECK " Yes", std::string no_button_text = ICON_FA_TIMES " No");
+	void OpenConfirmMessageDialog(std::string title, std::string message, ConfirmMessageDialogCallback callback, bool default_yes = true,
+		std::string yes_button_text = ICON_FA_CHECK " Yes", std::string no_button_text = ICON_FA_XMARK " No");
 	void OpenInfoMessageDialog(std::string title, std::string message, InfoMessageDialogCallback callback = {},
-		std::string button_text = ICON_FA_WINDOW_CLOSE " Close");
-	void OpenMessageDialog(std::string title, std::string message, MessageDialogCallback callback, std::string first_button_text,
+		std::string button_text = ICON_FA_SQUARE_XMARK " Close");
+	void OpenMessageDialog(std::string title, std::string message, MessageDialogCallback callback, s32 default_index, std::string first_button_text,
 		std::string second_button_text, std::string third_button_text);
 	void CloseMessageDialog();
 
 	float GetNotificationVerticalPosition();
 	float GetNotificationVerticalDirection();
 	void SetNotificationVerticalPosition(float position, float direction);
+	void SetNotificationPosition(float horizontal_position, float vertical_position, float direction);
 
-	void OpenBackgroundProgressDialog(const char* str_id, std::string message, s32 min, s32 max, s32 value);
-	void UpdateBackgroundProgressDialog(const char* str_id, std::string message, s32 min, s32 max, s32 value);
-	void CloseBackgroundProgressDialog(const char* str_id);
+	void OpenProgressDialog(const char* str_id, std::string message, s32 min, s32 max, s32 value);
+	void UpdateProgressDialog(const char* str_id, std::string message, s32 min, s32 max, s32 value);
+	void CloseProgressDialog(const char* str_id);
 
 	void AddNotification(std::string key, float duration, std::string title, std::string text, std::string image_path);
 	void ClearNotifications();

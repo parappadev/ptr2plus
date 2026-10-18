@@ -331,12 +331,6 @@ bool GSDevice::Create(GSVSyncMode vsync_mode, bool allow_present_throttle)
 
 void GSDevice::Destroy()
 {
-	if (m_imgui_font)
-	{
-		Recycle(m_imgui_font);
-		m_imgui_font = nullptr;
-	}
-
 	ClearCurrent();
 	PurgePool();
 }
@@ -403,42 +397,148 @@ void GSDevice::ClearDepth(GSTexture* t, float d)
 	t->SetClearDepth(d);
 }
 
+bool GSDevice::ProcessClearsBeforeCopy(GSTexture* sTex, GSTexture* dTex, const bool full_copy)
+{
+	pxAssert(sTex->GetState() == GSTexture::State::Cleared && dTex->IsRenderTargetOrDepthStencil());
+
+	// Pass it forward if we're clearing the whole thing.
+	if (full_copy)
+	{
+		if (dTex->IsDepthStencil())
+			dTex->SetClearDepth(sTex->GetClearDepth());
+		else
+			dTex->SetClearColor(sTex->GetClearColor());
+
+		dTex->SetState(GSTexture::State::Cleared);
+
+		return true;
+	}
+
+	// Destination is cleared, if it's the same colour and rect, we can just avoid this entirely.
+	if (dTex->GetState() == GSTexture::State::Cleared)
+	{
+		if (dTex->IsDepthStencil())
+		{
+			if (dTex->GetClearDepth() == sTex->GetClearDepth())
+				return true;
+		}
+		else
+		{
+			if (dTex->GetClearColor() == sTex->GetClearColor())
+				return true;
+		}
+	}
+
+	return false;
+}
+
 void GSDevice::InvalidateRenderTarget(GSTexture* t)
 {
 	t->SetState(GSTexture::State::Invalidated);
 }
 
-bool GSDevice::UpdateImGuiFontTexture()
+void GSDevice::UpdateImGuiTextures()
 {
-	ImGuiIO& io = ImGui::GetIO();
-
-	unsigned char* pixels;
-	int width, height;
-	io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-
-	const GSVector4i r(0, 0, width, height);
-	const int pitch = sizeof(u32) * width;
-
-	if (m_imgui_font && m_imgui_font->GetWidth() == width && m_imgui_font->GetHeight() == height &&
-		m_imgui_font->Update(r, pixels, pitch))
+	// TODO, use ImDrawData https://github.com/ocornut/imgui/issues/8597#issuecomment-2871835598
+	for (ImTextureData* im_tex : ImGui::GetPlatformIO().Textures)
 	{
-		io.Fonts->SetTexID(reinterpret_cast<ImTextureID>(m_imgui_font->GetNativeHandle()));
-		return true;
-	}
+		switch (im_tex->Status)
+		{
+			case ImTextureStatus_OK:
+			case ImTextureStatus_Destroyed:
+				continue;
+			case ImTextureStatus_WantCreate:
+			{
+				GSTexture* gs_tex = g_gs_device->CreateTexture(im_tex->Width, im_tex->Height, 1, GSTexture::Format::Color);
+				if (!gs_tex)
+					pxFailRel("Failed to create ImGui texture");
 
-	GSTexture* new_font = CreateTexture(width, height, 1, GSTexture::Format::Color);
-	if (!new_font || !new_font->Update(r, pixels, pitch))
+				im_tex->SetTexID(reinterpret_cast<ImTextureID>(gs_tex->GetNativeHandle()));
+				im_tex->BackendUserData = gs_tex;
+				[[fallthrough]];
+			}
+			case ImTextureStatus_WantUpdates:
+			{
+				// If we fell through from WantCreate, then we are uploading the full size
+				// Otherwise, we are just updating the specified region
+				// clange-format off
+				const int upload_x = (im_tex->Status == ImTextureStatus_WantCreate) ? 0 : im_tex->UpdateRect.x;
+				const int upload_y = (im_tex->Status == ImTextureStatus_WantCreate) ? 0 : im_tex->UpdateRect.y;
+				const int upload_w = (im_tex->Status == ImTextureStatus_WantCreate) ? im_tex->Width : im_tex->UpdateRect.w;
+				const int upload_h = (im_tex->Status == ImTextureStatus_WantCreate) ? im_tex->Height : im_tex->UpdateRect.h;
+				const int upload_pitch = upload_w * im_tex->BytesPerPixel;
+				// clange-format on
+
+				const GSVector4i rect{
+					upload_x,
+					upload_y,
+					upload_x + upload_w,
+					upload_y + upload_h,
+				};
+
+				GSTexture* gs_tex = static_cast<GSTexture*>(im_tex->BackendUserData);
+				GSTexture::GSMap map;
+				if (gs_tex->Map(map, &rect))
+				{
+					for (int y = 0; y < upload_h; y++)
+						std::memcpy(map.bits + map.pitch * y, im_tex->GetPixelsAt(rect.x, rect.y + y), upload_pitch);
+
+					gs_tex->Unmap();
+				}
+				else
+				{
+					for (int y = 0; y < upload_h; y++)
+						gs_tex->Update({rect.left, rect.top + y, rect.right, rect.top + y + 1},
+							im_tex->GetPixelsAt(rect.x, rect.y + y), upload_pitch);
+				}
+
+				im_tex->Status = ImTextureStatus_OK;
+				break;
+			}
+			case ImTextureStatus_WantDestroy:
+			{
+				GSTexture* gs_tex = static_cast<GSTexture*>(im_tex->BackendUserData);
+				if (gs_tex == nullptr)
+					break;
+
+				// While it's unlikely we're going to reuse the same size as imgui for rendering,
+				// imgui may request a new atlas of the same size if old font sizes are evicted.
+				Recycle(gs_tex);
+
+				im_tex->SetTexID(ImTextureID_Invalid);
+				im_tex->BackendUserData = nullptr;
+				im_tex->Status = ImTextureStatus_Destroyed;
+				break;
+			}
+			default:
+				pxAssert(false);
+				break;
+		}
+	}
+}
+
+void GSDevice::DestroyImGuiTextures()
+{
+	if (!ImGui::GetCurrentContext())
+		return;
+
+	for (ImTextureData* im_tex : ImGui::GetPlatformIO().Textures)
 	{
-		io.Fonts->SetTexID(reinterpret_cast<ImTextureID>(m_imgui_font ? m_imgui_font->GetNativeHandle() : nullptr));
-		return false;
+		if (im_tex->Status != ImTextureStatus_Destroyed)
+		{
+			GSTexture* gs_tex = static_cast<GSTexture*>(im_tex->BackendUserData);
+			if (gs_tex == nullptr)
+				continue;
+
+			Recycle(gs_tex);
+
+			pxAssert(im_tex->RefCount == 1);
+
+			im_tex->SetTexID(ImTextureID_Invalid);
+			im_tex->BackendUserData = nullptr;
+			im_tex->Status = ImTextureStatus_Destroyed;
+		}
 	}
-
-	// Don't bother recycling, it's unlikely we're going to reuse the same size as imgui for rendering.
-	delete m_imgui_font;
-
-	m_imgui_font = new_font;
-	ImGui::GetIO().Fonts->SetTexID(reinterpret_cast<ImTextureID>(new_font->GetNativeHandle()));
-	return true;
 }
 
 void GSDevice::TextureRecycleDeleter::operator()(GSTexture* const tex)
@@ -623,6 +723,39 @@ GSTexture* GSDevice::CreateTexture(int w, int h, int mipmap_levels, GSTexture::F
 	return FetchSurface(GSTexture::Type::Texture, w, h, levels, format, false, m_features.prefer_new_textures && !prefer_reuse);
 }
 
+void GSDevice::DoStretchRectWithAssertions(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect,
+	GSHWDrawConfig::ColorMaskSelector cms, ShaderConvert shader, bool linear)
+{
+	pxAssert((dTex && dTex->IsDepthStencil()) == HasDepthOutput(shader));
+	pxAssert(linear ? SupportsBilinear(shader) : SupportsNearest(shader));
+	GL_INS("StretchRect(%d) {%d,%d} %dx%d -> {%d,%d) %dx%d", shader, int(sRect.left), int(sRect.top),
+		int(sRect.right - sRect.left), int(sRect.bottom - sRect.top), int(dRect.left), int(dRect.top),
+		int(dRect.right - dRect.left), int(dRect.bottom - dRect.top));
+	DoStretchRect(sTex, sRect, dTex, dRect, cms, shader, linear);
+}
+
+void GSDevice::StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect,
+	bool red, bool green, bool blue, bool alpha, ShaderConvert shader)
+{
+	GSHWDrawConfig::ColorMaskSelector cms;
+
+	cms.wr = red;
+	cms.wg = green;
+	cms.wb = blue;
+	cms.wa = alpha;
+
+	pxAssert(HasVariableWriteMask(shader));
+	GL_INS("ColorCopy Red:%d Green:%d Blue:%d Alpha:%d", cms.wr, cms.wg, cms.wb, cms.wa);
+
+	DoStretchRectWithAssertions(sTex, sRect, dTex, dRect, cms, shader, false);
+}
+
+void GSDevice::StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect,
+	ShaderConvert shader, bool linear)
+{
+	DoStretchRectWithAssertions(sTex, sRect, dTex, dRect, GSHWDrawConfig::ColorMaskSelector(ShaderConvertWriteMask(shader)), shader, linear);
+}
+
 void GSDevice::StretchRect(GSTexture* sTex, GSTexture* dTex, const GSVector4& dRect, ShaderConvert shader, bool linear)
 {
 	StretchRect(sTex, GSVector4(0, 0, 1, 1), dTex, dRect, shader, linear);
@@ -634,11 +767,11 @@ void GSDevice::DrawMultiStretchRects(
 	for (u32 i = 0; i < num_rects; i++)
 	{
 		const MultiStretchRect& sr = rects[i];
-		pxAssert(shader == ShaderConvert::COPY || shader == ShaderConvert::RTA_CORRECTION || rects[0].wmask.wrgba == 0xf);
+		pxAssert(HasVariableWriteMask(shader) || rects[0].wmask.wrgba == 0xf);
 		if (rects[0].wmask.wrgba != 0xf)
 		{
 			g_gs_device->StretchRect(sr.src, sr.src_rect, dTex, sr.dst_rect, rects[0].wmask.wr,
-				rects[0].wmask.wg, rects[0].wmask.wb, rects[0].wmask.wa);
+				rects[0].wmask.wg, rects[0].wmask.wb, rects[0].wmask.wa, shader);
 		}
 		else
 		{
@@ -770,6 +903,7 @@ void GSDevice::ShadeBoost()
 			static_cast<float>(GSConfig.ShadeBoost_Brightness) * (1.0f / 50.0f),
 			static_cast<float>(GSConfig.ShadeBoost_Contrast) * (1.0f / 50.0f),
 			static_cast<float>(GSConfig.ShadeBoost_Saturation) * (1.0f / 50.0f),
+			static_cast<float>(GSConfig.ShadeBoost_Gamma) * (1.0f / 50.0f),
 		};
 
 		DoShadeBoost(m_current, m_target_tmp, params);

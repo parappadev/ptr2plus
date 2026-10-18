@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cfloat>
 #include <fstream>
+#include <sstream>
 #include <iomanip>
 #include <bit>
 
@@ -25,11 +26,6 @@ int GSState::s_transfer_n = 0;
 static __fi bool IsAutoFlushEnabled()
 {
 	return GSIsHardwareRenderer() ? (GSConfig.UserHacks_AutoFlush != GSHWAutoFlushLevel::Disabled) : GSConfig.AutoFlushSW;
-}
-
-static __fi bool IsFirstProvokingVertex()
-{
-	return (GSIsHardwareRenderer() && !g_gs_device->Features().provoking_vertex_last);
 }
 
 constexpr int GSState::GetSaveStateSize(int version)
@@ -99,7 +95,7 @@ constexpr int GSState::GetSaveStateSize(int version)
 }
 
 GSState::GSState()
-	: m_vt(this, IsFirstProvokingVertex())
+	: m_vt(this)
 {
 	// m_nativeres seems to be a hack. Unfortunately it impacts draw call number which make debug painful in the replayer.
 	// Let's keep it disabled to ease debug.
@@ -130,6 +126,8 @@ GSState::~GSState()
 {
 	if (m_vertex.buff)
 		_aligned_free(m_vertex.buff);
+	if (m_vertex.buff_copy)
+		_aligned_free(m_vertex.buff_copy);
 	if (m_index.buff)
 		_aligned_free(m_index.buff);
 	if (m_draw_vertex.buff)
@@ -204,31 +202,34 @@ void GSState::Reset(bool hardware_reset)
 	m_backed_up_ctx = -1;
 
 	memcpy(&m_prev_env, &m_env, sizeof(m_prev_env));
+
+	m_perfmon_draw.Reset();
+	m_perfmon_frame.Reset();
 }
 
-template<bool auto_flush, bool index_swap>
+template<bool auto_flush>
 void GSState::SetPrimHandlers()
 {
-#define SetHandlerXYZ(P, auto_flush, index_swap) \
-	m_fpGIFPackedRegHandlerXYZ[P][0] = &GSState::GIFPackedRegHandlerXYZF2<P, 0, auto_flush, index_swap>; \
-	m_fpGIFPackedRegHandlerXYZ[P][1] = &GSState::GIFPackedRegHandlerXYZF2<P, 1, auto_flush, index_swap>; \
-	m_fpGIFPackedRegHandlerXYZ[P][2] = &GSState::GIFPackedRegHandlerXYZ2<P, 0, auto_flush, index_swap>; \
-	m_fpGIFPackedRegHandlerXYZ[P][3] = &GSState::GIFPackedRegHandlerXYZ2<P, 1, auto_flush, index_swap>; \
-	m_fpGIFRegHandlerXYZ[P][0] = &GSState::GIFRegHandlerXYZF2<P, 0, auto_flush, index_swap>; \
-	m_fpGIFRegHandlerXYZ[P][1] = &GSState::GIFRegHandlerXYZF2<P, 1, auto_flush, index_swap>; \
-	m_fpGIFRegHandlerXYZ[P][2] = &GSState::GIFRegHandlerXYZ2<P, 0, auto_flush, index_swap>; \
-	m_fpGIFRegHandlerXYZ[P][3] = &GSState::GIFRegHandlerXYZ2<P, 1, auto_flush, index_swap>; \
-	m_fpGIFPackedRegHandlerSTQRGBAXYZF2[P] = &GSState::GIFPackedRegHandlerSTQRGBAXYZF2<P, auto_flush, index_swap>; \
-	m_fpGIFPackedRegHandlerSTQRGBAXYZ2[P] = &GSState::GIFPackedRegHandlerSTQRGBAXYZ2<P, auto_flush, index_swap>;
+#define SetHandlerXYZ(P, auto_flush) \
+	m_fpGIFPackedRegHandlerXYZ[P][0] = &GSState::GIFPackedRegHandlerXYZF2<P, 0, auto_flush>; \
+	m_fpGIFPackedRegHandlerXYZ[P][1] = &GSState::GIFPackedRegHandlerXYZF2<P, 1, auto_flush>; \
+	m_fpGIFPackedRegHandlerXYZ[P][2] = &GSState::GIFPackedRegHandlerXYZ2<P, 0, auto_flush>; \
+	m_fpGIFPackedRegHandlerXYZ[P][3] = &GSState::GIFPackedRegHandlerXYZ2<P, 1, auto_flush>; \
+	m_fpGIFRegHandlerXYZ[P][0] = &GSState::GIFRegHandlerXYZF2<P, 0, auto_flush>; \
+	m_fpGIFRegHandlerXYZ[P][1] = &GSState::GIFRegHandlerXYZF2<P, 1, auto_flush>; \
+	m_fpGIFRegHandlerXYZ[P][2] = &GSState::GIFRegHandlerXYZ2<P, 0, auto_flush>; \
+	m_fpGIFRegHandlerXYZ[P][3] = &GSState::GIFRegHandlerXYZ2<P, 1, auto_flush>; \
+	m_fpGIFPackedRegHandlerSTQRGBAXYZF2[P] = &GSState::GIFPackedRegHandlerSTQRGBAXYZF2<P, auto_flush>; \
+	m_fpGIFPackedRegHandlerSTQRGBAXYZ2[P] = &GSState::GIFPackedRegHandlerSTQRGBAXYZ2<P, auto_flush>;
 
-	SetHandlerXYZ(GS_POINTLIST, true, false);
-	SetHandlerXYZ(GS_LINELIST, auto_flush, index_swap);
-	SetHandlerXYZ(GS_LINESTRIP, auto_flush, index_swap);
-	SetHandlerXYZ(GS_TRIANGLELIST, auto_flush, index_swap);
-	SetHandlerXYZ(GS_TRIANGLESTRIP, auto_flush, index_swap);
-	SetHandlerXYZ(GS_TRIANGLEFAN, auto_flush, index_swap);
-	SetHandlerXYZ(GS_SPRITE, auto_flush, false);
-	SetHandlerXYZ(GS_INVALID, auto_flush, false);
+	SetHandlerXYZ(GS_POINTLIST, true);
+	SetHandlerXYZ(GS_LINELIST, auto_flush);
+	SetHandlerXYZ(GS_LINESTRIP, auto_flush);
+	SetHandlerXYZ(GS_TRIANGLELIST, auto_flush);
+	SetHandlerXYZ(GS_TRIANGLESTRIP, auto_flush);
+	SetHandlerXYZ(GS_TRIANGLEFAN, auto_flush);
+	SetHandlerXYZ(GS_SPRITE, auto_flush);
+	SetHandlerXYZ(GS_INVALID, auto_flush);
 
 #undef SetHandlerXYZ
 }
@@ -249,11 +250,10 @@ void GSState::ResetHandlers()
 	m_fpGIFPackedRegHandlers[GIF_REG_A_D] = &GSState::GIFPackedRegHandlerA_D;
 	m_fpGIFPackedRegHandlers[GIF_REG_NOP] = &GSState::GIFPackedRegHandlerNOP;
 
-	// swap first/last indices when the provoking vertex is the first (D3D/Vulkan)
 	if (IsAutoFlushEnabled())
-		IsFirstProvokingVertex() ? SetPrimHandlers<true, true>() : SetPrimHandlers<true, false>();
+		SetPrimHandlers<true>();
 	else
-		IsFirstProvokingVertex() ? SetPrimHandlers<false, true>() : SetPrimHandlers<false, false>();
+		SetPrimHandlers<false>();
 
 	std::fill(std::begin(m_fpGIFRegHandlers), std::end(m_fpGIFRegHandlers), &GSState::GIFRegHandlerNull);
 
@@ -437,6 +437,34 @@ const char* GSState::GetFlushReasonString(GSFlushReason reason)
 	}
 }
 
+void GSState::DumpDrawInfo(bool dump_regs, bool dump_verts, bool dump_transfers)
+{
+	std::string s;
+
+	// Dump Register state
+	if (dump_regs)
+	{
+		s = GetDrawDumpPath("%05d_context.txt", s_n);
+
+		m_draw_env->Dump(s);
+		m_context->Dump(s);
+	}
+
+	// Dump vertices
+	if (dump_verts)
+	{
+		s = GetDrawDumpPath("%05d_vertex.txt", s_n);
+		DumpVertices(s);
+	}
+
+	// Dump transfers
+	if (dump_transfers)
+	{
+		s = GetDrawDumpPath("%05d_transfers.txt", s_n);
+		DumpTransferList(s);
+	}
+}
+
 void GSState::DumpVertices(const std::string& filename)
 {
 	std::ofstream file(filename);
@@ -444,103 +472,410 @@ void GSState::DumpVertices(const std::string& filename)
 	if (!file.is_open())
 		return;
 
-	file << "FLUSH REASON: " << GetFlushReasonString(m_state_flush_reason);
+	file.imbue(std::locale::classic()); // Disable integer separators.
 
-	if (m_state_flush_reason != GSFlushReason::CONTEXTCHANGE && m_dirty_gs_regs)
-		file << " AND POSSIBLE CONTEXT CHANGE";
+	constexpr const char* DEL = ", ";
+	constexpr const char* INDENT = "  ";
+	constexpr const char* LIST_ITEM = "- ";
+	constexpr const char* OPEN_MAP = "{";
+	constexpr const char* CLOSE_MAP = "}";
+	
+	constexpr int TRACE_INDEX_WIDTH = 10;
+	constexpr int XYUV_WIDTH = 10;
+	constexpr int Z_WIDTH = 10;
+	constexpr int RGBA_WIDTH = 3;
+	constexpr int SCI_FLOAT_WIDTH = 15;
+	constexpr int STQ_BITS_WIDTH = 10;
 
-	file << std::endl << std::endl;
+	const int n = GSUtil::GetClassVertexCount(m_vt.m_primclass);
 
-	const u32 count = m_index.tail;
-	GSVertex* buffer = &m_vertex.buff[0];
+	auto WriteVertexIndex = [&file](int index) {
+		file << std::left << std::dec << " # " << index;
+	};
 
-	const char* DEL = ", ";
+	auto WriteTraceIndex = [&file](const char* index) {
+		file << std::left << std::dec << std::setw(TRACE_INDEX_WIDTH) << std::setfill(' ') << index;
+	};
 
-	file << "VERTEX COORDS (XYZ)" << std::endl;
-	file << std::fixed << std::setprecision(4);
-	for (u32 i = 0; i < count; ++i)
-	{
-		file << "\t" << std::dec << "v" << i << ": ";
-		GSVertex v = buffer[m_index.buff[i]];
+	auto WriteXYZ_vec = [&file](const GSVector4& v) {
+		file << std::dec << std::right << std::fixed;
+		file << "X: " << std::setprecision(4) << std::setw(XYUV_WIDTH) << std::setfill(' ') << v.x << DEL;
+		file << "Y: " << std::setprecision(4) << std::setw(XYUV_WIDTH) << std::setfill(' ') << v.y << DEL;
+		file << "Z: " << std::setw(Z_WIDTH) << std::setfill(' ') << static_cast<u32>(v.z);
+	};
 
-		const float x = (v.XYZ.X - (int)m_context->XYOFFSET.OFX) / 16.0f;
-		const float y = (v.XYZ.Y - (int)m_context->XYOFFSET.OFY) / 16.0f;
+	// Different handler because we have full precision on Z
+	auto WriteXYZ_vert = [this, &file](const GSVertex& v) {
+		const float x = (static_cast<int>(v.XYZ.X) - static_cast<int>(m_context->XYOFFSET.OFX)) / 16.0f;
+		const float y = (static_cast<int>(v.XYZ.Y) - static_cast<int>(m_context->XYOFFSET.OFY)) / 16.0f;
+		file << std::dec << std::right << std::fixed;
+		file << "X: " << std::setprecision(4) << std::setw(XYUV_WIDTH) << std::setfill(' ') << x << DEL;
+		file << "Y: " << std::setprecision(4) << std::setw(XYUV_WIDTH) << std::setfill(' ') << y << DEL;
+		file << "Z: " << std::setw(Z_WIDTH) << std::setfill(' ') << v.XYZ.Z;
+	};
 
-		file << x << DEL;
-		file << y << DEL;
-		file << v.XYZ.Z;
-		file << std::endl;
-	}
-
-	file << std::endl;
-
-	file << "VERTEX COLOR (RGBA)" << std::endl;
-	file << std::fixed << std::setprecision(6);
-	for (u32 i = 0; i < count; ++i)
-	{
-		file << "\t" << std::dec << "v" << i << ": ";
-		GSVertex v = buffer[m_index.buff[i]];
-
-		file << std::setfill('0') << std::setw(3) << unsigned(v.RGBAQ.R) << DEL;
-		file << std::setfill('0') << std::setw(3) << unsigned(v.RGBAQ.G) << DEL;
-		file << std::setfill('0') << std::setw(3) << unsigned(v.RGBAQ.B) << DEL;
-		file << std::setfill('0') << std::setw(3) << unsigned(v.RGBAQ.A) << DEL;
-		file << "FOG: " << std::setfill('0') << std::setw(3) << unsigned(v.FOG);
-		file << std::endl;
-	}
-
-	file << std::endl;
-
-	const bool use_uv = PRIM->FST;
-	const std::string qualifier = use_uv ? "UV" : "STQ";
-
-	file << "TEXTURE COORDS (" << qualifier << ")" << std::endl;;
-	for (u32 i = 0; i < count; ++i)
-	{
-		file << "\t" << "v" << std::dec << i << ": ";
-		const GSVertex v = buffer[m_index.buff[i]];
-
-		// note
-		// Yes, technically as far as the GS is concerned Q belongs
-		// to RGBAQ. However, the purpose of this dump is to print
-		// our data in a more human readable format and typically Q
-		// is associated with STQ.
-		if (use_uv)
+	auto WriteUV_vec = [this, &file](const GSVector4& v) {
+		file << std::right;
+		if (PRIM->FST)
 		{
-			const float uv_U = v.U / 16.0f;
-			const float uv_V = v.V / 16.0f;
-
-			file << uv_U << DEL << uv_V;
+			file << std::fixed;
+			file << "U: " << std::setprecision(4) << std::setw(XYUV_WIDTH) << std::setfill(' ') << v.x << DEL;
+			file << "V: " << std::setprecision(4) << std::setw(XYUV_WIDTH) << std::setfill(' ') << v.y;
 		}
 		else
 		{
-			float x = (v.ST.S / v.RGBAQ.Q) * (1 << m_context->TEX0.TW);
-			float y = (v.ST.T / v.RGBAQ.Q) * (1 << m_context->TEX0.TH);
-			file << v.ST.S << "(" << std::hex << std::bit_cast<u32>(v.ST.S) << ")" << DEL << v.ST.T << "(" << std::hex << std::bit_cast<u32>(v.ST.T) << ")" << DEL << v.RGBAQ.Q << "(" << std::hex << std::bit_cast<u32>(v.RGBAQ.Q) << ") - " << x << "," << y;
+			file << std::defaultfloat;
+			file << "U: " << std::setw(SCI_FLOAT_WIDTH) << std::setfill(' ') << v.x << DEL;
+			file << "V: " << std::setw(SCI_FLOAT_WIDTH) << std::setfill(' ') << v.y;
 		}
+	};
+
+	auto WriteUV_vert = [this, WriteUV_vec](const GSVertex& v) {
+		GSVector4 vec;
+		if (PRIM->FST)
+			vec = GSVector4(v.U / 16.0f, v.V / 16.0f);
+		else
+			vec = GSVector4(
+				(v.ST.S / v.RGBAQ.Q) * (1 << m_context->TEX0.TW),
+				(v.ST.T / v.RGBAQ.Q) * (1 << m_context->TEX0.TH)
+			);
+		WriteUV_vec(vec);
+	};
+
+	auto WriteRGBA_vec = [&file](const GSVector4i& v) {
+		file << std::dec << std::right;
+		file << "R: " << std::setw(RGBA_WIDTH) << std::setfill(' ') << v.r << DEL;
+		file << "G: " << std::setw(RGBA_WIDTH) << std::setfill(' ') << v.g << DEL;
+		file << "B: " << std::setw(RGBA_WIDTH) << std::setfill(' ') << v.b << DEL;
+		file << "A: " << std::setw(RGBA_WIDTH) << std::setfill(' ') << v.a;
+	};
+
+	auto WriteRGBA_vert = [WriteRGBA_vec](const GSVertex& v) {
+		GSVector4i vec = GSVector4i(v.RGBAQ.R, v.RGBAQ.G, v.RGBAQ.B, v.RGBAQ.A);
+		WriteRGBA_vec(vec);
+	};
+
+	auto WriteF = [&file](const int f) {
+		file << "F: " << std::setw(RGBA_WIDTH) << std::setfill(' ') << f;
+	};
+
+	auto WriteSTQ_vec = [&file](const GSVector4& v) {
+		file << std::defaultfloat << std::right;
+		file << "S: " << std::setw(SCI_FLOAT_WIDTH) << std::setfill(' ') << v.x << DEL;
+		file << "T: " << std::setw(SCI_FLOAT_WIDTH) << std::setfill(' ') << v.y << DEL;
+		file << "Q: " << std::setw(SCI_FLOAT_WIDTH) << std::setfill(' ') << v.z;
+	};
+
+	auto WriteSTQ_bits = [&file](const GSVector4& v) {
+		file << std::hex << std::showbase << std::right;
+		file << "Si: " << std::setw(STQ_BITS_WIDTH) << std::setfill('0') << std::bit_cast<u32>(v.x) << DEL;
+		file << "Ti: " << std::setw(STQ_BITS_WIDTH) << std::setfill('0') << std::bit_cast<u32>(v.y) << DEL;
+		file << "Qi: " << std::setw(STQ_BITS_WIDTH) << std::setfill('0') << std::bit_cast<u32>(v.z);
+	};
+
+	auto WriteSTQ_vert = [&file, WriteSTQ_vec, WriteSTQ_bits](const GSVertex& v) {
+		GSVector4 vec = GSVector4(v.ST.S, v.ST.T, v.RGBAQ.Q, v.RGBAQ.Q);
+		WriteSTQ_vec(vec);
+		file << DEL;
+		WriteSTQ_bits(vec);
+	};
+
+	auto WriteBools = [&file](std::vector<const char*> names, std::vector<u32> values) {
+		for (int i = 0; i < static_cast<int>(names.size()); i++)
+		{
+			if (i > 0)
+				file << DEL;
+			file << names[i] << ": " << static_cast<bool>(values[i]);
+		}
+	};
+
+	// Dump flush reason
+	file << "flush_reason: \"" << GetFlushReasonString(m_state_flush_reason);
+	if (m_state_flush_reason != GSFlushReason::CONTEXTCHANGE && m_dirty_gs_regs)
+		file << " AND POSSIBLE CONTEXT CHANGE";
+	file << "\"" << std::endl;
+
+	file << std::endl;
+
+	// Dump vertices
+	file << "vertex: # " << GSUtil::GetPrimClassName(m_vt.m_primclass) << std::endl;
+	const u32 count = m_index.tail;
+	GSVertex* buffer = &m_vertex.buff[0];
+	for (u32 i = 0; i < count; ++i)
+	{
+		GSVertex v = buffer[m_index.buff[i]];
+
+		if ((n > 1) && (i > 0) && ((i % n) == 0))
+			file << std::endl;
+		
+		file << INDENT << LIST_ITEM << OPEN_MAP;
+		WriteXYZ_vert(v);
+		if (PRIM->TME)
+		{
+			file << DEL;
+			WriteUV_vert(v);
+		}
+		file << DEL;
+		WriteRGBA_vert(v);
+		if (PRIM->FGE)
+		{
+			file << DEL;
+			WriteF(v.FOG);
+		}
+		file << CLOSE_MAP;
+
+		WriteVertexIndex(i);
 
 		file << std::endl;
 	}
 
 	file << std::endl;
 
-	file << "TRACER" << std::endl;
+	// Dump extra info for STQ
+	if (PRIM->TME && !PRIM->FST)
+	{
+		file << "vertex_stq: # " << GSUtil::GetPrimClassName(m_vt.m_primclass) << std::endl;
+		for (u32 i = 0; i < count; ++i)
+		{
+			if ((n > 1) && (i > 0) && ((i % n) == 0))
+				file << std::endl;
 
-	GSVector4i v = m_vt.m_min.c;
-	file << "\tmin c (x,y,z,w): " << v.x << DEL << v.y << DEL << v.z << DEL << v.w << std::endl;
-	v = m_vt.m_max.c;
-	file << "\tmax c (x,y,z,w): " << v.x << DEL << v.y << DEL << v.z << DEL << v.w << std::endl;
+			file << INDENT << LIST_ITEM << OPEN_MAP;
+			WriteSTQ_vert(buffer[m_index.buff[i]]);
+			file << CLOSE_MAP;
 
-	GSVector4 v2 = m_vt.m_min.p;
-	file << "\tmin p (x,y,z,w): " << v2.x << DEL << v2.y << DEL << v2.z << DEL << v2.w << std::endl;
-	v2 = m_vt.m_max.p;
-	file << "\tmax p (x,y,z,w): " << v2.x << DEL << v2.y << DEL << v2.z << DEL << v2.w << std::endl;
-	v2 = m_vt.m_min.t;
-	file << "\tmin t (x,y,z,w): " << v2.x << DEL << v2.y << DEL << v2.z << DEL << v2.w << std::endl;
-	v2 = m_vt.m_max.t;
-	file << "\tmax t (x,y,z,w): " << v2.x << DEL << v2.y << DEL << v2.z << DEL << v2.w << std::endl;
+			WriteVertexIndex(i);
 
-	file.close();
+			file << std::endl;
+		}
+		
+		file << std::endl;
+	}
+
+	// Dump vertex trace
+	file << "vertex_trace:" << std::endl;
+
+	file << INDENT;
+	WriteTraceIndex("min_xyz: ");
+	file << OPEN_MAP;
+	WriteXYZ_vec(m_vt.m_min.p);
+	file << CLOSE_MAP << std::endl;
+
+	file << INDENT;
+	WriteTraceIndex("max_xyz: ");
+	file << OPEN_MAP;
+	WriteXYZ_vec(m_vt.m_max.p);
+	file << CLOSE_MAP << std::endl;
+
+	if (PRIM->TME)
+	{
+		if (PRIM->FST)
+		{
+			file << INDENT;
+			WriteTraceIndex("min_uv: ");
+			file << OPEN_MAP;
+			WriteUV_vec(m_vt.m_min.t);
+			file << CLOSE_MAP << std::endl;
+
+			file << INDENT;
+			WriteTraceIndex("max_uv: ");
+			file << OPEN_MAP;
+			WriteUV_vec(m_vt.m_max.t);
+			file << CLOSE_MAP << std::endl;
+		}
+		else
+		{
+			// Note: The vertex trace does not actually track the min/max of raw ST values
+			// hence the labels "min_uvq" and "max_uvq" are used instead of "min_stq" and "max_stq".
+			file << INDENT;
+			WriteTraceIndex("min_uvq: ");
+			file << OPEN_MAP;
+			WriteSTQ_vec(m_vt.m_min.t);
+			file << CLOSE_MAP << std::endl;
+
+			file << INDENT;
+			WriteTraceIndex("max_uvq: ");
+			file << OPEN_MAP;
+			WriteSTQ_vec(m_vt.m_max.t);
+			file << CLOSE_MAP << std::endl;
+		}
+	}
+	
+	file << INDENT;
+	WriteTraceIndex("min_rgba: ");
+	file << OPEN_MAP;
+	WriteRGBA_vec(m_vt.m_min.c);
+	file << CLOSE_MAP << std::endl;
+
+	file << INDENT;
+	WriteTraceIndex("max_rgba: ");
+	file << OPEN_MAP;
+	WriteRGBA_vec(m_vt.m_max.c);
+	file << CLOSE_MAP << std::endl;
+
+	if (PRIM->FGE)
+	{
+		file << INDENT;
+		WriteTraceIndex("min_f: ");
+		file << OPEN_MAP;
+		WriteF(m_vt.m_min.p.w);
+		file << CLOSE_MAP << std::endl;
+
+		file << INDENT;
+		WriteTraceIndex("max_f: ");
+		file << OPEN_MAP;
+		WriteF(m_vt.m_max.p.w);
+		file << CLOSE_MAP << std::endl;
+	}
+
+	file << std::endl;
+
+	file << INDENT;
+	WriteTraceIndex("eq_xyz: ");
+	file << OPEN_MAP;
+	WriteBools({"X", "Y", "Z"}, {m_vt.m_eq.x, m_vt.m_eq.y, m_vt.m_eq.z});
+	file << CLOSE_MAP << std::endl;
+
+	if (PRIM->TME)
+	{
+		if (PRIM->FST)
+		{
+			file << INDENT;
+			WriteTraceIndex("eq_uv: ");
+			file << OPEN_MAP;
+			WriteBools({"U", "V"}, {m_vt.m_eq.s, m_vt.m_eq.t});
+			file << CLOSE_MAP << std::endl;
+		}
+		else
+		{
+			// Note: The vertex trace does not actually track the min/max of raw ST values
+			// hence the labels "eq_uvq" is used instead of "eq_stq".
+			file << INDENT;
+			WriteTraceIndex("eq_uvq: ");
+			file << OPEN_MAP;
+			WriteBools({"U", "V", "Q"}, {m_vt.m_eq.s, m_vt.m_eq.t, m_vt.m_eq.q});
+			file << CLOSE_MAP << std::endl;
+		}
+	}
+
+	file << INDENT;
+	WriteTraceIndex("eq_rgba: ");
+	file << OPEN_MAP;
+	WriteBools({"R", "G", "B", "A"}, {m_vt.m_eq.r, m_vt.m_eq.g, m_vt.m_eq.b, m_vt.m_eq.a});
+	file << CLOSE_MAP << std::endl;
+
+	if (PRIM->FGE)
+	{
+		file << INDENT;
+		WriteTraceIndex("eq_f: ");
+		file << OPEN_MAP;
+		WriteBools({"F"}, {m_vt.m_eq.f});
+		file << CLOSE_MAP << std::endl;
+	}
+}
+
+void GSState::DumpTransferList(const std::string& filename)
+{
+	// Only create the file if there are transfers to dump
+	std::optional<std::ofstream> file;
+
+	constexpr const char* LIST_ITEM = "- ";
+	constexpr const char* DEL = ", ";
+	constexpr const char* INDENT = "  ";
+	constexpr const char* OPEN_MAP = "{";
+	constexpr const char* CLOSE_MAP = "}";
+	constexpr const char* COMMENT = " # ";
+
+	int n_dumped = 0; // Number of transfers dumped for this draw.
+	for (int i = 0; i < static_cast<int>(m_draw_transfers.size()); ++i)
+	{
+		if (m_draw_transfers[i].draw != s_n - 1)
+			continue; // skip transfers that did not start in the previous draw
+
+		if (!file.has_value())
+		{
+			file.emplace(filename);
+			if (!file->is_open())
+				return; // failed to open file
+			file->imbue(std::locale::classic()); // Disable integer separators.
+		}
+
+		const GSUploadQueue& transfer = m_draw_transfers[i];
+
+		if (n_dumped > 0)
+			(*file) << std::endl;
+
+		// clear, EE->GS, or GS->GS
+		(*file) << LIST_ITEM << "type: " << (transfer.zero_clear ? "clear" : (transfer.ee_to_gs ? "EE_to_GS" : "GS_to_GS")) << std::endl;
+
+		// Dump BITBLTBUF
+		(*file) << INDENT << "BITBLTBUF: " << OPEN_MAP;
+
+		const bool gs_to_gs = !transfer.ee_to_gs && !transfer.zero_clear;
+
+		if (gs_to_gs)
+		{
+			// Transferring GS->GS so the source info is relevant
+			(*file) << "SBP: " << std::hex << std::showbase << transfer.blit.SBP << DEL <<
+				"SBW: " << std::dec << transfer.blit.SBW << DEL <<
+				"SPSM: " << std::hex << std::showbase << transfer.blit.SPSM << DEL;
+		}
+
+		(*file) << "DBP: " << std::hex << std::showbase << transfer.blit.DBP << DEL <<
+			"DBW: " << std::dec << transfer.blit.DBW << DEL <<
+			"DPSM: " << std::hex << std::showbase << transfer.blit.DPSM << CLOSE_MAP;
+
+		(*file) << COMMENT; // Write the human-readable PSM in comments
+
+		if (gs_to_gs)
+		{
+			// Transferring GS->GS so the source info is relevant
+			(*file) << GSUtil::GetPSMName(transfer.blit.SPSM) << " -> ";
+		}
+
+		(*file) << GSUtil::GetPSMName(transfer.blit.DPSM) << std::endl;
+
+		// Dump rectangle
+		(*file) << INDENT << "rect: [" << std::dec << transfer.rect.x << DEL << transfer.rect.y << DEL <<
+			transfer.rect.z << DEL << transfer.rect.w << "]" << std::endl;
+
+		n_dumped++;
+	}
+}
+
+void GSState::DumpTransferImages()
+{
+	// Only create the file if there are transfers to dump
+	std::optional<std::ofstream> file;
+
+	int transfer_n = 0;
+	for (int i = 0; i < static_cast<int>(m_draw_transfers.size()); ++i)
+	{
+		if (m_draw_transfers[i].draw != s_n - 1)
+			continue; // skip transfers that did not start in the previous draw
+
+		const GSUploadQueue& transfer = m_draw_transfers[i];
+
+		std::string filename;
+		if (transfer.ee_to_gs || transfer.zero_clear)
+		{
+			// clear or EE->GS: only the destination info is relevant.
+			filename = GetDrawDumpPath("%05d_transfer%02d_%s_%04x_%d_%s_%d_%d_%d_%d.png",
+				s_n, transfer_n++, (transfer.zero_clear ? "clear" : "EE_to_GS"), transfer.blit.DBP, transfer.blit.DBW,
+				GSUtil::GetPSMName(transfer.blit.DPSM), transfer.rect.x, transfer.rect.y, transfer.rect.z, transfer.rect.w);
+		}
+		else
+		{
+			// GS->GS: the source and destination info are both relevant.
+			filename = GetDrawDumpPath("%05d_transfer%02d_GS_to_GS_%04x_%d_%s_%04x_%d_%s_%d_%d_%d_%d.bmp",
+				s_n, transfer_n++, transfer.blit.SBP, transfer.blit.SBW, GSUtil::GetPSMName(transfer.blit.SPSM),
+				transfer.blit.DBP, transfer.blit.DBW, GSUtil::GetPSMName(transfer.blit.DPSM),
+				transfer.rect.x, transfer.rect.y, transfer.rect.z, transfer.rect.w);
+		}
+
+		m_mem.SaveBMP(filename, transfer.blit.DBP, transfer.blit.DBW, transfer.blit.DPSM,
+			transfer.rect.width(), transfer.rect.height(), transfer.rect.x, transfer.rect.y);
+	}
 }
 
 __inline void GSState::CheckFlushes()
@@ -606,7 +941,7 @@ void GSState::GIFPackedRegHandlerUV_Hack(const GIFPackedReg* RESTRICT r)
 	m_isPackedUV_HackFlag = true;
 }
 
-template <u32 prim, u32 adc, bool auto_flush, bool index_swap>
+template <u32 prim, u32 adc, bool auto_flush>
 void GSState::GIFPackedRegHandlerXYZF2(const GIFPackedReg* RESTRICT r)
 {
 	const bool skip = adc || r->XYZF2.Skip();
@@ -622,10 +957,10 @@ void GSState::GIFPackedRegHandlerXYZF2(const GIFPackedReg* RESTRICT r)
 
 	m_v.m[1] = xy.upl32(zf);
 
-	VertexKick<prim, auto_flush, index_swap>(skip);
+	VertexKick<prim, auto_flush>(skip);
 }
 
-template <u32 prim, u32 adc, bool auto_flush, bool index_swap>
+template <u32 prim, u32 adc, bool auto_flush>
 void GSState::GIFPackedRegHandlerXYZ2(const GIFPackedReg* RESTRICT r)
 {
 	const bool skip = adc || r->XYZ2.Skip();
@@ -639,7 +974,7 @@ void GSState::GIFPackedRegHandlerXYZ2(const GIFPackedReg* RESTRICT r)
 
 	m_v.m[1] = xyz.upl64(GSVector4i::loadl(&m_v.UV));
 
-	VertexKick<prim, auto_flush, index_swap>(skip);
+	VertexKick<prim, auto_flush>(skip);
 }
 
 void GSState::GIFPackedRegHandlerFOG(const GIFPackedReg* RESTRICT r)
@@ -656,7 +991,7 @@ void GSState::GIFPackedRegHandlerNOP(const GIFPackedReg* RESTRICT r)
 {
 }
 
-template <u32 prim, bool auto_flush, bool index_swap>
+template <u32 prim, bool auto_flush>
 void GSState::GIFPackedRegHandlerSTQRGBAXYZF2(const GIFPackedReg* RESTRICT r, u32 size)
 {
 	pxAssert(size > 0 && size % 3 == 0);
@@ -682,7 +1017,7 @@ void GSState::GIFPackedRegHandlerSTQRGBAXYZF2(const GIFPackedReg* RESTRICT r, u3
 
 		m_v.m[1] = xy.upl32(zf); // TODO: only store the last one
 
-		VertexKick<prim, auto_flush, index_swap>(r[2].XYZF2.Skip());
+		VertexKick<prim, auto_flush>(r[2].XYZF2.Skip());
 
 		r += 3;
 	}
@@ -690,7 +1025,7 @@ void GSState::GIFPackedRegHandlerSTQRGBAXYZF2(const GIFPackedReg* RESTRICT r, u3
 	m_q = r[-3].STQ.Q; // remember the last one, STQ outputs this to the temp Q each time
 }
 
-template <u32 prim, bool auto_flush, bool index_swap>
+template <u32 prim, bool auto_flush>
 void GSState::GIFPackedRegHandlerSTQRGBAXYZ2(const GIFPackedReg* RESTRICT r, u32 size)
 {
 	pxAssert(size > 0 && size % 3 == 0);
@@ -715,7 +1050,7 @@ void GSState::GIFPackedRegHandlerSTQRGBAXYZ2(const GIFPackedReg* RESTRICT r, u32
 
 		m_v.m[1] = xyz.upl64(GSVector4i::loadl(&m_v.UV)); // TODO: only store the last one
 
-		VertexKick<prim, auto_flush, index_swap>(r[2].XYZ2.Skip());
+		VertexKick<prim, auto_flush>(r[2].XYZ2.Skip());
 
 		r += 3;
 	}
@@ -742,14 +1077,14 @@ __forceinline void GSState::ApplyPRIM(u32 prim)
 	else
 		m_env.PRIM.PRIM = prim & 0x7;
 
-	if (m_prev_env.PRIM.U32[0] ^ m_env.PRIM.U32[0])
+	if ((m_prev_env.PRIM.U32[0] ^ m_env.PRIM.U32[0]) & PRIM_REG_MASK)
 		m_dirty_gs_regs |= (1 << DIRTY_REG_PRIM);
 	else
 		m_dirty_gs_regs &= ~(1<< DIRTY_REG_PRIM);
 
 	UpdateVertexKick();
 
-	pxAssert(m_index.tail == 0 || !g_gs_device->Features().provoking_vertex_last || m_index.buff[m_index.tail - 1] + 1 == m_vertex.next);
+	pxAssert(m_index.tail == 0 || m_index.buff[m_index.tail - 1] + 1 == m_vertex.next);
 
 	if (m_index.tail == 0)
 		m_vertex.next = 0;
@@ -800,7 +1135,7 @@ void GSState::GIFRegHandlerUV_Hack(const GIFReg* RESTRICT r)
 	m_isPackedUV_HackFlag = false;
 }
 
-template <u32 prim, u32 adc, bool auto_flush, bool index_swap>
+template <u32 prim, u32 adc, bool auto_flush>
 void GSState::GIFRegHandlerXYZF2(const GIFReg* RESTRICT r)
 {
 	if (!adc || GSUtil::GetPrimClass(m_prev_env.PRIM.PRIM) != GSUtil::GetPrimClass(m_env.PRIM.PRIM) || (m_dirty_gs_regs & (1 << DIRTY_REG_XYOFFSET)))
@@ -812,10 +1147,10 @@ void GSState::GIFRegHandlerXYZF2(const GIFReg* RESTRICT r)
 
 	m_v.m[1] = xyz.upl64(uvf);
 
-	VertexKick<prim, auto_flush, index_swap>(adc);
+	VertexKick<prim, auto_flush>(adc);
 }
 
-template <u32 prim, u32 adc, bool auto_flush, bool index_swap>
+template <u32 prim, u32 adc, bool auto_flush>
 void GSState::GIFRegHandlerXYZ2(const GIFReg* RESTRICT r)
 {
 	if (!adc || GSUtil::GetPrimClass(m_prev_env.PRIM.PRIM) != GSUtil::GetPrimClass(m_env.PRIM.PRIM) || (m_dirty_gs_regs & (1 << DIRTY_REG_XYOFFSET)))
@@ -823,7 +1158,7 @@ void GSState::GIFRegHandlerXYZ2(const GIFReg* RESTRICT r)
 
 	m_v.m[1] = GSVector4i::load(&r->XYZ, &m_v.UV);
 
-	VertexKick<prim, auto_flush, index_swap>(adc);
+	VertexKick<prim, auto_flush>(adc);
 }
 
 template <int i>
@@ -1000,7 +1335,7 @@ void GSState::GIFRegHandlerTEX0(const GIFReg* RESTRICT r)
 
 		if (i == m_prev_env.PRIM.CTXT)
 		{
-			if (m_prev_env.CTXT[i].MIPTBP1.U64 ^ mip_tbp1.U64)
+			if ((m_prev_env.CTXT[i].MIPTBP1.U64 ^ mip_tbp1.U64) & MIPTBP_REG_MASK)
 				m_dirty_gs_regs |= (1 << DIRTY_REG_MIPTBP1);
 			else
 				m_dirty_gs_regs &= ~(1 << DIRTY_REG_MIPTBP1);
@@ -1019,7 +1354,7 @@ void GSState::GIFRegHandlerCLAMP(const GIFReg* RESTRICT r)
 
 	if (i == m_prev_env.PRIM.CTXT)
 	{
-		if (m_prev_env.CTXT[i].CLAMP.U64 ^ m_env.CTXT[i].CLAMP.U64)
+		if ((m_prev_env.CTXT[i].CLAMP.U64 ^ m_env.CTXT[i].CLAMP.U64) & CLAMP_REG_MASK)
 			m_dirty_gs_regs |= (1 << DIRTY_REG_CLAMP);
 		else
 			m_dirty_gs_regs &= ~(1 << DIRTY_REG_CLAMP);
@@ -1044,7 +1379,7 @@ void GSState::GIFRegHandlerTEX1(const GIFReg* RESTRICT r)
 
 	if (i == m_prev_env.PRIM.CTXT)
 	{
-		if (m_prev_env.CTXT[i].TEX1.U64 ^ m_env.CTXT[i].TEX1.U64)
+		if ((m_prev_env.CTXT[i].TEX1.U64 ^ m_env.CTXT[i].TEX1.U64) & TEX1_REG_MASK)
 			m_dirty_gs_regs |= (1 << DIRTY_REG_TEX1);
 		else
 			m_dirty_gs_regs &= ~(1 << DIRTY_REG_TEX1);
@@ -1076,11 +1411,11 @@ void GSState::GIFRegHandlerXYOFFSET(const GIFReg* RESTRICT r)
 {
 	GL_REG("XYOFFSET_%d = 0x%x_%x", i, r->U32[1], r->U32[0]);
 
-	const u64 r_masked = r->U64 & 0x0000FFFF0000FFFFu;
+	const u64 r_masked = r->U64 & XYOFFSET_REG_MASK;
 
 	if (i == m_prev_env.PRIM.CTXT)
 	{
-		if (m_prev_env.CTXT[i].XYOFFSET.U64 != r_masked)
+		if ((m_prev_env.CTXT[i].XYOFFSET.U64 ^ r_masked) & XYOFFSET_REG_MASK)
 			m_dirty_gs_regs |= (1 << DIRTY_REG_XYOFFSET);
 		else
 			m_dirty_gs_regs &= ~(1 << DIRTY_REG_XYOFFSET);
@@ -1115,7 +1450,7 @@ void GSState::GIFRegHandlerPRMODE(const GIFReg* RESTRICT r)
 	m_env.PRIM = r->PRMODE;
 	m_env.PRIM.PRIM = _PRIM;
 
-	if (m_prev_env.PRIM.U32[0] ^ m_env.PRIM.U32[0])
+	if ((m_prev_env.PRIM.U32[0] ^ m_env.PRIM.U32[0]) & PRIM_REG_MASK)
 		m_dirty_gs_regs |= (1 << DIRTY_REG_PRIM);
 	else
 		m_dirty_gs_regs &= ~(1 << DIRTY_REG_PRIM);
@@ -1152,7 +1487,7 @@ void GSState::GIFRegHandlerMIPTBP1(const GIFReg* RESTRICT r)
 
 	if (i == m_prev_env.PRIM.CTXT)
 	{
-		if (m_prev_env.CTXT[i].MIPTBP1.U64 != m_env.CTXT[i].MIPTBP1.U64)
+		if ((m_prev_env.CTXT[i].MIPTBP1.U64 ^ m_env.CTXT[i].MIPTBP1.U64) & MIPTBP_REG_MASK)
 			m_dirty_gs_regs |= (1 << DIRTY_REG_MIPTBP1);
 		else
 			m_dirty_gs_regs &= ~(1 << DIRTY_REG_MIPTBP1);
@@ -1168,7 +1503,7 @@ void GSState::GIFRegHandlerMIPTBP2(const GIFReg* RESTRICT r)
 
 	if (i == m_prev_env.PRIM.CTXT)
 	{
-		if (m_prev_env.CTXT[i].MIPTBP2.U64 != m_env.CTXT[i].MIPTBP2.U64)
+		if ((m_prev_env.CTXT[i].MIPTBP2.U64 ^ m_env.CTXT[i].MIPTBP2.U64) & MIPTBP_REG_MASK)
 			m_dirty_gs_regs |= (1 << DIRTY_REG_MIPTBP2);
 		else
 			m_dirty_gs_regs &= ~(1 << DIRTY_REG_MIPTBP2);
@@ -1181,7 +1516,7 @@ void GSState::GIFRegHandlerTEXA(const GIFReg* RESTRICT r)
 
 	m_env.TEXA = r->TEXA;
 
-	if (m_prev_env.TEXA != m_env.TEXA)
+	if ((m_prev_env.TEXA.U64 ^ m_env.TEXA.U64) & TEXA_REG_MASK)
 		m_dirty_gs_regs |= (1 << DIRTY_REG_TEXA);
 	else
 		m_dirty_gs_regs &= ~(1 << DIRTY_REG_TEXA);
@@ -1193,7 +1528,7 @@ void GSState::GIFRegHandlerFOGCOL(const GIFReg* RESTRICT r)
 
 	m_env.FOGCOL = r->FOGCOL;
 
-	if (m_prev_env.FOGCOL != m_env.FOGCOL)
+	if ((m_prev_env.FOGCOL.U32[0] ^ m_env.FOGCOL.U32[0]) & FOGCOL_REG_MASK)
 		m_dirty_gs_regs |= (1 << DIRTY_REG_FOGCOL);
 	else
 		m_dirty_gs_regs &= ~(1 << DIRTY_REG_FOGCOL);
@@ -1213,7 +1548,7 @@ void GSState::GIFRegHandlerSCISSOR(const GIFReg* RESTRICT r)
 {
 	if (i == m_prev_env.PRIM.CTXT)
 	{
-		if (m_prev_env.CTXT[i].SCISSOR.U64 != r->SCISSOR.U64)
+		if ((m_prev_env.CTXT[i].SCISSOR.U64 ^ r->SCISSOR.U64) & SCISSOR_REG_MASK)
 			m_dirty_gs_regs |= (1 << DIRTY_REG_SCISSOR);
 		else
 			m_dirty_gs_regs &= ~(1 << DIRTY_REG_SCISSOR);
@@ -1244,7 +1579,7 @@ void GSState::GIFRegHandlerALPHA(const GIFReg* RESTRICT r)
 
 	if (i == m_prev_env.PRIM.CTXT)
 	{
-		if (m_prev_env.CTXT[i].ALPHA.U64 != m_env.CTXT[i].ALPHA.U64)
+		if ((m_prev_env.CTXT[i].ALPHA.U64 ^ m_env.CTXT[i].ALPHA.U64) & ALPHA_REG_MASK)
 			m_dirty_gs_regs |= (1 << DIRTY_REG_ALPHA);
 		else
 			m_dirty_gs_regs &= ~(1 << DIRTY_REG_ALPHA);
@@ -1255,7 +1590,7 @@ void GSState::GIFRegHandlerDIMX(const GIFReg* RESTRICT r)
 {
 	m_env.DIMX = r->DIMX;
 
-	if (m_prev_env.DIMX != m_env.DIMX)
+	if ((m_prev_env.DIMX.U64 ^ m_env.DIMX.U64) & DIMX_REG_MASK)
 		m_dirty_gs_regs |= (1 << DIRTY_REG_DIMX);
 	else
 		m_dirty_gs_regs &= ~(1 << DIRTY_REG_DIMX);
@@ -1265,7 +1600,7 @@ void GSState::GIFRegHandlerDTHE(const GIFReg* RESTRICT r)
 {
 	m_env.DTHE = r->DTHE;
 
-	if (m_prev_env.DTHE != m_env.DTHE)
+	if (m_prev_env.DTHE.DTHE != m_env.DTHE.DTHE)
 		m_dirty_gs_regs |= (1 << DIRTY_REG_DTHE);
 	else
 		m_dirty_gs_regs &= ~(1 << DIRTY_REG_DTHE);
@@ -1275,7 +1610,7 @@ void GSState::GIFRegHandlerCOLCLAMP(const GIFReg* RESTRICT r)
 {
 	m_env.COLCLAMP = r->COLCLAMP;
 
-	if (m_prev_env.COLCLAMP != m_env.COLCLAMP)
+	if (m_prev_env.COLCLAMP.CLAMP != m_env.COLCLAMP.CLAMP)
 		m_dirty_gs_regs |= (1 << DIRTY_REG_COLCLAMP);
 	else
 		m_dirty_gs_regs &= ~(1 << DIRTY_REG_COLCLAMP);
@@ -1288,7 +1623,7 @@ void GSState::GIFRegHandlerTEST(const GIFReg* RESTRICT r)
 
 	if (i == m_prev_env.PRIM.CTXT)
 	{
-		if (m_prev_env.CTXT[i].TEST != m_env.CTXT[i].TEST)
+		if ((m_prev_env.CTXT[i].TEST.U32[0] ^ m_env.CTXT[i].TEST.U32[0]) & TEST_REG_MASK)
 			m_dirty_gs_regs |= (1 << DIRTY_REG_TEST);
 		else
 			m_dirty_gs_regs &= ~(1 << DIRTY_REG_TEST);
@@ -1299,7 +1634,7 @@ void GSState::GIFRegHandlerPABE(const GIFReg* RESTRICT r)
 {
 	m_env.PABE = r->PABE;
 
-	if (m_prev_env.PABE != m_env.PABE)
+	if (m_prev_env.PABE.PABE != m_env.PABE.PABE)
 		m_dirty_gs_regs |= (1 << DIRTY_REG_PABE);
 	else
 		m_dirty_gs_regs &= ~(1 << DIRTY_REG_PABE);
@@ -1312,7 +1647,7 @@ void GSState::GIFRegHandlerFBA(const GIFReg* RESTRICT r)
 
 	if (i == m_prev_env.PRIM.CTXT)
 	{
-		if (m_prev_env.CTXT[i].FBA != m_env.CTXT[i].FBA)
+		if (m_prev_env.CTXT[i].FBA.FBA != m_env.CTXT[i].FBA.FBA)
 			m_dirty_gs_regs |= (1 << DIRTY_REG_FBA);
 		else
 			m_dirty_gs_regs &= ~(1 << DIRTY_REG_FBA);
@@ -1366,7 +1701,7 @@ void GSState::GIFRegHandlerFRAME(const GIFReg* RESTRICT r)
 
 	if (i == m_prev_env.PRIM.CTXT)
 	{
-		if (m_prev_env.CTXT[i].FRAME != m_env.CTXT[i].FRAME)
+		if ((m_prev_env.CTXT[i].FRAME.U64 ^ m_env.CTXT[i].FRAME.U64) & FRAME_REG_MASK)
 			m_dirty_gs_regs |= (1 << DIRTY_REG_FRAME);
 		else
 			m_dirty_gs_regs &= ~(1 << DIRTY_REG_FRAME);
@@ -1401,7 +1736,7 @@ void GSState::GIFRegHandlerZBUF(const GIFReg* RESTRICT r)
 
 	if (i == m_prev_env.PRIM.CTXT)
 	{
-		if (m_prev_env.CTXT[i].ZBUF != m_env.CTXT[i].ZBUF)
+		if ((m_prev_env.CTXT[i].ZBUF.U64 ^ m_env.CTXT[i].ZBUF.U64) & ZBUF_REG_MASK)
 			m_dirty_gs_regs |= (1 << DIRTY_REG_ZBUF);
 		else
 			m_dirty_gs_regs &= ~(1 << DIRTY_REG_ZBUF);
@@ -1584,7 +1919,7 @@ inline bool GSState::TestDrawChanged()
 	// Check if PRIM has changed we need to check if it's just a different triangle or the context is changing.
 	if (m_dirty_gs_regs & (1 << DIRTY_REG_PRIM))
 	{
-		u32 prim_mask = 0x7ff;
+		u32 prim_mask = PRIM_REG_MASK;
 
 		if (GSUtil::GetPrimClass(m_prev_env.PRIM.PRIM) == GSUtil::GetPrimClass(m_env.PRIM.PRIM))
 			prim_mask &= ~0x7;
@@ -1769,12 +2104,39 @@ void GSState::FlushPrim()
 		// Skip draw if Z test is enabled, but set to fail all pixels.
 		const bool skip_draw = (m_context->TEST.ZTE && m_context->TEST.ZTST == ZTST_NEVER);
 		m_quad_check_valid = false;
+		m_quad_check_valid_shuffle = false;
+		m_drawlist.clear();
+		m_drawlist_bbox.clear();
+
+		if (GSConfig.ShouldDump(s_n, g_perfmon.GetFrame()))
+		{
+			if (GSConfig.SaveInfo)
+			{
+				// Only dump registers/vertices if we are drawing.
+				// Always dump the transfers since these are relevant for debugging regardless of
+				// whether the draw is skipped or not.
+				DumpDrawInfo(!skip_draw, !skip_draw, true);
+			}
+
+			if (GSConfig.SaveTransferImages)
+				DumpTransferImages();
+		}
 
 		if (!skip_draw)
 			Draw();
 
 		g_perfmon.Put(GSPerfMon::Draw, 1);
 		g_perfmon.Put(GSPerfMon::Prim, m_index.tail / GSUtil::GetVertexCount(PRIM->PRIM));
+
+		if (GSConfig.ShouldDump(s_n, g_perfmon.GetFrame()))
+		{
+			if (GSConfig.SaveDrawStats)
+			{
+				m_perfmon_draw = g_perfmon - m_perfmon_draw;
+				m_perfmon_draw.Dump(GetDrawDumpPath("%05d_draw_stats.txt", s_n), GSIsHardwareRenderer());
+				m_perfmon_draw = g_perfmon;
+			}
+		}
 
 		m_index.tail = 0;
 		m_vertex.head = 0;
@@ -1857,8 +2219,8 @@ void GSState::CheckWriteOverlap(bool req_write, bool req_read)
 	const GSDrawingContext& prev_ctx = m_prev_env.CTXT[m_prev_env.PRIM.CTXT];
 	const GSVector4i write_rect = GSVector4i(m_env.TRXPOS.DSAX, m_env.TRXPOS.DSAY, m_env.TRXPOS.DSAX + w, m_env.TRXPOS.DSAY + h);
 	const u32 write_start_bp = GSLocalMemory::GetStartBlockAddress(blit.DBP, blit.DBW, blit.DPSM, write_rect);
-	const u32 write_end_bp = ((GSLocalMemory::GetEndBlockAddress(blit.DBP, blit.DBW, blit.DPSM, write_rect) + 1) + (BLOCKS_PER_PAGE - 1)) & ~(BLOCKS_PER_PAGE - 1);
-	const GSVector4i tex_rect = m_prev_env.PRIM.TME ? GetTEX0Rect() : GSVector4i::zero();
+	const u32 write_end_bp = ((GSLocalMemory::GetEndBlockAddress(blit.DBP, blit.DBW, blit.DPSM, write_rect) + 1) + (GS_BLOCKS_PER_PAGE - 1)) & ~(GS_BLOCKS_PER_PAGE - 1);
+	GSVector4i tex_rect = m_prev_env.PRIM.TME ? GetTEX0Rect() : GSVector4i::zero();
 
 	if (m_index.tail > 0)
 	{
@@ -1870,6 +2232,49 @@ void GSState::CheckWriteOverlap(bool req_write, bool req_read)
 
 		if (req_write && m_prev_env.PRIM.TME)
 		{
+			// Tex rect could be invalid showing 1024x1024 when it isn't. If the frame is only 1 page wide, it's either a big strip or a single page draw.
+			// This large texture causes misdetection of overlapping writes, causing our heuristics in the hardware renderer for future draws to be missing.
+			// Either way if we check the queued up coordinates, it should give us a fair idea. (Cabela's Trophy Bucks)
+			if (prev_ctx.FRAME.FBW == 1 && static_cast<u32>(tex_rect.width()) > (prev_ctx.TEX0.TBW * 64))
+			{
+				GSVector4i tex_draw_rect = GSVector4i::zero();
+				for (u32 i = 0; i < m_index.tail; i++)
+				{
+					const GSVertex* v = &m_vertex.buff[m_index.buff[i]];
+					GSVector2i tex_coord;
+					if (PRIM->FST)
+					{
+						tex_coord.x = v->U >> 4;
+						tex_coord.y = v->V >> 4;
+					}
+					else
+					{
+						const float s = std::min((v->ST.S / v->RGBAQ.Q), 1.0f);
+						const float t = std::min((v->ST.T / v->RGBAQ.Q), 1.0f);
+
+						tex_coord.x = static_cast<int>(std::round((1 << m_context->TEX0.TW) * s));
+						tex_coord.y = static_cast<int>(std::round((1 << m_context->TEX0.TH) * t));
+					}
+
+					if (i == 0)
+					{
+						tex_draw_rect.x = tex_coord.x;
+						tex_draw_rect.y = tex_coord.y;
+						tex_draw_rect.z = tex_coord.x;
+						tex_draw_rect.w = tex_coord.y;
+
+						continue;
+					}
+
+					tex_draw_rect.x = std::min(tex_draw_rect.x, tex_coord.x);
+					tex_draw_rect.z = std::max(tex_draw_rect.z, tex_coord.x);
+					tex_draw_rect.y = std::min(tex_draw_rect.y, tex_coord.y);
+					tex_draw_rect.w = std::max(tex_draw_rect.w, tex_coord.y);
+				}
+
+				tex_rect = tex_rect.rintersect(tex_draw_rect);
+			}
+
 			if (GSLocalMemory::HasOverlap(blit.DBP, blit.DBW, blit.DPSM, write_rect, prev_ctx.TEX0.TBP0, prev_ctx.TEX0.TBW, prev_ctx.TEX0.PSM, tex_rect))
 			{
 				
@@ -1972,12 +2377,12 @@ void GSState::Write(const u8* mem, int len)
 		}
 		else
 		{
-			GSUploadQueue new_transfer = { blit, r, s_n, false };
+			const GSUploadQueue new_transfer = { blit, r, s_n, false, true };
 			m_draw_transfers.push_back(new_transfer);
 		}
 
 		GL_CACHE("Write! %u ...  => 0x%x W:%d F:%s (DIR %d%d), dPos(%d %d) size(%d %d) draw %d", s_transfer_n,
-				blit.DBP, blit.DBW, psm_str(blit.DPSM),
+				blit.DBP, blit.DBW, GSUtil::GetPSMName(blit.DPSM),
 				m_tr.m_pos.DIRX, m_tr.m_pos.DIRY,
 				m_tr.x, m_tr.y, m_tr.w, m_tr.h, s_n);
 
@@ -2037,8 +2442,8 @@ void GSState::InitReadFIFO(u8* mem, int len)
 	if (GSConfig.SaveRT && GSConfig.ShouldDump(s_n, g_perfmon.GetFrame()))
 	{
 		const std::string s(GetDrawDumpPath(
-			"%05d_read_%05x_%d_%d_%d_%d_%d_%d.bmp",
-			s_n, (int)m_env.BITBLTBUF.SBP, (int)m_env.BITBLTBUF.SBW, (int)m_env.BITBLTBUF.SPSM,
+			"%05d_read_%05x_%d_%s_%d_%d_%d_%d.bmp",
+			s_n, (int)m_env.BITBLTBUF.SBP, (int)m_env.BITBLTBUF.SBW, GSUtil::GetPSMName(m_env.BITBLTBUF.SPSM),
 			r.left, r.top, r.right, r.bottom));
 
 		m_mem.SaveBMP(s, m_env.BITBLTBUF.SBP, m_env.BITBLTBUF.SBW, m_env.BITBLTBUF.SPSM, r.right, r.bottom);
@@ -2107,8 +2512,8 @@ void GSState::Move()
 	const int h = m_env.TRXREG.RRH;
 
 	GL_CACHE("Move! 0x%x W:%d F:%s => 0x%x W:%d F:%s (DIR %d%d), sPos(%d %d) dPos(%d %d) size(%d %d)",
-			 m_env.BITBLTBUF.SBP, m_env.BITBLTBUF.SBW, psm_str(m_env.BITBLTBUF.SPSM),
-			 m_env.BITBLTBUF.DBP, m_env.BITBLTBUF.DBW, psm_str(m_env.BITBLTBUF.DPSM),
+			 m_env.BITBLTBUF.SBP, m_env.BITBLTBUF.SBW, GSUtil::GetPSMName(m_env.BITBLTBUF.SPSM),
+			 m_env.BITBLTBUF.DBP, m_env.BITBLTBUF.DBW, GSUtil::GetPSMName(m_env.BITBLTBUF.DPSM),
 			 m_env.TRXPOS.DIRX, m_env.TRXPOS.DIRY,
 			 sx, sy, dx, dy, w, h);
 
@@ -2163,7 +2568,7 @@ void GSState::Move()
 	}
 	else
 	{
-		GSUploadQueue new_transfer = { m_env.BITBLTBUF, r, s_n, false };
+		const GSUploadQueue new_transfer = { m_env.BITBLTBUF, r, s_n, false, false };
 		m_draw_transfers.push_back(new_transfer);
 	}
 
@@ -2865,171 +3270,591 @@ void GSState::UpdateVertexKick()
 void GSState::GrowVertexBuffer()
 {
 	const u32 maxcount = std::max<u32>(m_vertex.maxcount * 3 / 2, 10000);
+	const u32 old_vertex_size = sizeof(GSVertex) * m_vertex.tail;
+	const u32 new_vertex_size = sizeof(GSVertex) * maxcount;
+	const u32 old_index_size = sizeof(u16) * m_index.tail;
+	const u32 new_index_size = sizeof(u16) * maxcount * 6; // Worst case index list is a list of points with vs expansion, 6 indices per point
 
-	GSVertex* vertex = static_cast<GSVertex*>(_aligned_malloc(sizeof(GSVertex) * maxcount, 32));
-	GSVertex* draw_vertex = static_cast<GSVertex*>(_aligned_malloc(sizeof(GSVertex) * maxcount, 32));
-	// Worst case index list is a list of points with vs expansion, 6 indices per point
-	u16* index = static_cast<u16*>(_aligned_malloc(sizeof(u16) * maxcount * 6, 32));
-	u16* draw_index = static_cast<u16*>(_aligned_malloc(sizeof(u16) * maxcount * 6, 32));
-
-	if (!vertex || !index)
+	// Structure describing buffers to reallocate
+	struct AllocDesc
 	{
-		const u32 vert_byte_count = sizeof(GSVertex) * maxcount;
-		const u32 idx_byte_count = sizeof(u16) * maxcount * 3;
+		void** pbuff;
+		u32 old_size;
+		u32 new_size;
+	};
+	const std::array<AllocDesc, 5> alloc_desc = {{
+		{reinterpret_cast<void**>(&m_vertex.buff),      old_vertex_size, new_vertex_size},
+		// discard contents of buff_copy by setting old_size = 0
+		{reinterpret_cast<void**>(&m_vertex.buff_copy), 0,               new_vertex_size},
+		{reinterpret_cast<void**>(&m_draw_vertex.buff), old_vertex_size, new_vertex_size},
+		{reinterpret_cast<void**>(&m_index.buff),       old_index_size,  new_index_size},
+		{reinterpret_cast<void**>(&m_draw_index.buff),  old_index_size,  new_index_size}
+	}};
 
-		Console.Error("GS: failed to allocate %zu bytes for vertices and %zu for indices.",
-			vert_byte_count, idx_byte_count);
-		pxFailRel("Memory allocation failed");
+	// For logging
+	u32 total_size = 0;
+	for (const auto& desc : alloc_desc)
+		total_size += desc.new_size;
+
+	// Reallocate each of the needed buffers
+	for (const auto [pbuff, old_size, new_size] : alloc_desc)
+	{
+		void* new_buff = _aligned_malloc(new_size, 32);
+		if (!new_buff)
+		{
+			Console.Error("GS: failed to allocate %zu bytes for vertices and indices.", total_size);
+			pxFailRel("Memory allocation failed");
+		}
+		if (*pbuff)
+		{
+			if (old_size)
+			{
+				std::memcpy(new_buff, *pbuff, old_size);
+			}
+			_aligned_free(*pbuff);
+		}
+		*pbuff = new_buff;
 	}
 
-	if (m_vertex.buff)
-	{
-		std::memcpy(vertex, m_vertex.buff, sizeof(GSVertex) * m_vertex.tail);
-
-		_aligned_free(m_vertex.buff);
-	}
-
-	if (m_index.buff)
-	{
-		std::memcpy(index, m_index.buff, sizeof(u16) * m_index.tail);
-
-		_aligned_free(m_index.buff);
-	}
-
-	if (m_draw_vertex.buff)
-	{
-		std::memcpy(draw_vertex, m_draw_vertex.buff, sizeof(GSVertex) * m_vertex.tail);
-
-		_aligned_free(m_draw_vertex.buff);
-	}
-
-	if (m_draw_index.buff)
-	{
-		std::memcpy(draw_index, m_draw_index.buff, sizeof(u16) * m_index.tail);
-
-		_aligned_free(m_draw_index.buff);
-	}
-
-	m_draw_vertex.buff = draw_vertex;
-	m_draw_index.buff = draw_index;
-	m_vertex.buff = vertex;
 	m_vertex.maxcount = maxcount - 3; // -3 to have some space at the end of the buffer before DrawingKick can grow it
-	m_index.buff = index;
+}
+
+// For returning order of vertices to form a right triangle
+struct TriangleOrdering
+{
+	// Describes a right triangle laid out in one of the following orientations
+	// b   c | c  b | a     |     a
+	// a     |    a | b   c | c   b
+	u32 a; // Same x as b
+	u32 b; // Same x as a, same y as c
+	u32 c; // Same y as b
+};
+
+struct alignas(2) TriangleOrderingBC
+{
+	u8 b;
+	u8 c;
+};
+
+alignas(16) static constexpr TriangleOrderingBC triangle_order_lut[6] =
+{
+		TriangleOrderingBC{/*a=0,*/ 1, 2},
+		TriangleOrderingBC{/*a=0,*/ 2, 1},
+		TriangleOrderingBC{/*a=1,*/ 0, 2},
+		TriangleOrderingBC{/*a=1,*/ 2, 0},
+		TriangleOrderingBC{/*a=2,*/ 0, 1},
+		TriangleOrderingBC{/*a=2,*/ 1, 0},
+};
+
+// Helper struct for IsTriangleRight and AreTrianglesRight
+static constexpr u8 TriangleFinalCmp(u8 value) { return value & 3; }
+
+static constexpr TriangleOrdering TriangleFinalOrder(u8 value)
+{
+	u32 order = static_cast<u32>(value) >> 2;
+	TriangleOrderingBC bc = triangle_order_lut[order];
+	return {order >> 1, bc.b, bc.c};
+}
+
+// Helper table for IsTriangleRight/AreTrianglesRight functions
+static constexpr u8 triangle_comparison_lut[16] =
+	{
+		0 | (0 << 2), // 0000 => None equal, no sprite possible
+		2 | (0 << 2), // 0001 => x0 = x1, requires y1 = y2
+		1 | (5 << 2), // 0010 => y0 = y1, requires x1 = x2
+		2 | (0 << 2), // 0011 => x0 = x1, y0 = y1, (no area) requires x1 = x2 or y1 = y2
+		2 | (1 << 2), // 0100 => x0 = x2, requires y1 = y2
+		2 | (0 << 2), // 0101 => x0 = x1, x0 = x2, (no area) requires y1 = y2
+		0 | (4 << 2), // 0110 => y0 = y1, x0 = x2, requires nothing
+		0 | (4 << 2), // 0111 => x0 = y1, y0 = y1, x0 = x2, (no area) requires nothing
+		1 | (3 << 2), // 1000 => y0 = y2, requires x1 = x2
+		0 | (2 << 2), // 1001 => x0 = x1, y0 = y2, requires nothing
+		1 | (3 << 2), // 1010 => y0 = y1, y0 = y2, (no area) requires x1 = x2
+		0 | (2 << 2), // 1011 => x0 = x1, y0 = y1, y0 = y2, (unlikely) requires nothing
+		2 | (1 << 2), // 1100 => x0 = x2, y0 = y2, (no area) requires x1 = x2 or y1 = y2
+		0 | (2 << 2), // 1101 => x0 = x1, x0 = x2, y0 = y2, (no area) requires nothing
+		0 | (4 << 2), // 1110 => y0 = y1, x0 = x2, y0 = y2, (no area) requires nothing
+		0 | (2 << 2), // 1111 => x0 = x1, y0 = y1, x0 = x2, y0 = y2, (no area) requires nothing
+};
+
+// Determines ordering of two triangles in parallel if both are right.
+// More efficient than calling IsTriangleRight twice.
+template <u32 tme, u32 fst>
+__forceinline bool AreTrianglesRight(const GSVertex* RESTRICT vin, const u16* RESTRICT index0, const u16* RESTRICT index1,
+	TriangleOrdering* out_triangle0, TriangleOrdering* out_triangle1)
+{
+	GSVector4i mask;
+	if (tme && fst)
+	{
+		// Compare xy and uv together
+		mask = GSVector4i::cxpr8(
+			(s8)0, (s8)1, (s8)8, (s8)9,
+			(s8)2, (s8)3, (s8)10, (s8)11,
+			(s8)0, (s8)1, (s8)8, (s8)9,
+			(s8)2, (s8)3, (s8)10, (s8)11);
+	}
+	else
+	{
+		// ignore uv, compare st instead later
+		mask = GSVector4i::cxpr8(
+			(s8)0, (s8)1, (s8)0x80, (s8)0x80,
+			(s8)2, (s8)3, (s8)0x80, (s8)0x80,
+			(s8)0, (s8)1, (s8)0x80, (s8)0x80,
+			(s8)2, (s8)3, (s8)0x80, (s8)0x80);
+	}
+	GSVector4i xy0 = GSVector4i(vin[index0[0]].m[1]).shuffle8(mask); // Triangle 0 vertex 0
+	GSVector4i xy1 = GSVector4i(vin[index0[1]].m[1]).shuffle8(mask); // Triangle 0 vertex 1
+	GSVector4i xy2 = GSVector4i(vin[index0[2]].m[1]).shuffle8(mask); // Triangle 0 vertex 2
+	GSVector4i xy3 = GSVector4i(vin[index1[0]].m[1]).shuffle8(mask); // Triangle 1 vertex 0
+	GSVector4i xy4 = GSVector4i(vin[index1[1]].m[1]).shuffle8(mask); // Triangle 1 vertex 1
+	GSVector4i xy5 = GSVector4i(vin[index1[2]].m[1]).shuffle8(mask); // Triangle 1 vertex 2
+	GSVector4i vcmp0 = xy0.eq32(xy1.upl64(xy2));
+	GSVector4i vcmp1 = xy3.eq32(xy4.upl64(xy5));
+	GSVector4i vcmp2 = xy1.upl64(xy4).eq32(xy2.upl64(xy5));
+	if (tme && !fst)
+	{
+		// do the st comparisons
+		GSVector4 st0 = GSVector4::cast(GSVector4i(vin[index0[0]].m[0]));
+		GSVector4 st1 = GSVector4::cast(GSVector4i(vin[index0[1]].m[0]));
+		GSVector4 st2 = GSVector4::cast(GSVector4i(vin[index0[2]].m[0]));
+		GSVector4 st3 = GSVector4::cast(GSVector4i(vin[index1[0]].m[0]));
+		GSVector4 st4 = GSVector4::cast(GSVector4i(vin[index1[1]].m[0]));
+		GSVector4 st5 = GSVector4::cast(GSVector4i(vin[index1[2]].m[0]));
+
+		vcmp0 = vcmp0 & GSVector4i::cast(st0.xyxy() == st1.upld(st2));
+		vcmp1 = vcmp1 & GSVector4i::cast(st3.xyxy() == st4.upld(st5));
+		vcmp2 = vcmp2 & GSVector4i::cast(st1.upld(st4) == st2.upld(st5));
+	}
+	int cmp0 = GSVector4::cast(vcmp0).mask();
+	int cmp1 = GSVector4::cast(vcmp1).mask();
+	int cmp2 = GSVector4::cast(vcmp2).mask();
+	if (!cmp0 || !cmp1) // Either triangle 0 or triangle 1 isn't a right triangle
+		return false;
+	u8 triangle0cmp = triangle_comparison_lut[cmp0];
+	u8 triangle1cmp = triangle_comparison_lut[cmp1];
+	int required_cmp2 = TriangleFinalCmp(triangle0cmp) | (TriangleFinalCmp(triangle1cmp) << 2);
+	if ((cmp2 & required_cmp2) != required_cmp2)
+		return false;
+	// Both t0 and t1 are right triangles!
+	*out_triangle0 = TriangleFinalOrder(triangle0cmp);
+	*out_triangle1 = TriangleFinalOrder(triangle1cmp);
+	return true;
+}
+
+template <u32 tme, u32 fst>
+__forceinline bool IsTriangleRight(const GSVertex* RESTRICT vin, const u16* RESTRICT index, TriangleOrdering* out_triangle)
+{
+	GSVector4i mask;
+	if (tme && fst)
+	{
+		// Compare xy and uv together
+		mask = GSVector4i::cxpr8(
+			(s8)0, (s8)1, (s8)8, (s8)9,
+			(s8)2, (s8)3, (s8)10, (s8)11,
+			(s8)0, (s8)1, (s8)8, (s8)9,
+			(s8)2, (s8)3, (s8)10, (s8)11);
+	}
+	else
+	{
+		// ignore uv, compare st instead later
+		mask = GSVector4i::cxpr8(
+			(s8)0, (s8)1, (s8)0x80, (s8)0x80,
+			(s8)2, (s8)3, (s8)0x80, (s8)0x80,
+			(s8)0, (s8)1, (s8)0x80, (s8)0x80,
+			(s8)2, (s8)3, (s8)0x80, (s8)0x80);
+	}
+	GSVector4i xy0 = GSVector4i(vin[index[0]].m[1]).shuffle8(mask); // Triangle 0 vertex 0
+	GSVector4i xy1 = GSVector4i(vin[index[1]].m[1]).shuffle8(mask); // Triangle 0 vertex 1
+	GSVector4i xy2 = GSVector4i(vin[index[2]].m[1]).shuffle8(mask); // Triangle 0 vertex 2
+	GSVector4i vcmp0 = xy0.eq32(xy1.upl64(xy2));
+	GSVector4i vcmp1 = xy1.eq32(xy2); // ignore top 64 bits
+	if (tme && !fst)
+	{
+		// do the st comparisons
+		GSVector4 st0 = GSVector4::cast(GSVector4i(vin[index[0]].m[0]));
+		GSVector4 st1 = GSVector4::cast(GSVector4i(vin[index[1]].m[0]));
+		GSVector4 st2 = GSVector4::cast(GSVector4i(vin[index[2]].m[0]));
+
+		vcmp0 = vcmp0 & GSVector4i::cast(st0.xyxy() == st1.upld(st2));
+		vcmp1 = vcmp1 & GSVector4i::cast(st1 == st2); // ignore top 64 bits
+	}
+	int cmp0 = GSVector4::cast(vcmp0).mask();
+	int cmp1 = GSVector4::cast(vcmp1).mask() & 0x3;
+	if (!cmp0) // Either triangle 0 or triangle 1 isn't a right triangle
+		return false;
+	u8 trianglecmp = triangle_comparison_lut[cmp0];
+	int required_cmp1 = TriangleFinalCmp(trianglecmp);
+	if (cmp1 != required_cmp1)
+		return false;
+	// Both t0 and t1 are right triangles!
+	*out_triangle = TriangleFinalOrder(trianglecmp);
+	return true;
+}
+
+// Determines whether the triangle are right and form a quad
+template <u32 tme, u32 fst>
+__forceinline bool AreTrianglesQuad(const GSVertex* RESTRICT vin, const u16* RESTRICT index0, const u16* RESTRICT index1,
+	TriangleOrdering* out_triangle0, TriangleOrdering* out_triangle1)
+{
+	if (!AreTrianglesRight<tme, fst>(vin, index0, index1, out_triangle0, out_triangle1))
+		return false;
+
+	// The two triangles are now laid out in one of these four orderings:
+	// b   c | c  b | a     |     a
+	// a     |    a | b   c | c   b
+	// To form a quad we must have a0 == c1 and a1 == c0
+	bool are_quad = vin[index0[out_triangle0->a]].XYZ.U32[0] == vin[index1[out_triangle1->c]].XYZ.U32[0] &&
+	                vin[index0[out_triangle0->c]].XYZ.U32[0] == vin[index1[out_triangle1->a]].XYZ.U32[0];
+
+	if (tme)
+	{
+		if (fst)
+		{
+			const u32 uv_a0 = vin[index0[out_triangle0->a]].UV;
+			const u32 uv_c0 = vin[index0[out_triangle0->c]].UV;
+			const u32 uv_a1 = vin[index1[out_triangle1->a]].UV;
+			const u32 uv_c1 = vin[index1[out_triangle1->c]].UV;
+			are_quad = are_quad && uv_a0 == uv_c1 && uv_c0 == uv_a1;
+		}
+		else
+		{
+			const u64 st_a0 = vin[index0[out_triangle0->a]].ST.U64;
+			const u64 st_c0 = vin[index0[out_triangle0->c]].ST.U64;
+			const u64 st_a1 = vin[index1[out_triangle1->a]].ST.U64;
+			const u64 st_c1 = vin[index1[out_triangle1->c]].ST.U64;
+			are_quad = are_quad && st_a0 == st_c1 && st_c0 == st_a1;
+		}
+	}
+	return are_quad;
+}
+
+__forceinline bool AreTrianglesQuadNonAA(const GSVertex* RESTRICT vin, const u16* RESTRICT index0, const u16* RESTRICT index1)
+{
+	u32 v0[3] = {
+		vin[index0[0]].XYZ.U32[0],
+		vin[index0[1]].XYZ.U32[0],
+		vin[index0[2]].XYZ.U32[0],
+	};
+
+	u32 v1[3] = {
+		vin[index1[0]].XYZ.U32[0],
+		vin[index1[1]].XYZ.U32[0],
+		vin[index1[2]].XYZ.U32[0],
+	};
+
+	// Pack vertices to represent edges XY are stored in a single u32. Reverse the order
+	// for some of the fields to allow checking for different vertex order in the same instruction.
+	GSVector4i e0[3] = {
+		GSVector4i(v0[0], v0[1]).xyxy(),
+		GSVector4i(v0[1], v0[2]).xyxy(),
+		GSVector4i(v0[2], v0[0]).xyxy(),
+	};
+	GSVector4i e1[3] = {
+		GSVector4i(v1[0], v1[1]).xyyx(),
+		GSVector4i(v1[1], v1[2]).xyyx(),
+		GSVector4i(v1[2], v1[0]).xyyx(),
+	};
+
+	// Hope this is unrolled.
+	for (int i = 0; i < 3; i++)
+	{
+		for (int j = 0; j < 3; j++)
+		{
+			const int m = (e0[i] == e1[j]).mask();
+			if (m == 0x00FF || m == 0xFF00)
+			{
+				// Shared vertices
+				const int xs0 = static_cast<int>((v0[(i + 0) % 3] >> 0) & 0xFFFF);
+				const int ys0 = static_cast<int>((v0[(i + 0) % 3] >> 16) & 0xFFFF);
+				const int xs1 = static_cast<int>((v0[(i + 1) % 3] >> 0) & 0xFFFF);
+				const int ys1 = static_cast<int>((v0[(i + 1) % 3] >> 16) & 0xFFFF);
+
+				// Non-shared vertices
+				const int xn0 = static_cast<int>((v0[(i + 2) % 3] >> 0) & 0xFFFF);
+				const int yn0 = static_cast<int>((v0[(i + 2) % 3] >> 16) & 0xFFFF);
+				const int xn1 = static_cast<int>((v1[(j + 2) % 3] >> 0) & 0xFFFF);
+				const int yn1 = static_cast<int>((v1[(j + 2) % 3] >> 16) & 0xFFFF);
+
+				// Deltas of the edges
+				const int dxs = xs1 - xs0;
+				const int dys = ys1 - ys0;
+
+				const int dx0 = xn0 - xs0;
+				const int dy0 = yn0 - ys0;
+
+				const int dx1 = xn1 - xs0;
+				const int dy1 = yn1 - ys0;
+
+				// Cross products
+				const int cross0 = dx0 * dys - dy0 * dxs;
+				const int cross1 = dx1 * dys - dy1 * dxs;
+
+				// Check if opposite sides of the shared edge
+				return (cross0 < 0) != (cross1 < 0);
+			}
+		}
+	}
+
+	return false;
+}
+
+template<bool shuffle_check>
+bool GSState::TrianglesAreQuadsImpl()
+{
+	// are_quads: triangles form axis-aligned quads and they line up end-to-end.
+	// In a shuffle check we want the bboxes
+	// to line up end-to-end when we shift the coordinates by 8 pixels horizontally.
+	// Special case: when only 2 triangles, the quad need not be axis aligned.
+	
+	bool& quad_check_valid = shuffle_check ? m_quad_check_valid_shuffle : m_quad_check_valid;
+	bool& are_quads = shuffle_check ? m_are_quads_shuffle : m_are_quads;
+
+	// Check if the result is cached.
+	if (quad_check_valid)
+		return are_quads;
+
+	quad_check_valid = true;
+	are_quads = true;
+
+	if (m_index.tail % 6 != 0)
+	{
+		are_quads = false;
+		return false;
+	}
+
+	constexpr GSVector4i offset = shuffle_check ? GSVector4i::cxpr(8 << 4, 0, 8 << 4, 0) : GSVector4i::cxpr(0);
+
+	const GSVertex* RESTRICT v = m_vertex.buff;
+	const u16* RESTRICT index = m_index.buff;
+	const size_t count = m_index.tail;
+
+	if (m_index.tail == 6)
+	{
+		// Non-axis aligned check when only two triangles
+		are_quads = AreTrianglesQuadNonAA(v, &index[0], &index[3]);
+	}
+	else
+	{
+		GSVector4i prev_bbox;
+
+		for (u32 i = 0; i < count; i += 6)
+		{
+			const u16* RESTRICT idx0 = &index[i + 0];
+			const u16* RESTRICT idx1 = &index[i + 3];
+			TriangleOrdering tri0;
+			TriangleOrdering tri1;
+
+			if (!AreTrianglesQuad<0, 0>(v, idx0, idx1, &tri0, &tri1))
+			{
+				are_quads = false;
+				break;
+			}
+
+			// tri.b is right angle corner
+			GSVector4i corner0 = GSVector4i(v[idx0[tri0.b]].m[1]).upl16().xyxy();
+			GSVector4i corner1 = GSVector4i(v[idx1[tri1.b]].m[1]).upl16().xyxy();
+			GSVector4i bbox = corner0.runion(corner1);
+
+			if (are_quads && i > 0)
+			{
+				GSVector4i bbox_offset = bbox - offset;
+
+				// Check that the two bboxes have exactly 1 edge in common.
+				int m = GSVector4::cast(bbox_offset == prev_bbox).mask();
+				bool valign = (m & 0b0101) == 0b0101; // X-range identical.
+				bool halign = (m & 0b1010) == 0b1010; // Y-range identical.
+				int vadj = GSVector4::cast(bbox_offset.ywyw() == prev_bbox.wywy()).mask() & 3;
+				int hadj = GSVector4::cast(bbox_offset.xzxz() == prev_bbox.zxzx()).mask() & 3;
+
+				bool adjacent =
+					(halign && (hadj == 0b01 || hadj == 0b10)) || // Quads share vertical edge.
+					(valign && (vadj == 0b01 || vadj == 0b10)); // Quads share horizontal edge.
+
+				if (!adjacent)
+				{
+					are_quads = false;
+				}
+			}
+
+			if (!are_quads)
+				break;
+
+			prev_bbox = bbox;
+		}
+	}
+
+	return are_quads;
 }
 
 bool GSState::TrianglesAreQuads(bool shuffle_check)
 {
-	// If this is a quad, there should only be two distinct values for both X and Y, which
-	// also happen to be the minimum/maximum bounds of the primitive.
-	if (!shuffle_check && m_quad_check_valid)
-		return m_are_quads;
-
-	const GSVertex* const v = m_vertex.buff;
-	m_are_quads = false;
-	m_quad_check_valid = !shuffle_check;
-
-	for (u32 idx = 0; idx < m_index.tail; idx += 6)
-	{
-		const u16* const i = m_index.buff + idx;
-
-		// Make sure the next set of triangles matches an edge of the previous triangle.
-		if (idx > 0)
-		{
-			const u16* const prev_tri= m_index.buff + (idx - 3);
-			GIFRegXYZ new_verts[3] = {v[i[0]].XYZ, v[i[1]].XYZ, v[i[2]].XYZ};
-
-			if (shuffle_check)
-			{
-				new_verts[0].X -= 8 << 4;
-				new_verts[1].X -= 8 << 4;
-				new_verts[2].X -= 8 << 4;
-			}
-			u32 match_vert_count = 0;
-
-			if (!(new_verts[0] != m_vertex.buff[prev_tri[0]].XYZ && new_verts[0] != m_vertex.buff[prev_tri[1]].XYZ && new_verts[0] != m_vertex.buff[prev_tri[2]].XYZ))
-				match_vert_count++;
-			if (!(new_verts[1] != m_vertex.buff[prev_tri[0]].XYZ && new_verts[1] != m_vertex.buff[prev_tri[1]].XYZ && new_verts[1] != m_vertex.buff[prev_tri[2]].XYZ))
-				match_vert_count++;
-			if (!(new_verts[2] != m_vertex.buff[prev_tri[0]].XYZ && new_verts[2] != m_vertex.buff[prev_tri[1]].XYZ && new_verts[2] != m_vertex.buff[prev_tri[2]].XYZ))
-				match_vert_count++;
-
-			if (match_vert_count != 2)
-				return false;
-		}
-		// Degenerate triangles should've been culled already, so we can check indices.
-		// This doesn't really make much sense when it's a triangle strip as it will always have 1 extra vert, so check for distinct values for them.
-		if (PRIM->PRIM != GS_TRIANGLESTRIP)
-		{
-			u32 extra_verts = 0;
-			for (u32 j = 3; j < 6; j++)
-			{
-				const u16 tri2_idx = i[j];
-				if (tri2_idx != i[0] && tri2_idx != i[1] && tri2_idx != i[2])
-					extra_verts++;
-			}
-			if (extra_verts == 1)
-				continue;
-		}
-		else if (m_index.tail == 6)
-		{
-			const int first_X = m_vertex.buff[m_index.buff[0]].XYZ.X;
-			const int first_Y = m_vertex.buff[m_index.buff[0]].XYZ.Y;
-			const int second_X = m_vertex.buff[m_index.buff[1]].XYZ.X;
-			const int second_Y = m_vertex.buff[m_index.buff[1]].XYZ.Y;
-			const int third_X = m_vertex.buff[m_index.buff[2]].XYZ.X;
-			const int third_Y = m_vertex.buff[m_index.buff[2]].XYZ.Y;
-			const int new_X = m_vertex.buff[m_index.buff[5]].XYZ.X;
-			const int new_Y = m_vertex.buff[m_index.buff[5]].XYZ.Y;
-
-			const int middle_Y = (second_Y >= third_Y) ? (third_Y + ((second_Y - third_Y) / 2)) : (second_Y + ((third_Y - second_Y) / 2));
-			const int middle_X = (second_X >= third_X) ? (third_X + ((second_X - third_X) / 2)) : (second_X + ((third_X - second_X) / 2));
-			const bool first_lt_X = first_X <= middle_X;
-			const bool first_lt_Y = first_Y <= middle_Y;
-			const bool new_lt_X = new_X <= middle_X;
-			const bool new_lt_Y = new_Y <= middle_Y;
-
-			// Check if verts are on the same side. Not totally accurate, but should be good enough.
-			if (first_lt_X == new_lt_X && new_lt_Y == first_lt_Y)
-					return false;
-
-			m_prim_overlap = PRIM_OVERLAP_NO;
-			break;
-		}
-
-		// As a fallback, they might've used different vertices with a tri list, not strip.
-		// Note that this won't work unless the quad is axis-aligned.
-		u16 distinct_x_values[2] = {v[i[0]].XYZ.X};
-		u16 distinct_y_values[2] = {v[i[0]].XYZ.Y};
-		u32 num_distinct_x_values = 1, num_distinct_y_values = 1;
-		for (u32 j = 1; j < 6; j++)
-		{
-			const GSVertex& jv = v[i[j]];
-			if (jv.XYZ.X != distinct_x_values[0] && jv.XYZ.X != distinct_x_values[1])
-			{
-				if (num_distinct_x_values > 1)
-					return false;
-
-				distinct_x_values[num_distinct_x_values++] = jv.XYZ.X;
-			}
-
-			if (jv.XYZ.Y != distinct_y_values[0] && jv.XYZ.Y != distinct_y_values[1])
-			{
-				if (num_distinct_y_values > 1)
-					return false;
-
-				distinct_y_values[num_distinct_y_values++] = jv.XYZ.Y;
-			}
-		}
-	}
-
-	m_are_quads = true;
-	return true;
+	return shuffle_check ? TrianglesAreQuadsImpl<true>() : TrianglesAreQuadsImpl<false>();
 }
 
-GSState::PRIM_OVERLAP GSState::PrimitiveOverlap()
+template<u32 primclass>
+GSState::PRIM_OVERLAP GSState::GetPrimitiveOverlapDrawlistImpl(bool save_drawlist, bool save_bbox, float bbox_scale)
 {
-	// Either 1 triangle or 1 line or 3 POINTs
-	// It is bad for the POINTs but low probability that they overlap
+	const GSVector4i xyof = m_context->scissor.xyof.xyxy();
+
+	// Process the bbox to be in window coordinates and scaled appropriately.
+	const auto ProcessBBox = [&xyof, bbox_scale](GSVector4i bbox) {
+		bbox -= xyof;
+		if (bbox_scale != 1.0f)
+		{
+			GSVector4 bboxf = GSVector4(bbox) * bbox_scale;
+			bboxf = bboxf.floor().xyzw(bboxf.ceil());
+			bbox = GSVector4i(bboxf);
+		}
+		// floor min, ceil max, and +1 on all sides for bilinear.
+		bbox = (bbox + GSVector4i(-0x10, -0x10, 0x1F, 0x1F)).sra32<4>();
+		return bbox;
+	};
+
+	constexpr int n = GSUtil::GetClassVertexCount(primclass);
+
+	// We should should only have to compute the drawlist/bboxes once per draw.
+	pxAssert(!save_drawlist || m_drawlist.empty());
+	pxAssert(!save_bbox || m_drawlist_bbox.empty());
+	
+	pxAssert(!save_bbox || save_drawlist); // We should only save bboxes when saving drawlist.
+
+	const GSVertex* RESTRICT v = m_vertex.buff;
+	const u16* RESTRICT index = m_index.buff;
+	const u32 count = m_index.tail;
+
+	// Optimize out using indices for sprites and points; probably not much difference.
+	const auto GetIndex = [&](int i) {
+		if constexpr (primclass == GS_SPRITE_CLASS || primclass == GS_POINT_CLASS)
+			return i;
+		else
+			return index[i];
+	};
+
+	// Batch prim into groups so that within each group the cumulative bboxes are non-overlapping.
+	// Allows faster comparison than using O(n^2) for full pairwise intersections.
+	// Check Virtua Fighter for example.
+
+	if (primclass == GS_TRIANGLE_CLASS && m_quad_check_valid && m_are_quads)
+	{
+		// The triangles-are-quads check already ensures that there is no overlap.
+		m_drawlist.push_back(m_index.tail / n);
+		if (save_bbox)
+		{
+			const GSVector4i draw_area = GSVector4i(m_vt.m_min.p.upld(m_vt.m_max.p) * GSVector4(16.0f)) + xyof;
+			m_drawlist_bbox.push_back(ProcessBBox(draw_area));
+		}
+		return PRIM_OVERLAP_NO;
+	}
+
+	PRIM_OVERLAP overlap = PRIM_OVERLAP_NO;
+	bool check_quads = primclass == GS_TRIANGLE_CLASS;
+
+	u32 i = 0;
+	u32 skip = 0; // Number of indices to skip if we have the bbox from the previous iteration.
+
+	GSVector4i all(INT_MAX, INT_MAX, -INT_MAX, -INT_MAX);
+
+	while (i < count)
+	{
+		u32 j = i + skip;
+
+		GSVector4i bbox(INT_MAX, INT_MAX, -INT_MAX, -INT_MAX);
+
+		while (j < count)
+		{
+			if (check_quads && j + 3 < count)
+			{
+				const u16* RESTRICT idx0 = &index[j + 0];
+				const u16* RESTRICT idx1 = &index[j + 3];
+				TriangleOrdering tri0;
+				TriangleOrdering tri1;
+
+				if (AreTrianglesQuad<0, 0>(v, idx0, idx1, &tri0, &tri1))
+				{
+					// tri.b is right angle corner
+					GSVector4i corner0 = GSVector4i(v[idx0[tri0.b]].m[1]).upl16().xyxy();
+					GSVector4i corner1 = GSVector4i(v[idx1[tri1.b]].m[1]).upl16().xyxy();
+					bbox = corner0.runion(corner1);
+					
+					skip = 6;
+				}
+				else
+				{
+					bbox = GSVector4i(v[index[j + 0]].m[1]).upl16().xyxy();
+					bbox = bbox.runion(GSVector4i(v[index[j + 1]].m[1]).upl16().xyxy());
+					bbox = bbox.runion(GSVector4i(v[index[j + 2]].m[1]).upl16().xyxy());
+
+					skip = 3;
+
+					// If we fail a quad check assume the rest are not quads.
+					check_quads = false;
+				}
+			}
+			else
+			{
+				bbox = GSVector4i(v[GetIndex(j)].m[1]).upl16().xyxy();
+				for (int k = 1; k < n; k++) // Unroll
+					bbox = bbox.runion(GSVector4i(v[GetIndex(j + k)].m[1]).upl16().xyxy());
+
+				skip = n;
+			}
+
+			// Avoid degenerate bbox.
+			bbox = bbox.blend(bbox + GSVector4i(0, 0, 1, 1), bbox.xyxy() == bbox.zwzw());
+
+			if (all.rintersects(bbox))
+			{
+				overlap = PRIM_OVERLAP_YES;
+				break;
+			}
+
+			all = all.runion(bbox);
+
+			j += skip;
+
+			skip = 0;
+		}
+
+		if (save_drawlist)
+			m_drawlist.push_back((j - i) / n); // Prim count
+		else if (j < count)
+			return PRIM_OVERLAP_YES; // Early exit if not saving drawlist.
+
+		if (save_bbox)
+		{
+			m_drawlist_bbox.push_back(ProcessBBox(all));
+		}
+
+		all = bbox;
+
+		i = j;
+	}
+
+	return overlap;
+}
+
+GSState::PRIM_OVERLAP GSState::GetPrimitiveOverlapDrawlist(bool save_drawlist, bool save_bbox, float bbox_scale)
+{
+	switch (m_vt.m_primclass)
+	{
+		case GS_POINT_CLASS:
+			return GetPrimitiveOverlapDrawlistImpl<GS_POINT_CLASS>(save_drawlist, save_bbox, bbox_scale);
+		case GS_LINE_CLASS:
+			return GetPrimitiveOverlapDrawlistImpl<GS_LINE_CLASS>(save_drawlist, save_bbox, bbox_scale);
+		case GS_TRIANGLE_CLASS:
+			return GetPrimitiveOverlapDrawlistImpl<GS_TRIANGLE_CLASS>(save_drawlist, save_bbox, bbox_scale);
+		case GS_SPRITE_CLASS:
+			return GetPrimitiveOverlapDrawlistImpl<GS_SPRITE_CLASS>(save_drawlist, save_bbox, bbox_scale);
+		default:
+			pxFail("Invalid primclass."); // Impossible.
+			return PRIM_OVERLAP_UNKNOW;
+	}
+}
+
+GSState::PRIM_OVERLAP GSState::PrimitiveOverlap(bool save_drawlist)
+{
+	// Assume that 1 triangle, 1 sprite, 1 line, or 3 points can't overlap.
+	// Not fully accurate for points but low probability that they overlap.
 	if (m_vertex.next < 4)
 		return PRIM_OVERLAP_NO;
 
@@ -3038,98 +3863,7 @@ GSState::PRIM_OVERLAP GSState::PrimitiveOverlap()
 	else if (m_vt.m_primclass != GS_SPRITE_CLASS)
 		return PRIM_OVERLAP_UNKNOW; // maybe, maybe not
 
-	// Check intersection of sprite primitive only
-	const u32 count = m_vertex.next;
-	PRIM_OVERLAP overlap = PRIM_OVERLAP_NO;
-	const GSVertex* v = m_vertex.buff;
-
-	m_drawlist.clear();
-	u32 i = 0;
-	while (i < count)
-	{
-		// In order to speed up comparison a bounding-box is accumulated. It removes a
-		// loop so code is much faster (check game virtua fighter). Besides it allow to check
-		// properly the Y order.
-
-		// .x = min(v[i].XYZ.X, v[i+1].XYZ.X)
-		// .y = min(v[i].XYZ.Y, v[i+1].XYZ.Y)
-		// .z = max(v[i].XYZ.X, v[i+1].XYZ.X)
-		// .w = max(v[i].XYZ.Y, v[i+1].XYZ.Y)
-		GSVector4i all = GSVector4i(v[i].m[1]).upl16(GSVector4i(v[i + 1].m[1])).upl16().xzyw();
-		all = all.xyxy().blend(all.zwzw(), all > all.zwxy());
-
-		u32 j = i + 2;
-		while (j < count)
-		{
-			GSVector4i sprite = GSVector4i(v[j].m[1]).upl16(GSVector4i(v[j + 1].m[1])).upl16().xzyw();
-			sprite = sprite.xyxy().blend(sprite.zwzw(), sprite > sprite.zwxy());
-
-			// Be sure to get vertex in good order, otherwise .r* function doesn't
-			// work as expected.
-			pxAssert(sprite.x <= sprite.z);
-			pxAssert(sprite.y <= sprite.w);
-			pxAssert(all.x <= all.z);
-			pxAssert(all.y <= all.w);
-
-			if (all.rintersect(sprite).rempty())
-			{
-				all = all.runion(sprite);
-			}
-			else
-			{
-				overlap = PRIM_OVERLAP_YES;
-				break;
-			}
-			j += 2;
-		}
-		m_drawlist.push_back((j - i) >> 1); // Sprite count
-		i = j;
-	}
-
-#if 0
-	// Old algo: less constraint but O(n^2) instead of O(n) as above
-
-	// You have no guarantee on the sprite order, first vertex can be either top-left or bottom-left
-	// There is a high probability that the draw call will uses same ordering for all vertices.
-	// In order to keep a small performance impact only the first sprite will be checked
-	//
-	// Some safe-guard will be added in the outer-loop to avoid corruption with a limited perf impact
-	if (v[1].XYZ.Y < v[0].XYZ.Y) {
-		// First vertex is Top-Left
-		for (u32 i = 0; i < count; i += 2) {
-			if (v[i + 1].XYZ.Y > v[i].XYZ.Y) {
-				return PRIM_OVERLAP_UNKNOW;
-			}
-			GSVector4i vi(v[i].XYZ.X, v[i + 1].XYZ.Y, v[i + 1].XYZ.X, v[i].XYZ.Y);
-			for (u32 j = i + 2; j < count; j += 2) {
-				GSVector4i vj(v[j].XYZ.X, v[j + 1].XYZ.Y, v[j + 1].XYZ.X, v[j].XYZ.Y);
-				GSVector4i inter = vi.rintersect(vj);
-				if (!inter.rempty()) {
-					return PRIM_OVERLAP_YES;
-				}
-			}
-		}
-	}
-	else {
-		// First vertex is Bottom-Left
-		for (u32 i = 0; i < count; i += 2) {
-			if (v[i + 1].XYZ.Y < v[i].XYZ.Y) {
-				return PRIM_OVERLAP_UNKNOW;
-			}
-			GSVector4i vi(v[i].XYZ.X, v[i].XYZ.Y, v[i + 1].XYZ.X, v[i + 1].XYZ.Y);
-			for (u32 j = i + 2; j < count; j += 2) {
-				GSVector4i vj(v[j].XYZ.X, v[j].XYZ.Y, v[j + 1].XYZ.X, v[j + 1].XYZ.Y);
-				GSVector4i inter = vi.rintersect(vj);
-				if (!inter.rempty()) {
-					return PRIM_OVERLAP_YES;
-				}
-			}
-		}
-	}
-#endif
-
-	// fprintf(stderr, "%d: Yes, code can be optimized (draw of %d vertices)\n", s_n, count);
-	return overlap;
+	return GetPrimitiveOverlapDrawlist(save_drawlist);
 }
 
 bool GSState::SpriteDrawWithoutGaps()
@@ -3260,7 +3994,196 @@ void GSState::CalculatePrimitiveCoversWithoutGaps()
 	m_primitive_covers_without_gaps = SpriteDrawWithoutGaps() ? (m_primitive_covers_without_gaps == GapsFound ? SpriteNoGaps : m_primitive_covers_without_gaps) : GapsFound;
 }
 
-__forceinline bool GSState::IsAutoFlushDraw(u32 prim)
+__forceinline bool GSState::EarlyDetectShuffle(u32 prim)
+{
+	// We only handle sprites here and need one sprite in the queue.
+	// Texture mapping must be enabled for a shuffle.
+	if (m_index.tail < 2 || prim != GS_SPRITE || !PRIM->TME)
+		return false;
+
+	const GSVertex* RESTRICT vertex = &m_vertex.buff[0];
+	const u16* RESTRICT index = &m_index.buff[0];
+
+	if (GSLocalMemory::m_psm[m_context->FRAME.PSM].bpp == 16 && GSLocalMemory::m_psm[m_context->TEX0.PSM].bpp == 16)
+	{
+		// Handle shuffles where the source and destination are both 16 bits.
+
+		const int x0 = static_cast<int>(vertex[index[0]].XYZ.X) - static_cast<int>(m_context->XYOFFSET.OFX);
+		const int x1 = static_cast<int>(vertex[index[0]].XYZ.X) - static_cast<int>(m_context->XYOFFSET.OFX);
+		const int xn = static_cast<int>(m_v.XYZ.X) - static_cast<int>(static_cast<int>(m_context->XYOFFSET.OFX));
+
+		int u0, un;
+		if (PRIM->FST)
+		{
+			u0 = static_cast<int>(vertex[index[0]].U);
+			un = static_cast<int>(m_v.U);
+		}
+		else
+		{
+			const float q0 = vertex[index[0]].RGBAQ.Q == 0.0f ? FLT_MIN : vertex[index[0]].RGBAQ.Q;
+			u0 = static_cast<int>((1 << m_context->TEX0.TW) * (vertex[index[0]].ST.S / q0) * 16.0f);
+
+			const float qn = m_v.RGBAQ.Q == 0.0f ? FLT_MIN : m_v.RGBAQ.Q;
+			un = static_cast<int>((1 << m_context->TEX0.TW) * (m_v.ST.S / qn) * 16.0f);
+		}
+		
+		// Check that the X-U offsets are the same for the first and current vertex and
+		// that the width of the first sprite is at most 16 pixels.
+		return std::abs(u0 - x0) == std::abs(un - xn) && std::abs(x1 - x0) <= 0x100;
+	}
+
+	if (GSLocalMemory::m_psm[m_context->FRAME.PSM].bpp == 16 && GSLocalMemory::m_psm[m_context->TEX0.PSM].bpp == 32)
+	{
+		// Handle shuffles where the source is 32/24 bits and destination is 16 bits.
+		// Example: The Godfather.
+
+		// These shuffles usually mask R and G (lower 10 bits in 16 bit format) so that they
+		// write only to B and A (top 6 bits in 16 bit format).
+		if (GSUtil::GetChannelMask(m_context->FRAME.PSM, m_context->FRAME.FBMSK) != 0xC)
+			return false;
+
+		const int x0 = static_cast<int>(vertex[index[0]].XYZ.X) - static_cast<int>(m_context->XYOFFSET.OFX);
+		const int y0 = static_cast<int>(vertex[index[0]].XYZ.Y) - static_cast<int>(m_context->XYOFFSET.OFY);
+
+		const int x1 = static_cast<int>(vertex[index[1]].XYZ.X) - static_cast<int>(m_context->XYOFFSET.OFX);
+		const int y1 = static_cast<int>(vertex[index[1]].XYZ.Y) - static_cast<int>(m_context->XYOFFSET.OFY);
+
+		int u0, v0, u1, v1;
+
+		if (PRIM->FST)
+		{
+			u0 = static_cast<int>(vertex[index[0]].U);
+			v0 = static_cast<int>(vertex[index[0]].V);
+
+			u1 = static_cast<int>(vertex[index[1]].U);
+			v1 = static_cast<int>(vertex[index[1]].V);
+		}
+		else
+		{
+			// Sprites have constant Q so use the second.
+			const float q1 = vertex[index[1]].RGBAQ.Q == 0.0f ? FLT_MIN : vertex[index[1]].RGBAQ.Q;
+
+			u0 = static_cast<int>((1 << m_context->TEX0.TW) * (vertex[index[0]].ST.S / q1) * 16.0f);
+			v0 = static_cast<int>((1 << m_context->TEX0.TH) * (vertex[index[0]].ST.T / q1) * 16.0f);
+
+			u1 = static_cast<int>((1 << m_context->TEX0.TW) * (vertex[index[1]].ST.S / q1) * 16.0f);
+			v1 = static_cast<int>((1 << m_context->TEX0.TH) * (vertex[index[1]].ST.T / q1) * 16.0f);
+		}
+
+		// Check that the source and destination sprite are exactly 8 pixel squares.
+		// We do not use the current vertex in this check because it doesn't have a
+		// clean correspondence with the first shuffle for 32->16 bit shuffles
+		// (the coordinates manually swizzle between 32 and 16 bits).
+		const bool const_spacing =
+			(std::abs(x1 - x0) == 0x80) && (std::abs(y1 - y0) == 0x80) &&
+			(std::abs(u1 - u0) == 0x80) && (std::abs(v1 - v0) == 0x80);
+
+		// The purpose of these shuffles is to write the alpha channel,
+		// so the coordinates should write to upper 16 bits regions only.
+		const bool write_ba = (std::min(x0, x1) & 0x80) != 0;
+
+		return const_spacing && write_ba;
+	}
+
+	if (GSLocalMemory::m_psm[m_context->FRAME.PSM].bpp == 32 && GSLocalMemory::m_psm[m_context->TEX0.PSM].bpp == 16)
+	{
+		// Handle shuffles where the source is 16 bits and destination is 32/16 bits.
+		// Example: DT Racer.
+
+		// These shuffles usually mask RGB (lower 24 bits in 32 bit format) so that they
+		// write only to A.
+		if (GSUtil::GetChannelMask(m_context->FRAME.PSM, m_context->FRAME.FBMSK) != 8)
+			return false;
+
+		const int x0 = static_cast<int>(vertex[index[0]].XYZ.X) - static_cast<int>(m_context->XYOFFSET.OFX);
+		const int y0 = static_cast<int>(vertex[index[0]].XYZ.Y) - static_cast<int>(m_context->XYOFFSET.OFY);
+
+		const int x1 = static_cast<int>(vertex[index[1]].XYZ.X) - static_cast<int>(m_context->XYOFFSET.OFX);
+		const int y1 = static_cast<int>(vertex[index[1]].XYZ.Y) - static_cast<int>(m_context->XYOFFSET.OFY);
+
+		int u0, v0, u1, v1;
+
+		if (PRIM->FST)
+		{
+			u0 = static_cast<int>(vertex[index[0]].U);
+			v0 = static_cast<int>(vertex[index[0]].V);
+
+			u1 = static_cast<int>(vertex[index[1]].U);
+			v1 = static_cast<int>(vertex[index[1]].V);
+		}
+		else
+		{
+			// Sprites have constant Q so use the second.
+			const float q1 = vertex[index[1]].RGBAQ.Q == 0.0f ? FLT_MIN : vertex[index[1]].RGBAQ.Q;
+			
+			u0 = static_cast<int>((1 << m_context->TEX0.TW) * (vertex[index[0]].ST.S / q1) * 16.0f);
+			v0 = static_cast<int>((1 << m_context->TEX0.TH) * (vertex[index[0]].ST.T / q1) * 16.0f);
+
+			u1 = static_cast<int>((1 << m_context->TEX0.TW) * (vertex[index[1]].ST.S / q1) * 16.0f);
+			v1 = static_cast<int>((1 << m_context->TEX0.TH) * (vertex[index[1]].ST.T / q1) * 16.0f);
+		}
+
+		// Check that the source and destination sprite are exactly 8 pixel squares.
+		// We do not use the current vertex in this check because it doesn't have a
+		// clean correspondence with the first shuffle for 32->16 bit shuffles
+		// (the coordinates manually swizzle between 32 and 16 bits).
+		const bool const_spacing =
+			(std::abs(x1 - x0) == 0x80) && (std::abs(y1 - y0) == 0x80) &&
+			(std::abs(u1 - u0) == 0x80) && (std::abs(v1 - v0) == 0x80);
+
+		// The purpose of these shuffles is to read the green channel,
+		// so the coordinates should read the lower 16 bits only.
+		const bool read_rg = (std::min(u0, u1) & 0x80) == 0;
+
+		return const_spacing && read_rg;
+	}
+
+	if (m_context->TEX0.PSM == PSMT8)
+	{
+		// Handle channel shuffles.
+
+		// Heuristics to detect channel shuffle based on first sprite and clamp mode.
+		const auto CheckWidthOrClampMode = [this]() -> bool {
+			const GSVertex* v = &m_vertex.buff[0];
+
+			const int draw_width = std::abs(v[1].XYZ.X - v[0].XYZ.X) >> 4;
+			const int draw_height = std::abs(v[1].XYZ.Y - v[0].XYZ.Y) >> 4;
+
+			// Checks if using region clamp or region repeat for U or V.
+			// Might used used when the sprites are 16 pixels wide.
+			const bool clamp_region = ((m_context->CLAMP.WMS | m_context->CLAMP.WMT) & 0x2) != 0;
+
+			// Channel shuffles usually draw 8 x 2 sprites.
+			const bool draw_match = (draw_height == 2) || (draw_width == 8);
+
+			return draw_match || clamp_region;
+		};
+
+		const bool single_page_x = temp_draw_rect.width() <= 64;
+		const bool single_page_y = temp_draw_rect.height() <= 64;
+		if (single_page_x && single_page_y)
+		{
+			return CheckWidthOrClampMode();
+		}
+		else if (!single_page_x)
+		{
+			// Not a single page in width.
+			return false;
+		}
+
+		// WRC 4 does channel shuffles in vertical strips. So check for page alignment.
+		// Texture TBW should also be twice the framebuffer FBW, because the page is twice as wide.
+		if (m_context->TEX0.TBW == (m_context->FRAME.FBW * 2) &&
+			GSLocalMemory::IsPageAligned(m_context->FRAME.PSM, temp_draw_rect))
+		{
+			return CheckWidthOrClampMode();
+		}
+	}
+
+	return false;
+}
+
+__forceinline bool GSState::IsAutoFlushDraw(u32 prim, int& tex_layer)
 {
 	if (!PRIM->TME || (GSConfig.UserHacks_AutoFlush == GSHWAutoFlushLevel::SpritesOnly && prim != GS_SPRITE))
 		return false;
@@ -3270,24 +4193,56 @@ __forceinline bool GSState::IsAutoFlushDraw(u32 prim)
 		return false;
 
 	// Try to detect shuffles, because these will not autoflush, they by design clash.
-	if (GSLocalMemory::m_psm[m_context->FRAME.PSM].bpp == 16 && GSLocalMemory::m_psm[m_context->TEX0.PSM].bpp == 16)
-	{
-		// Pretty confident here...
-		GSVertex* buffer = &m_vertex.buff[0];
-		const bool const_spacing = std::abs(buffer[m_index.buff[0]].U - buffer[m_index.buff[0]].XYZ.X) == std::abs(m_v.U - m_v.XYZ.X) && std::abs(buffer[m_index.buff[1]].XYZ.X - buffer[m_index.buff[0]].XYZ.X) <= 256; // Lequal to 16 pixels apart.
+	if (EarlyDetectShuffle(prim))
+		return false;
 
-		if (const_spacing)
-			return false;
+	// Check if one of the texture being used is the same as the FRAME or ZBUF.
+	// In the case of possible mip-mapping, we need to check all possible layers.
+	bool frame_addr_hit = false;
+	bool zbuf_addr_hit = false;
+	const bool possible_mip_map = m_context->TEX1.MXL > 0 && m_context->TEX1.MMIN >= 2 && m_context->TEX1.MMIN <= 5;
+	int min_possible_layer = 0;
+	int max_possible_layer = 0;
+	if (possible_mip_map)
+	{
+		if (m_context->TEX1.LCM)
+		{
+			// Fixed LOD.
+			min_possible_layer = std::clamp(m_context->TEX1.K >> 4, 0, static_cast<int>(m_context->TEX1.MXL));
+			max_possible_layer = std::clamp((m_context->TEX1.K + 0xF) >> 4, 0, static_cast<int>(m_context->TEX1.MXL));
+		}
+		else
+		{
+			// Variable LOD based on vertex Q.
+			max_possible_layer = static_cast<int>(m_context->TEX1.MXL);
+		}
 	}
+	
+	GIFRegTEX0 TEX0_hit;
+	for (tex_layer = min_possible_layer; tex_layer <= max_possible_layer; tex_layer++)
+	{
+		TEX0_hit = GetTex0Layer(tex_layer);
+		if (TEX0_hit.TBP0 == m_context->FRAME.Block())
+		{
+			frame_addr_hit = true;
+			break;
+		}
+		if (TEX0_hit.TBP0 == m_context->ZBUF.Block())
+		{
+			zbuf_addr_hit = true;
+			break;
+		}
+	}
+
 	const u32 frame_mask = GSLocalMemory::m_psm[m_context->FRAME.PSM].fmsk;
-	const bool frame_hit = m_context->FRAME.Block() == m_context->TEX0.TBP0 && !(m_context->TEST.ATE && m_context->TEST.ATST == 0 && m_context->TEST.AFAIL == 2) && ((m_context->FRAME.FBMSK & frame_mask) != frame_mask);
+	const bool frame_hit = frame_addr_hit && !(m_context->TEST.ATE && m_context->TEST.ATST == 0 && m_context->TEST.AFAIL == 2) && ((m_context->FRAME.FBMSK & frame_mask) != frame_mask);
 	// There's a strange behaviour we need to test on a PS2 here, if the FRAME is a Z format, like Powerdrome something swaps over, and it seems Alpha Fail of "FB Only" writes to the Z.. it's odd.
 	const bool z_needed = !(m_context->TEST.ATE && m_context->TEST.ATST == 0 && m_context->TEST.AFAIL != 2) && !m_context->ZBUF.ZMSK;
-	const bool zbuf_hit = (m_context->ZBUF.Block() == m_context->TEX0.TBP0) && z_needed;
+	const bool zbuf_hit = zbuf_addr_hit && z_needed;
 	const u32 frame_z_psm = frame_hit ? m_context->FRAME.PSM : m_context->ZBUF.PSM;
 	const u32 frame_z_bp = frame_hit ? m_context->FRAME.Block() : m_context->ZBUF.Block();
 
-	if ((frame_hit || zbuf_hit) && GSUtil::HasSharedBits(frame_z_bp, frame_z_psm, m_context->TEX0.TBP0, m_context->TEX0.PSM))
+	if ((frame_hit || zbuf_hit) && GSUtil::HasSharedBits(frame_z_bp, frame_z_psm, TEX0_hit.TBP0, TEX0_hit.PSM))
 		return true;
 
 	return false;
@@ -3365,7 +4320,7 @@ __forceinline void GSState::CheckCLUTValidity(u32 prim)
 	}
 }
 
-template<u32 prim, bool index_swap>
+template<u32 prim>
 __forceinline void GSState::HandleAutoFlush()
 {
 	// Kind of a cheat, making the assumption that 2 consecutive fan/strip triangles won't overlap each other (*should* be safe)
@@ -3375,7 +4330,8 @@ __forceinline void GSState::HandleAutoFlush()
 	// To briefly explain what's going on here, what we are checking for is draws over a texture when the source and destination are themselves.
 	// Because one page of the texture gets buffered in the Texture Cache (the PS2's one) if any of those pixels are overwritten, you still read the old data.
 	// So we need to calculate if a page boundary is being crossed for the format it is in and if the same part of the texture being written and read inside the draw.
-	if (IsAutoFlushDraw(prim))
+	int tex_layer = 0;
+	if (IsAutoFlushDraw(prim, tex_layer))
 	{
 		int  n = 1;
 		u32 buff[3];
@@ -3410,23 +4366,37 @@ __forceinline void GSState::HandleAutoFlush()
 				break;
 		}
 
+		const bool possible_mipmap = m_context->TEX1.MXL > 0 && m_context->TEX1.MMIN >= 2 && m_context->TEX1.MMIN <= 5;
+		const float K = static_cast<float>(m_context->TEX1.K) / 16;
+		const float powL = static_cast<float>(1 << m_context->TEX1.L);
+
+		GSVector4i xy_coord;
 		GSVector4i tex_coord;
+		float vert_lod = K;
+		
 		// Prepare the currently processed vertex.
+		xy_coord.x = (static_cast<int>(m_v.XYZ.X) - static_cast<int>(m_context->XYOFFSET.OFX)) >> 4;
+		xy_coord.y = (static_cast<int>(m_v.XYZ.Y) - static_cast<int>(m_context->XYOFFSET.OFY)) >> 4;
 		if (PRIM->FST)
 		{
-			tex_coord.x = m_v.U >> 4;
-			tex_coord.y = m_v.V >> 4;
+			tex_coord.x = (m_v.U >> 4) >> tex_layer;
+			tex_coord.y = (m_v.V >> 4) >> tex_layer;
 		}
 		else
 		{
 			const float s = std::min((m_v.ST.S / m_v.RGBAQ.Q), 1.0f);
 			const float t = std::min((m_v.ST.T / m_v.RGBAQ.Q), 1.0f);
 
-			tex_coord.x = static_cast<int>((1 << m_context->TEX0.TW) * s);
-			tex_coord.y = static_cast<int>((1 << m_context->TEX0.TH) * t);
+			tex_coord.x = static_cast<int>((1 << m_context->TEX0.TW) * s) >> tex_layer;
+			tex_coord.y = static_cast<int>((1 << m_context->TEX0.TH) * t) >> tex_layer;
+
+			if (possible_mipmap && !m_context->TEX1.LCM)
+				vert_lod = -std::log2(std::abs(m_v.RGBAQ.Q)) * powL + K;
 		}
 
+		GSVector4i xy_rect = xy_coord.xyxy();
 		GSVector4i tex_rect = tex_coord.xyxy();
+		GSVector2i lod_range = GSVector2i(static_cast<int>(std::floor(vert_lod)), static_cast<int>(std::ceil(vert_lod)));
 
 		const GSLocalMemory::psm_t tex_psm = GSLocalMemory::m_psm[m_context->TEX0.PSM];
 		const GSLocalMemory::psm_t frame_psm = GSLocalMemory::m_psm[m_context->FRAME.PSM];
@@ -3435,54 +4405,76 @@ __forceinline void GSState::HandleAutoFlush()
 		{
 			const GSVertex* v = &m_vertex.buff[buff[i]];
 
+			xy_coord.x = (static_cast<int>(v->XYZ.X) - static_cast<int>(m_context->XYOFFSET.OFX)) >> 4;
+			xy_coord.y = (static_cast<int>(v->XYZ.Y) - static_cast<int>(m_context->XYOFFSET.OFY)) >> 4;
 			if (PRIM->FST)
 			{
-				tex_coord.x = v->U >> 4;
-				tex_coord.y = v->V >> 4;
+				tex_coord.x = (v->U >> 4) >> tex_layer;
+				tex_coord.y = (v->V >> 4) >> tex_layer;
 			}
 			else
 			{
 				const float s = std::min((v->ST.S / v->RGBAQ.Q), 1.0f);
 				const float t = std::min((v->ST.T / v->RGBAQ.Q), 1.0f);
 
-				tex_coord.x = static_cast<int>(std::round((1 << m_context->TEX0.TW) * s));
-				tex_coord.y = static_cast<int>(std::round((1 << m_context->TEX0.TH) * t));
+				tex_coord.x = static_cast<int>(std::round((1 << m_context->TEX0.TW) * s)) >> tex_layer;
+				tex_coord.y = static_cast<int>(std::round((1 << m_context->TEX0.TH) * t)) >> tex_layer;
+
+				if (possible_mipmap && !m_context->TEX1.LCM)
+					vert_lod = -std::log2(std::abs(v->RGBAQ.Q)) * powL + K;
 			}
 
+			xy_rect.x = std::min(xy_rect.x, xy_coord.x);
+			xy_rect.z = std::max(xy_rect.z, xy_coord.x);
+			xy_rect.y = std::min(xy_rect.y, xy_coord.y);
+			xy_rect.w = std::max(xy_rect.w, xy_coord.y);
 			tex_rect.x = std::min(tex_rect.x, tex_coord.x);
 			tex_rect.z = std::max(tex_rect.z, tex_coord.x);
 			tex_rect.y = std::min(tex_rect.y, tex_coord.y);
 			tex_rect.w = std::max(tex_rect.w, tex_coord.y);
+			lod_range.x = std::min(lod_range.x, static_cast<int>(std::floor(vert_lod)));
+			lod_range.y = std::max(lod_range.y, static_cast<int>(std::ceil(vert_lod)));
 		}
 
+		// If the current prim does not use the correct mipmap layer then we don't need to flush.
+		if (possible_mipmap && !(lod_range.x <= tex_layer && tex_layer <= lod_range.y))
+			return;
+
 		// If the draw was 1 line thick, make it larger as rects are exclusive of ends.
+		if (xy_rect.x == xy_rect.z)
+			xy_rect += GSVector4i::cxpr(0, 0, 1, 0);
+		if (xy_rect.y == xy_rect.w)
+			xy_rect += GSVector4i::cxpr(0, 0, 0, 1);
 		if (tex_rect.x == tex_rect.z)
 			tex_rect += GSVector4i::cxpr(0, 0, 1, 0);
 		if (tex_rect.y == tex_rect.w)
 			tex_rect += GSVector4i::cxpr(0, 0, 0, 1);
 
-		const bool swap_index = index_swap && GSUtil::GetPrimClass(m_prev_env.PRIM.PRIM) != GS_SPRITE_CLASS;
+		// If the current prim fails the scissor test then we don't need to flush.
+		if (xy_rect.rintersect(m_context->scissor.in).rempty())
+			return;
+
 		// Get the last texture position from the last draw.
-		const GSVertex* v = &m_vertex.buff[m_index.buff[m_index.tail - (swap_index ? n : 1)]];
+		const GSVertex* v = &m_vertex.buff[m_index.buff[m_index.tail - 1]];
 
 		if (PRIM->FST)
 		{
-			tex_coord.x = v->U >> 4;
-			tex_coord.y = v->V >> 4;
+			tex_coord.x = (v->U >> 4) >> tex_layer;
+			tex_coord.y = (v->V >> 4) >> tex_layer;
 		}
 		else
 		{
 			const float s = std::min((v->ST.S / v->RGBAQ.Q), 1.0f);
 			const float t = std::min((v->ST.T / v->RGBAQ.Q), 1.0f);
 
-			tex_coord.x = static_cast<int>(std::round((1 << m_context->TEX0.TW) * s));
-			tex_coord.y = static_cast<int>(std::round((1 << m_context->TEX0.TH) * t));
+			tex_coord.x = static_cast<int>(std::round((1 << m_context->TEX0.TW) * s)) >> tex_layer;
+			tex_coord.y = static_cast<int>(std::round((1 << m_context->TEX0.TH) * t)) >> tex_layer;
 		}
 
-		const int clamp_minu = m_context->CLAMP.MINU;
-		const int clamp_maxu = m_context->CLAMP.MAXU;
-		const int clamp_minv = m_context->CLAMP.MINV;
-		const int clamp_maxv = m_context->CLAMP.MAXV;
+		const int clamp_minu = m_context->CLAMP.MINU >> tex_layer;
+		const int clamp_maxu = m_context->CLAMP.MAXU >> tex_layer;
+		const int clamp_minv = m_context->CLAMP.MINV >> tex_layer;
+		const int clamp_maxv = m_context->CLAMP.MAXV >> tex_layer;
 
 		switch (m_context->CLAMP.WMS)
 		{
@@ -3618,7 +4610,7 @@ __forceinline void GSState::HandleAutoFlush()
 				const int tex_width = (m_context->TEX0.TBW * 64) / tex_psm.pgs.x;
 				if ((frame_width == tex_width) || ((tex_rect.w / tex_psm.pgs.y) <= 1 && frame_width >= tex_width))
 				{
-					tex_rect += GSVector4i(0, 0, tex_page_mask.z, tex_page_mask.w); // round up to the next page as we will be comparing by page.
+					tex_rect += GSVector4i(0, 0, tex_psm.pgs.x - 1, tex_psm.pgs.y - 1); // round up to the next page as we will be comparing by page.
 					//We know we've changed page, so let's set the dimension to cover the page they're in (for different pixel orders)
 					tex_rect &= tex_page_mask;
 					tex_rect = GSVector4i(tex_rect.x / tex_psm.pgs.x, tex_rect.y / tex_psm.pgs.y, tex_rect.z / tex_psm.pgs.x, tex_rect.w / tex_psm.pgs.y);
@@ -3627,7 +4619,7 @@ __forceinline void GSState::HandleAutoFlush()
 					const int frame_page_mask_y = ~(frame_psm.pgs.y - 1);
 					const GSVector4i frame_page_mask = { frame_page_mask_x, frame_page_mask_y, frame_page_mask_x, frame_page_mask_y };
 					GSVector4i area_out = temp_draw_rect;
-					area_out += GSVector4i(0, 0, frame_page_mask.z, frame_page_mask.w); // round up to the next page as we will be comparing by page.
+					area_out += GSVector4i(0, 0, frame_psm.pgs.x - 1, frame_psm.pgs.y - 1); // round up to the next page as we will be comparing by page.
 					area_out &= frame_page_mask;
 					area_out = GSVector4i(area_out.x / frame_psm.pgs.x, area_out.y / frame_psm.pgs.y, area_out.z / frame_psm.pgs.x, area_out.w / frame_psm.pgs.y);
 
@@ -3641,7 +4633,7 @@ __forceinline void GSState::HandleAutoFlush()
 	}
 }
 
-template <u32 prim, bool auto_flush, bool index_swap>
+template <u32 prim, bool auto_flush>
 __forceinline void GSState::VertexKick(u32 skip)
 {
 	constexpr u32 n = NumIndicesForPrim(prim);
@@ -3657,7 +4649,7 @@ __forceinline void GSState::VertexKick(u32 skip)
 
 	if (auto_flush && skip == 0 && m_index.tail > 0 && ((m_vertex.tail + 1) - m_vertex.head) >= n)
 	{
-		HandleAutoFlush<prim, index_swap>();
+		HandleAutoFlush<prim>();
 	}
 
 	u32 head = m_vertex.head;
@@ -3819,8 +4811,8 @@ __forceinline void GSState::VertexKick(u32 skip)
 			m_index.tail += 1;
 			break;
 		case GS_LINELIST:
-			buff[0] = static_cast<u16>(head + (index_swap ? 1 : 0));
-			buff[1] = static_cast<u16>(head + (index_swap ? 0 : 1));
+			buff[0] = static_cast<u16>(head + 0);
+			buff[1] = static_cast<u16>(head + 1);
 			m_vertex.head = head + 2;
 			m_vertex.next = head + 2;
 			m_index.tail += 2;
@@ -3833,16 +4825,16 @@ __forceinline void GSState::VertexKick(u32 skip)
 				head = next;
 				m_vertex.tail = next + 2;
 			}
-			buff[0] = static_cast<u16>(head + (index_swap ? 1 : 0));
-			buff[1] = static_cast<u16>(head + (index_swap ? 0 : 1));
+			buff[0] = static_cast<u16>(head + 0);
+			buff[1] = static_cast<u16>(head + 1);
 			m_vertex.head = head + 1;
 			m_vertex.next = head + 2;
 			m_index.tail += 2;
 			break;
 		case GS_TRIANGLELIST:
-			buff[0] = static_cast<u16>(head + (index_swap ? 2 : 0));
+			buff[0] = static_cast<u16>(head + 0);
 			buff[1] = static_cast<u16>(head + 1);
-			buff[2] = static_cast<u16>(head + (index_swap ? 0 : 2));
+			buff[2] = static_cast<u16>(head + 2);
 			m_vertex.head = head + 3;
 			m_vertex.next = head + 3;
 			m_index.tail += 3;
@@ -3856,18 +4848,18 @@ __forceinline void GSState::VertexKick(u32 skip)
 				head = next;
 				m_vertex.tail = next + 3;
 			}
-			buff[0] = static_cast<u16>(head + (index_swap ? 2 : 0));
+			buff[0] = static_cast<u16>(head + 0);
 			buff[1] = static_cast<u16>(head + 1);
-			buff[2] = static_cast<u16>(head + (index_swap ? 0 : 2));
+			buff[2] = static_cast<u16>(head + 2);
 			m_vertex.head = head + 1;
 			m_vertex.next = head + 3;
 			m_index.tail += 3;
 			break;
 		case GS_TRIANGLEFAN:
 			// TODO: remove gaps, next == head && head < tail - 3 || next > head && next < tail - 2 (very rare)
-			buff[0] = static_cast<u16>(index_swap ? (tail - 1) : (head + 0));
+			buff[0] = static_cast<u16>(head + 0);
 			buff[1] = static_cast<u16>(tail - 2);
-			buff[2] = static_cast<u16>(index_swap ? (head + 0) : (tail - 1));
+			buff[2] = static_cast<u16>(tail - 1);
 			m_vertex.next = tail;
 			m_index.tail += 3;
 			break;

@@ -20,7 +20,7 @@
 class QProgressBar;
 
 class AutoUpdaterDialog;
-class DisplayWidget;
+class DisplaySurface;
 class DisplayContainer;
 class GameListWidget;
 class ControllerSettingsWindow;
@@ -65,12 +65,14 @@ public:
 		void cancelResume();
 
 	private:
-		VMLock(QWidget* dialog_parent, bool was_paused, bool was_exclusive_fullscreen);
+		VMLock(QWidget* dialog_parent, bool was_paused, bool was_exclusive_fullscreen, bool owns_parent);
 		friend MainWindow;
 
 		QWidget* m_dialog_parent;
+		bool m_has_lock;
 		bool m_was_paused;
 		bool m_was_fullscreen;
+		bool m_owns_dialog_parent;
 	};
 
 	/// Default filter for opening a file.
@@ -103,6 +105,9 @@ public:
 	/// Rescans a single file. NOTE: Happens on UI thread.
 	void rescanFile(const std::string& path);
 
+	/// Start a file from a user action (e.g. dragging a file onto the main window or with macOS open with)
+	bool startFile(const QString& path);
+
 	void doSettings(const char* category = nullptr);
 	void doGameSettings(const char* category = nullptr);
 
@@ -110,12 +115,15 @@ public:
 	void checkMousePosition(int x, int y);
 public Q_SLOTS:
 	void checkForUpdates(bool display_message, bool force_check);
-	void refreshGameList(bool invalidate_cache);
+	void refreshGameList(bool invalidate_cache, bool popup_on_error);
 	void cancelGameListRefresh();
+	void updateGameListBackground();
 	void reportInfo(const QString& title, const QString& message);
 	void reportError(const QString& title, const QString& message);
 	bool confirmMessage(const QString& title, const QString& message);
 	void onStatusMessage(const QString& message);
+	void reportStateLoadError(const QString& message, std::optional<s32> slot, bool backup);
+	void reportStateSaveError(const QString& message, std::optional<s32> slot);
 
 	void runOnUIThread(const std::function<void()>& func);
 	void requestReset();
@@ -131,7 +139,6 @@ private Q_SLOTS:
 	void displayResizeRequested(qint32 width, qint32 height);
 	void mouseModeRequested(bool relative_mode, bool hide_cursor);
 	void releaseRenderWindow();
-	void focusDisplayWidget();
 	void setupMouseMoveHandler();
 	void onGameListRefreshComplete();
 	void onGameListRefreshProgress(const QString& status, int current, int total);
@@ -167,6 +174,9 @@ private Q_SLOTS:
 	void onAboutActionTriggered();
 	void onToolsOpenDataDirectoryTriggered();
 	void onToolsCoverDownloaderTriggered();
+#if !defined(__APPLE__)
+	void onCreateGameShortcutTriggered();
+#endif
 	void onToolsEditCheatsPatchesTriggered(bool cheats);
 	void onCreateMemoryCardOpenRequested();
 	void updateTheme();
@@ -231,6 +241,7 @@ private:
 	void updateEmulationActions(bool starting, bool running, bool stopping);
 	void updateDisplayRelatedActions(bool has_surface, bool render_to_main, bool fullscreen);
 	void updateGameDependentActions();
+	void updateGameGridActions(const bool show_game_grid);
 	void updateStatusBarWidgetVisibility();
 	void updateAdvancedSettingsVisibility();
 	void updateWindowTitle();
@@ -250,7 +261,6 @@ private:
 	bool shouldAbortForMemcardBusy(const VMLock& lock);
 
 	QWidget* getContentParent();
-	QWidget* getDisplayContainer() const;
 	void saveDisplayWindowGeometryToConfig();
 	void restoreDisplayWindowGeometryFromConfig();
 	void createDisplayWidget(bool fullscreen, bool render_to_main);
@@ -267,10 +277,11 @@ private:
 	QString getDiscDevicePath(const QString& title);
 
 	void startGameListEntry(
-		const GameList::Entry* entry, std::optional<s32> save_slot = std::nullopt, std::optional<bool> fast_boot = std::nullopt, bool load_backup = false);
-	void setGameListEntryCoverImage(const GameList::Entry* entry);
-	void clearGameListEntryPlayTime(const GameList::Entry* entry);
-	void goToWikiPage(const GameList::Entry* entry);
+		const GameList::Entry& entry, std::optional<s32> save_slot = std::nullopt, std::optional<bool> fast_boot = std::nullopt, bool load_backup = false);
+	void setGameListEntryCoverImage(const GameList::Entry& entry);
+	void clearGameListEntryPlayTime(const GameList::Entry& entry, const time_t entry_played_time);
+	void goToWikiPage(const GameList::Entry& entry);
+	void openSnapshotsFolderForGame(const GameList::Entry& entry);
 
 	std::optional<bool> promptForResumeState(const QString& save_state_path);
 	void loadSaveStateSlot(s32 slot, bool load_backup = false);
@@ -283,8 +294,8 @@ private:
 	Ui::MainWindow m_ui;
 
 	GameListWidget* m_game_list_widget = nullptr;
-	DisplayWidget* m_display_widget = nullptr;
-	DisplayContainer* m_display_container = nullptr;
+	DisplaySurface* m_display_surface = nullptr;
+	QWidget* m_display_container = nullptr;
 
 	SettingsWindow* m_settings_window = nullptr;
 	ControllerSettingsWindow* m_controller_settings_window = nullptr;

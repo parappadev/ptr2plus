@@ -1458,6 +1458,9 @@
     <ClCompile Include="SIO\Pad\PadNegcon.cpp">
       <Filter>System\Ps2\Iop\SIO\PAD</Filter>
     </ClCompile>
+    <ClCompile Include="GS\GSDrawingEnvironment.cpp">
+      <Filter>System\Ps2\GS\Renderers\Software</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Patch.h">
@@ -2300,6 +2303,9 @@
     </ClInclude>
     <ClInclude Include="LayeredSettingsInterface.h">
       <Filter>Misc</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\ImGuiAnimated.h">
+      <Filter>Misc\ImGui</Filter>
     </ClInclude>
     <ClInclude Include="ImGui\ImGuiManager.h">
       <Filter>Misc\ImGui</Filter>

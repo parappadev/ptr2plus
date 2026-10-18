@@ -83,15 +83,15 @@ target_sources(pcsx2-qt PRIVATE
 	Settings/ControllerSettingsWindow.h
 	Settings/ControllerSettingsWindow.ui
 	Settings/ControllerSettingWidgetBinder.h
+	Settings/DebugAnalysisSettingsTab.ui
 	Settings/DebugAnalysisSettingsWidget.cpp
 	Settings/DebugAnalysisSettingsWidget.h
 	Settings/DebugAnalysisSettingsWidget.ui
-	Settings/DebugUserInterfaceSettingsWidget.cpp
-	Settings/DebugUserInterfaceSettingsWidget.h
-	Settings/DebugUserInterfaceSettingsWidget.ui
+	Settings/DebugGSSettingsTab.ui
+	Settings/DebugLoggingSettingsTab.ui
+	Settings/DebugUserInterfaceSettingsTab.ui
 	Settings/DebugSettingsWidget.cpp
 	Settings/DebugSettingsWidget.h
-	Settings/DebugSettingsWidget.ui
 	Settings/EmulationSettingsWidget.cpp
 	Settings/EmulationSettingsWidget.h
 	Settings/EmulationSettingsWidget.ui
@@ -114,9 +114,19 @@ target_sources(pcsx2-qt PRIVATE
 	Settings/GameSummaryWidget.cpp
 	Settings/GameSummaryWidget.h
 	Settings/GameSummaryWidget.ui
+	Settings/GraphicsAdvancedSettingsTab.ui
+	Settings/GraphicsDisplaySettingsTab.ui
+	Settings/GraphicsHardwareFixesSettingsTab.ui
+	Settings/GraphicsHardwareRenderingSettingsTab.ui
+	Settings/GraphicsMediaCaptureSettingsTab.ui
+	Settings/GraphicsOnScreenDisplaySettingsTab.ui
+	Settings/GraphicsPostProcessingSettingsTab.ui
+	Settings/GraphicsSettingsHeader.ui
 	Settings/GraphicsSettingsWidget.cpp
 	Settings/GraphicsSettingsWidget.h
-	Settings/GraphicsSettingsWidget.ui
+	Settings/GraphicsSoftwareRenderingSettingsTab.ui
+	Settings/GraphicsTextureReplacementSettingsTab.ui
+	Settings/GraphicsUpscalingFixesSettingsTab.ui
 	Settings/HotkeySettingsWidget.cpp
 	Settings/HotkeySettingsWidget.h
 	Settings/InputBindingDialog.cpp
@@ -149,6 +159,8 @@ target_sources(pcsx2-qt PRIVATE
 	Settings/HddCreateQt.cpp
 	Settings/HddCreateQt.h
 	Settings/PatchDetailsWidget.ui
+	Settings/SettingsWidget.cpp
+	Settings/SettingsWidget.h
 	Settings/SettingsWindow.cpp
 	Settings/SettingsWindow.h
 	Settings/SettingsWindow.ui
@@ -173,6 +185,10 @@ target_sources(pcsx2-qt PRIVATE
 	Debugger/DisassemblyView.h
 	Debugger/DisassemblyView.ui
 	Debugger/JsonValueWrapper.h
+	Debugger/ModuleModel.cpp
+	Debugger/ModuleModel.h
+	Debugger/ModuleView.cpp
+	Debugger/ModuleView.h
 	Debugger/RegisterView.cpp
 	Debugger/RegisterView.h
 	Debugger/RegisterView.ui
@@ -248,7 +264,15 @@ target_sources(pcsx2-qt PRIVATE
 	resources/resources.qrc
 )
 
-file(GLOB TS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/Translations/*.ts)
+if (NOT APPLE)
+    target_sources(pcsx2-qt PRIVATE
+        ShortcutCreationDialog.cpp
+        ShortcutCreationDialog.h
+        ShortcutCreationDialog.ui
+    )
+endif()
+
+file(GLOB TS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/Translations/pcsx2-qt_*-*.ts)
 
 target_precompile_headers(pcsx2-qt PRIVATE PrecompiledHeader.h)
 set_source_files_properties(PrecompiledHeader.cpp PROPERTIES HEADER_FILE_ONLY TRUE)
@@ -265,6 +289,7 @@ target_link_libraries(pcsx2-qt PRIVATE
 	PCSX2
 	Qt6::Core
 	Qt6::Gui
+	Qt6::GuiPrivate
 	Qt6::Widgets
 	KDAB::kddockwidgets
 )

@@ -323,10 +323,11 @@ void GSDrawScanline::CSetupPrim(const GSVertexSW* vertex, const u16* index, cons
 	{
 		if (sel.iip)
 		{
+			constexpr VectorI mask16 = VectorI::cxpr(0xFFFF);
 #if _M_SSE >= 0x501
-			GSVector4i::storel(&local.d8.c, GSVector4i(dscan.c * step_shift).xzyw().ps32());
+			GSVector4i::storel(&local.d8.c, (GSVector4i(dscan.c * step_shift) & GSVector4i::cast(mask16)).xzyw().pu32());
 #else
-			local.d4.c = GSVector4i(dscan.c * step_shift).xzyw().ps32();
+			local.d4.c = (GSVector4i(dscan.c * step_shift) & mask16).xzyw().pu32();
 #endif
 			VectorF dc(dscan.c);
 
@@ -335,8 +336,8 @@ void GSDrawScanline::CSetupPrim(const GSVertexSW* vertex, const u16* index, cons
 
 			for (int i = 0; i < vlen; i++)
 			{
-				VectorI r = VectorI(dr * shift[1 + i]).ps32();
-				VectorI b = VectorI(db * shift[1 + i]).ps32();
+				VectorI r = (VectorI(dr * shift[1 + i]) & mask16).pu32();
+				VectorI b = (VectorI(db * shift[1 + i]) & mask16).pu32();
 
 				local.d[i].rb = r.upl16(b);
 			}
@@ -346,8 +347,8 @@ void GSDrawScanline::CSetupPrim(const GSVertexSW* vertex, const u16* index, cons
 
 			for (int i = 0; i < vlen; i++)
 			{
-				VectorI g = VectorI(dg * shift[1 + i]).ps32();
-				VectorI a = VectorI(da * shift[1 + i]).ps32();
+				VectorI g = (VectorI(dg * shift[1 + i]) & mask16).pu32();
+				VectorI a = (VectorI(da * shift[1 + i]) & mask16).pu32();
 
 				local.d[i].ga = g.upl16(a);
 			}
@@ -1293,15 +1294,6 @@ __ri void GSDrawScanline::CDrawScanline(int pixels, int left, int top, const GSV
 
 				rb = frb.lerp16<0>(rb, fog);
 				ga = fga.lerp16<0>(ga, fog).mix16(ga);
-
-				/*
-				fog = fog.srl16<7>();
-
-				VectorI ifog = VectorI::x00ff().sub16(fog);
-
-				rb = rb.mul16l(fog).add16(frb.mul16l(ifog)).srl16<8>();
-				ga = ga.mul16l(fog).add16(fga.mul16l(ifog)).srl16<8>().mix16(ga);
-				*/
 			}
 
 			// ReadFrame

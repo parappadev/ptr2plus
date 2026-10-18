@@ -60,7 +60,8 @@ Q_SIGNALS:
 	void onVMActuallyPaused();
 
 protected:
-	void closeEvent(QCloseEvent* event);
+	void changeEvent(QEvent* event) override;
+	void closeEvent(QCloseEvent* event) override;
 
 private:
 	DebugInterface* currentCPU();
@@ -73,9 +74,10 @@ private:
 	QTimer* m_refresh_timer = nullptr;
 
 	int m_font_size;
-	static const constexpr int DEFAULT_FONT_SIZE = 10;
 	static const constexpr int MINIMUM_FONT_SIZE = 5;
 	static const constexpr int MAXIMUM_FONT_SIZE = 30;
+
+	bool m_is_updating_theme = false;
 };
 
 extern DebuggerWindow* g_debugger_window;

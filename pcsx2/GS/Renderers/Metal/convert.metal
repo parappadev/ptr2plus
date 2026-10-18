@@ -192,7 +192,7 @@ fragment float4 ps_downsample_copy(ConvertShaderData data [[stage_in]],
 	for (uint yoff = 0; yoff < uniform.downsample_factor; yoff++)
 	{
 		for (uint xoff = 0; xoff < uniform.downsample_factor; xoff++)
-			result += texture.read(coord + uint2(xoff, yoff), 0);
+			result += texture.read(coord + uint2(xoff * uniform.step_multiplier, yoff * uniform.step_multiplier), 0);
 	}
 	result /= uniform.weight;
 	return result;
@@ -527,11 +527,12 @@ fragment half4 ps_imgui(ImGuiShaderData data [[stage_in]], texture2d<half> textu
 	return data.c * texture.sample(s, data.t);
 }
 
-fragment float4 ps_shadeboost(float4 p [[position]], DirectReadTextureIn<float> tex, constant float3& cb [[buffer(GSMTLBufferIndexUniforms)]])
+fragment float4 ps_shadeboost(float4 p [[position]], DirectReadTextureIn<float> tex, constant float4& cb [[buffer(GSMTLBufferIndexUniforms)]])
 {
 	const float brt = cb.x;
 	const float con = cb.y;
 	const float sat = cb.z;
+	const float gam = cb.w;
 	// Increase or decrease these values to adjust r, g and b color channels separately
 	const float AvgLumR = 0.5;
 	const float AvgLumG = 0.5;
@@ -546,5 +547,7 @@ fragment float4 ps_shadeboost(float4 p [[position]], DirectReadTextureIn<float> 
 	float3 satColor = mix(intensity, brtColor, sat);
 	float3 conColor = mix(AvgLumin, satColor, con);
 
-	return float4(conColor, 1);
+	float3 csb = pow(conColor, float3(1.0 / gam));
+
+	return float4(csb, 1);
 }

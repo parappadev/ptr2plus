@@ -86,14 +86,16 @@ namespace QtHost
 //////////////////////////////////////////////////////////////////////////
 static QTimer* s_settings_save_timer = nullptr;
 static std::unique_ptr<INISettingsInterface> s_base_settings_interface;
+static std::unique_ptr<INISettingsInterface> s_secrets_settings_interface;
 static bool s_batch_mode = false;
 static bool s_nogui_mode = false;
-static bool s_start_fullscreen_ui = false;
-static bool s_start_fullscreen_ui_fullscreen = false;
+static bool s_start_big_picture_mode = false;
+static bool s_start_fullscreen = false;
 static bool s_test_config_and_exit = false;
 static bool s_run_setup_wizard = false;
 static bool s_cleanup_after_update = false;
 static bool s_boot_and_debug = false;
+static std::atomic_int s_vm_locked_with_dialog = 0;
 
 //////////////////////////////////////////////////////////////////////////
 // CPU Thread
@@ -138,41 +140,6 @@ void EmuThread::stopInThread()
 
 	m_event_loop->quit();
 	m_shutdown_flag.store(true);
-}
-
-bool EmuThread::confirmMessage(const QString& title, const QString& message)
-{
-	if (!isOnEmuThread())
-	{
-		// This is definitely deadlock risky, but unlikely to happen (why would GS be confirming?).
-		bool result = false;
-		QMetaObject::invokeMethod(g_emu_thread, "confirmMessage", Qt::BlockingQueuedConnection, Q_RETURN_ARG(bool, result),
-			Q_ARG(const QString&, title), Q_ARG(const QString&, message));
-		return result;
-	}
-
-	// Easy if there's no VM.
-	if (!VMManager::HasValidVM())
-		return emit messageConfirmed(title, message);
-
-	// Preemptively pause/set surfaceless on the emu thread, because it can't run while the popup is open.
-	const bool was_paused = (VMManager::GetState() == VMState::Paused);
-	const bool was_fullscreen = isFullscreen();
-	if (!was_paused)
-		VMManager::SetPaused(true);
-	if (was_fullscreen)
-		setSurfaceless(true);
-
-	// This won't return until the user confirms one way or another.
-	const bool result = emit messageConfirmed(title, message);
-
-	// Resume VM after confirming.
-	if (was_fullscreen)
-		setSurfaceless(false);
-	if (!was_paused)
-		VMManager::SetPaused(false);
-
-	return result;
 }
 
 void EmuThread::startFullscreenUI(bool fullscreen)
@@ -228,6 +195,9 @@ void EmuThread::stopFullscreenUI()
 	{
 		m_run_fullscreen_ui.store(false, std::memory_order_release);
 		emit onFullscreenUIStateChange(false);
+		
+		// Resume and refresh background when FullscreenUI exits
+		QMetaObject::invokeMethod(g_main_window, "updateGameListBackground", Qt::QueuedConnection);
 	}
 }
 
@@ -239,8 +209,6 @@ void EmuThread::startVM(std::shared_ptr<VMBootParameters> boot_params)
 		return;
 	}
 
-	pxAssertRel(!VMManager::HasValidVM(), "VM is shut down");
-
 	// Determine whether to start fullscreen or not.
 	m_is_rendering_to_main = shouldRenderToMain();
 	if (boot_params->fullscreen.has_value())
@@ -248,22 +216,38 @@ void EmuThread::startVM(std::shared_ptr<VMBootParameters> boot_params)
 	else
 		m_is_fullscreen = Host::GetBaseBoolSettingValue("UI", "StartFullscreen", false);
 
-	if (!VMManager::Initialize(*boot_params))
-		return;
+	auto hardcore_disable_callback = [](std::string reason, VMBootRestartCallback restart_callback) {
+		QtHost::RunOnUIThread([reason = std::move(reason), restart_callback = std::move(restart_callback)]() {
+			QString title(Achievements::GetHardcoreModeDisableTitle());
+			QString text(QString::fromStdString(Achievements::GetHardcoreModeDisableText(reason.c_str())));
+			if (g_main_window->confirmMessage(title, text))
+				Host::RunOnCPUThread(restart_callback);
+		});
+	};
 
-	if (!Host::GetBoolSettingValue("UI", "StartPaused", false))
-	{
-		// This will come back and call OnVMResumed().
-		VMManager::SetState(VMState::Running);
-	}
-	else
-	{
-		// When starting paused, redraw the window, so there's at least something there.
-		redrawDisplayWindow();
-		Host::OnVMPaused();
-	}
+	auto done_callback = [](VMBootResult result, const Error& error) {
+		if (result != VMBootResult::StartupSuccess)
+		{
+			Host::ReportErrorAsync(TRANSLATE_STR("QtHost", "Startup Error"), error.GetDescription());
+			return;
+		}
 
-	m_event_loop->quit();
+		if (!Host::GetBoolSettingValue("UI", "StartPaused", false))
+		{
+			// This will come back and call OnVMResumed().
+			VMManager::SetState(VMState::Running);
+		}
+		else
+		{
+			// When starting paused, redraw the window, so there's at least something there.
+			g_emu_thread->redrawDisplayWindow();
+			Host::OnVMPaused();
+		}
+
+		g_emu_thread->getEventLoop()->quit();
+	};
+
+	VMManager::InitializeAsync(*boot_params, std::move(hardcore_disable_callback), std::move(done_callback));
 }
 
 void EmuThread::resetVM()
@@ -317,7 +301,13 @@ void EmuThread::loadState(const QString& filename)
 	if (!VMManager::HasValidVM())
 		return;
 
-	VMManager::LoadState(filename.toUtf8().constData());
+	Error error;
+	if (!VMManager::LoadState(filename.toUtf8().constData(), &error))
+	{
+		QtHost::RunOnUIThread([message = QString::fromStdString(error.GetDescription())]() {
+			g_main_window->reportStateLoadError(message, std::nullopt, false);
+		});
+	}
 }
 
 void EmuThread::loadStateFromSlot(qint32 slot, bool load_backup)
@@ -331,7 +321,13 @@ void EmuThread::loadStateFromSlot(qint32 slot, bool load_backup)
 	if (!VMManager::HasValidVM())
 		return;
 
-	VMManager::LoadStateFromSlot(slot, load_backup);
+	Error error;
+	if (!VMManager::LoadStateFromSlot(slot, load_backup, &error))
+	{
+		QtHost::RunOnUIThread([message = QString::fromStdString(error.GetDescription()), slot, load_backup]() {
+			g_main_window->reportStateLoadError(message, slot, load_backup);
+		});
+	}
 }
 
 void EmuThread::saveState(const QString& filename)
@@ -345,11 +341,11 @@ void EmuThread::saveState(const QString& filename)
 	if (!VMManager::HasValidVM())
 		return;
 
-	if (!VMManager::SaveState(filename.toUtf8().constData()))
-	{
-		// this one is usually the result of a user-chosen path, so we can display a message box safely here
-		Console.Error("Failed to save state");
-	}
+	VMManager::SaveState(filename.toUtf8().constData(), true, false, [](const std::string& error) {
+		QtHost::RunOnUIThread([message = QString::fromStdString(error)]() {
+			g_main_window->reportStateSaveError(message, std::nullopt);
+		});
+	});
 }
 
 void EmuThread::saveStateToSlot(qint32 slot)
@@ -363,7 +359,11 @@ void EmuThread::saveStateToSlot(qint32 slot)
 	if (!VMManager::HasValidVM())
 		return;
 
-	VMManager::SaveStateToSlot(slot);
+	VMManager::SaveStateToSlot(slot, true, [slot](const std::string& error) {
+		QtHost::RunOnUIThread([message = QString::fromStdString(error), slot]() {
+			g_main_window->reportStateSaveError(message, slot);
+		});
+	});
 }
 
 void EmuThread::run()
@@ -494,6 +494,11 @@ void EmuThread::setFullscreen(bool fullscreen, bool allow_render_to_main)
 		QMetaObject::invokeMethod(this, "setFullscreen", Qt::QueuedConnection, Q_ARG(bool, fullscreen), Q_ARG(bool, allow_render_to_main));
 		return;
 	}
+
+	// HACK: Prevent entering/exiting fullscreen mode when a dialog is shown, so
+	// that we don't destroy the dialog while inside its exec function.
+	if (s_vm_locked_with_dialog > 0)
+		return;
 
 	if (!MTGS::IsOpen() || m_is_fullscreen == fullscreen)
 		return;
@@ -767,12 +772,12 @@ void EmuThread::enumerateVibrationMotors()
 	onVibrationMotorsEnumerated(qmotors);
 }
 
-void EmuThread::connectDisplaySignals(DisplayWidget* widget)
+void EmuThread::connectDisplaySignals(DisplaySurface* widget)
 {
 	widget->disconnect(this);
 
-	connect(widget, &DisplayWidget::windowResizedEvent, this, &EmuThread::onDisplayWindowResized);
-	connect(widget, &DisplayWidget::windowRestoredEvent, this, &EmuThread::redrawDisplayWindow);
+	connect(widget, &DisplaySurface::windowResizedEvent, this, &EmuThread::onDisplayWindowResized);
+	connect(widget, &DisplaySurface::windowRestoredEvent, this, &EmuThread::redrawDisplayWindow);
 }
 
 void EmuThread::onDisplayWindowResized(int width, int height, float scale)
@@ -882,38 +887,6 @@ void EmuThread::endCapture()
 	MTGS::RunOnGSThread(&GSEndCapture);
 }
 
-void EmuThread::setAudioOutputVolume(int volume, int fast_forward_volume)
-{
-	if (!isOnEmuThread())
-	{
-		QMetaObject::invokeMethod(this, "setAudioOutputVolume", Qt::QueuedConnection, Q_ARG(int, volume),
-			Q_ARG(int, fast_forward_volume));
-		return;
-	}
-
-	if (!VMManager::HasValidVM())
-		return;
-
-	EmuConfig.SPU2.OutputVolume = static_cast<u32>(volume);
-	EmuConfig.SPU2.FastForwardVolume = static_cast<u32>(fast_forward_volume);
-	SPU2::SetOutputVolume(SPU2::GetResetVolume());
-}
-
-void EmuThread::setAudioOutputMuted(bool muted)
-{
-	if (!isOnEmuThread())
-	{
-		QMetaObject::invokeMethod(this, "setAudioOutputMuted", Qt::QueuedConnection, Q_ARG(bool, muted));
-		return;
-	}
-
-	if (!VMManager::HasValidVM())
-		return;
-
-	EmuConfig.SPU2.OutputMuted = muted;
-	SPU2::SetOutputVolume(SPU2::GetResetVolume());
-}
-
 std::optional<WindowInfo> EmuThread::acquireRenderWindow(bool recreate_window)
 {
 	// Check if we're wanting to get exclusive fullscreen. This should be safe to read, since we're going to be calling from the GS thread.
@@ -994,30 +967,36 @@ void Host::OnGameChanged(const std::string& title, const std::string& elf_overri
 
 void EmuThread::updatePerformanceMetrics(bool force)
 {
-	if (m_verbose_status && VMManager::HasValidVM())
-	{
-		std::string gs_stat_str;
-		GSgetTitleStats(gs_stat_str);
+	if (!g_main_window)
+		return;
 
+	if (VMManager::HasValidVM())
+	{
 		QString gs_stat;
-		if (THREAD_VU1)
+		if (m_verbose_status)
 		{
-			gs_stat = tr("Slot: %1 | Volume: %2% | %3 | EE: %4% | VU: %5% | GS: %6%")
-						  .arg(SaveStateSelectorUI::GetCurrentSlot())
-						  .arg(SPU2::GetOutputVolume())
-						  .arg(gs_stat_str.c_str())
-						  .arg(PerformanceMetrics::GetCPUThreadUsage(), 0, 'f', 0)
-						  .arg(PerformanceMetrics::GetVUThreadUsage(), 0, 'f', 0)
-						  .arg(PerformanceMetrics::GetGSThreadUsage(), 0, 'f', 0);
-		}
-		else
-		{
-			gs_stat = tr("Slot: %1 | Volume: %2% | %3 | EE: %4% | GS: %5%")
-						  .arg(SaveStateSelectorUI::GetCurrentSlot())
-						  .arg(SPU2::GetOutputVolume())
-						  .arg(gs_stat_str.c_str())
-						  .arg(PerformanceMetrics::GetCPUThreadUsage(), 0, 'f', 0)
-						  .arg(PerformanceMetrics::GetGSThreadUsage(), 0, 'f', 0);
+			std::string gs_stat_str;
+			GSgetTitleStats(gs_stat_str);
+
+			if (THREAD_VU1)
+			{
+				gs_stat = tr("Slot: %1 | Volume: %2% | %3 | EE: %4% | VU: %5% | GS: %6%")
+				              .arg(SaveStateSelectorUI::GetCurrentSlot())
+				              .arg(SPU2::GetOutputVolume())
+				              .arg(gs_stat_str.c_str())
+				              .arg(PerformanceMetrics::GetCPUThreadUsage(), 0, 'f', 0)
+				              .arg(PerformanceMetrics::GetVUThreadUsage(), 0, 'f', 0)
+				              .arg(PerformanceMetrics::GetGSThreadUsage(), 0, 'f', 0);
+			}
+			else
+			{
+				gs_stat = tr("Slot: %1 | Volume: %2% | %3 | EE: %4% | GS: %5%")
+				              .arg(SaveStateSelectorUI::GetCurrentSlot())
+				              .arg(SPU2::GetOutputVolume())
+				              .arg(gs_stat_str.c_str())
+				              .arg(PerformanceMetrics::GetCPUThreadUsage(), 0, 'f', 0)
+				              .arg(PerformanceMetrics::GetGSThreadUsage(), 0, 'f', 0);
+			}
 		}
 
 		QMetaObject::invokeMethod(g_main_window->getStatusVerboseWidget(), "setText", Qt::QueuedConnection, Q_ARG(const QString&, gs_stat));
@@ -1057,8 +1036,14 @@ void EmuThread::updatePerformanceMetrics(bool force)
 
 		if (gfps != m_last_game_fps || force)
 		{
+			QString text;
+			if (gfps == 0)
+				text = tr("FPS: N/A");
+			else
+				text = tr("FPS: %1").arg(gfps, 0, 'f', 0);
+
 			QMetaObject::invokeMethod(g_main_window->getStatusFPSWidget(), "setText", Qt::QueuedConnection,
-				Q_ARG(const QString&, tr("FPS: %1").arg(gfps, 0, 'f', 0)));
+				Q_ARG(const QString&, text));
 			m_last_game_fps = gfps;
 		}
 
@@ -1126,9 +1111,9 @@ void Host::OnAchievementsRefreshed()
 		game_id = Achievements::GetGameID();
 
 		game_info = qApp
-						->translate("EmuThread", "Game: %1 (%2)\n")
-						.arg(QString::fromStdString(Achievements::GetGameTitle()))
-						.arg(game_id);
+		                ->translate("EmuThread", "Game: %1 (%2)\n")
+		                .arg(QString::fromStdString(Achievements::GetGameTitle()))
+		                .arg(game_id);
 
 		const std::string& rich_presence_string = Achievements::GetRichPresenceString();
 		if (!rich_presence_string.empty())
@@ -1328,6 +1313,7 @@ bool QtHost::InitializeConfig()
 	// Write crash dumps to the data directory, since that'll be accessible for certain.
 	CrashHandler::SetWriteDirectory(EmuFolders::DataRoot);
 
+	// Load main settings ini
 	const std::string path = Path::Combine(EmuFolders::Settings, "PCSX2.ini");
 	const bool settings_exists = FileSystem::FileExists(path.c_str());
 	Console.WriteLnFmt("Loading config from {}.", path);
@@ -1366,6 +1352,29 @@ bool QtHost::InitializeConfig()
 		// Don't save if we're running the setup wizard. We want to run it next time if they don't finish it.
 		if (!s_run_setup_wizard)
 			SaveSettings();
+	}
+
+	// Layer secrets ini on top
+	const std::string secrets_path = Path::Combine(EmuFolders::Settings, "secrets.ini");
+	const bool secrets_settings_exists = FileSystem::FileExists(secrets_path.c_str());
+	Console.WriteLnFmt("Loading secrets from {}.", secrets_path);
+
+	s_secrets_settings_interface = std::make_unique<INISettingsInterface>(std::move(secrets_path));
+	Host::Internal::SetSecretsSettingsLayer(s_secrets_settings_interface.get());
+	if (!secrets_settings_exists || !s_secrets_settings_interface->Load())
+	{
+		if (!s_base_settings_interface->Save(&error))
+		{
+			QMessageBox::critical(
+				nullptr, QStringLiteral("PCSX2"),
+				QStringLiteral(
+					"Failed to save secrets to\n\n%1\n\nThe error was: %2\n\nPlease ensure this directory is writable. You "
+					"can also try portable mode by creating portable.txt in the same directory you installed PCSX2 into.")
+					.arg(QString::fromStdString(s_secrets_settings_interface->GetFileName()))
+					.arg(QString::fromStdString(error.GetDescription())));
+			return false;
+		}
+		
 	}
 
 	// Setup wizard was incomplete last time?
@@ -1626,7 +1635,7 @@ bool QtHost::DownloadFile(QWidget* parent, const QString& title, std::string url
 		!FileSystem::WriteBinaryFile(path.c_str(), data.data(), data.size()))
 	{
 		QMessageBox::critical(parent, qApp->translate("EmuThread", "Error"),
-			qApp->translate("EmuThread", "Failed to write '%1'.").arg(QString::fromStdString(path)));
+			qApp->translate("EmuThread", "Failed to write downloaded data to file '%1'.").arg(QString::fromStdString(path)));
 		return false;
 	}
 
@@ -1655,13 +1664,6 @@ void Host::ReportErrorAsync(const std::string_view title, const std::string_view
 	QMetaObject::invokeMethod(g_main_window, "reportError", Qt::QueuedConnection,
 		Q_ARG(const QString&, title.empty() ? QString() : QString::fromUtf8(title.data(), title.size())),
 		Q_ARG(const QString&, message.empty() ? QString() : QString::fromUtf8(message.data(), message.size())));
-}
-
-bool Host::ConfirmMessage(const std::string_view title, const std::string_view message)
-{
-	const QString qtitle(QString::fromUtf8(title.data(), title.size()));
-	const QString qmessage(QString::fromUtf8(message.data(), message.size()));
-	return g_emu_thread->confirmMessage(qtitle, qmessage);
 }
 
 void Host::OpenURL(const std::string_view url)
@@ -1743,6 +1745,16 @@ void Host::OnInputDeviceDisconnected(const InputBindingKey key, const std::strin
 void Host::SetMouseMode(bool relative_mode, bool hide_cursor)
 {
 	emit g_emu_thread->onMouseModeRequested(relative_mode, hide_cursor);
+}
+
+void QtHost::LockVMWithDialog()
+{
+	s_vm_locked_with_dialog++;
+}
+
+void QtHost::UnlockVMWithDialog()
+{
+	s_vm_locked_with_dialog--;
 }
 
 namespace
@@ -2200,7 +2212,7 @@ bool QtHost::ParseCommandLineOptions(const QStringList& args, std::shared_ptr<VM
 			else if (CHECK_ARG(QStringLiteral("-fullscreen")))
 			{
 				AutoBoot(autoboot)->fullscreen = true;
-				s_start_fullscreen_ui_fullscreen = true;
+				s_start_fullscreen = true;
 				continue;
 			}
 			else if (CHECK_ARG(QStringLiteral("-nofullscreen")))
@@ -2215,7 +2227,7 @@ bool QtHost::ParseCommandLineOptions(const QStringList& args, std::shared_ptr<VM
 			}
 			else if (CHECK_ARG(QStringLiteral("-bigpicture")))
 			{
-				s_start_fullscreen_ui = true;
+				s_start_big_picture_mode = true;
 				continue;
 			}
 			else if (CHECK_ARG(QStringLiteral("-testconfig")))
@@ -2276,7 +2288,7 @@ bool QtHost::ParseCommandLineOptions(const QStringList& args, std::shared_ptr<VM
 
 	// if we don't have autoboot, we definitely don't want batch mode (because that'll skip
 	// scanning the game list).
-	if (s_batch_mode && !s_start_fullscreen_ui && !autoboot)
+	if (s_batch_mode && !s_start_big_picture_mode && !autoboot)
 	{
 		QMessageBox::critical(nullptr, QStringLiteral("Error"),
 			s_nogui_mode ? QStringLiteral("Cannot use no-gui mode, because no boot filename was specified.") :
@@ -2336,14 +2348,41 @@ bool QtHost::RunSetupWizard()
 	return true;
 }
 
+class PCSX2MainApplication : public QApplication
+{
+public:
+	using QApplication::QApplication;
+
+	bool event(QEvent* event) override
+	{
+		if (event->type() == QEvent::FileOpen)
+		{
+			QFileOpenEvent* open = static_cast<QFileOpenEvent*>(event);
+			const QUrl url = open->url();
+			if (url.isLocalFile())
+				return g_main_window->startFile(url.toLocalFile());
+			else
+				return false; // No URL schemas currently supported
+		}
+		return QApplication::event(event);
+	}
+};
+
 int main(int argc, char* argv[])
 {
 	CrashHandler::Install();
 
+// Exceptions are disabled, so we can't try/catch this.
+// Timestamps in some locales showed up wrong on Windows.
+// Qt already applies the user locale on Unix-like systems.
+#ifdef _WIN32
+	std::locale::global(std::locale(""));
+#endif
+
 	QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
 	QtHost::RegisterTypes();
 
-	QApplication app(argc, argv);
+	PCSX2MainApplication app(argc, argv);
 
 #ifndef _WIN32
 	if (!PerformEarlyHardwareChecks())
@@ -2396,7 +2435,7 @@ int main(int argc, char* argv[])
 	/*
 	// When running in batch mode, ensure game list is loaded, but don't scan for any new files.
 	if (!s_batch_mode)
-		g_main_window->refreshGameList(false);
+		g_main_window->refreshGameList(false, false);
 	else
 		GameList::Refresh(false, true);
 	*/
@@ -2409,9 +2448,10 @@ int main(int argc, char* argv[])
 		g_main_window->activateWindow();
 	}
 
-	// Initialize big picture mode if requested.
-	if (s_start_fullscreen_ui)
-		g_emu_thread->startFullscreenUI(s_start_fullscreen_ui_fullscreen);
+	// Initialize big picture mode if requested by command line or settings.
+	// As CLI arguments are baked-in, they're tracked separately from settings which can be changed during runtime.
+	if (s_start_big_picture_mode || Host::GetBaseBoolSettingValue("UI", "StartBigPictureMode", false))
+		g_emu_thread->startFullscreenUI(s_start_fullscreen || Host::GetBaseBoolSettingValue("UI", "StartFullscreen", false));
 
 	if (s_boot_and_debug || DebuggerWindow::shouldShowOnStartup())
 	{

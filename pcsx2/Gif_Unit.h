@@ -521,7 +521,7 @@ struct Gif_Path
 	// GS Packets that MTGS hasn't yet processed
 	u32 GetPendingGSPackets()
 	{
-		return mtvu.gsPackQueue.size();
+		return (u32)mtvu.gsPackQueue.size();
 	}
 };
 
@@ -603,7 +603,7 @@ struct Gif_Unit
 			}
 			if (curSize >= size)
 				return size;
-			if(((flush && gifTag.tag.EOP) || !flush) && (CHECK_XGKICKHACK || !EmuConfig.Cpu.Recompiler.EnableVU1))
+			if(((flush && gifTag.tag.EOP) || !flush) && (CHECK_XGKICKHACK || !REC_VU1))
 			{
 				return curSize | ((u32)gifTag.tag.EOP << 31);
 			}

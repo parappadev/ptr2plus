@@ -141,6 +141,12 @@ private:
 
 	std::unique_ptr<GLContext> m_gl_context;
 
+	struct
+	{
+		bool buggy_pbo              : 1; ///< Avoid PBOs and just use glTextureSubImage2D with immediate data
+		bool broken_blend_coherency : 1; ///< Issue on Nvidia GPUs where some blend modes don't seem to be properly coherent, see comment in RenderHW
+	} m_bugs;
+
 	bool m_disable_download_pbo = false;
 
 	GLuint m_fbo = 0; // frame buffer container
@@ -231,7 +237,7 @@ private:
 	std::string m_shader_tfx_vgs;
 	std::string m_shader_tfx_fs;
 
-	bool CheckFeatures(bool& buggy_pbo);
+	bool CheckFeatures();
 
 	void SetSwapInterval();
 	void DestroyResources();
@@ -264,6 +270,10 @@ private:
 	void OMSetFBO(GLuint fbo);
 
 	void DrawStretchRect(const GSVector4& sRect, const GSVector4& dRect, const GSVector2i& ds);
+
+protected:
+	virtual void DoStretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect,
+		GSHWDrawConfig::ColorMaskSelector cms, ShaderConvert shader, bool linear) override;
 
 public:
 	GSDeviceOGL();
@@ -317,10 +327,8 @@ public:
 	// BlitRect *does* mess with GL state, be sure to re-bind.
 	void BlitRect(GSTexture* sTex, const GSVector4i& r, const GSVector2i& dsize, bool at_origin, bool linear);
 
-	void StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, ShaderConvert shader = ShaderConvert::COPY, bool linear = true) override;
-	void StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, const GLProgram& ps, bool linear = true);
-	void StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, bool red, bool green, bool blue, bool alpha, ShaderConvert shader = ShaderConvert::COPY) override;
-	void StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, const GLProgram& ps, bool alpha_blend, OMColorMaskSelector cms, bool linear = true);
+	void DoStretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, const GLProgram& ps, bool linear);
+	void DoStretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, const GLProgram& ps, bool alpha_blend, OMColorMaskSelector cms, bool linear);
 	void PresentRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, PresentShader shader, float shaderTime, bool linear) override;
 	void UpdateCLUTTexture(GSTexture* sTex, float sScale, u32 offsetX, u32 offsetY, GSTexture* dTex, u32 dOffset, u32 dSize) override;
 	void ConvertToIndexedTexture(GSTexture* sTex, float sScale, u32 offsetX, u32 offsetY, u32 SBW, u32 SPSM, GSTexture* dTex, u32 DBW, u32 DPSM) override;
@@ -330,13 +338,13 @@ public:
 	void DoMultiStretchRects(const MultiStretchRect* rects, u32 num_rects, const GSVector2& ds);
 
 	void RenderHW(GSHWDrawConfig& config) override;
-	void SendHWDraw(const GSHWDrawConfig& config, bool needs_barrier);
+	void SendHWDraw(const GSHWDrawConfig& config, bool one_barrier, bool full_barrier);
 
-	void SetupDATE(GSTexture* rt, GSTexture* ds, const GSVertexPT1* vertices, SetDATM datm);
+	void SetupDATE(GSTexture* rt, GSTexture* ds, SetDATM datm, const GSVector4i& bbox);
 
 	void IASetVAO(GLuint vao);
 	void IASetPrimitiveTopology(GLenum topology);
-	void IASetVertexBuffer(const void* vertices, size_t count);
+	void IASetVertexBuffer(const void* vertices, size_t count, size_t align_multiplier = 1);
 	void IASetIndexBuffer(const void* index, size_t count);
 
 	void PSSetShaderResource(int i, GSTexture* sr);

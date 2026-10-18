@@ -7,7 +7,6 @@ endif(NOT TOP_CMAKE_WAS_SOURCED)
 
 add_library(common)
 
-# x86emitter sources
 target_sources(common PRIVATE
 	AlignedMalloc.cpp
 	Assertions.cpp
@@ -34,9 +33,9 @@ target_sources(common PRIVATE
 	Timer.cpp
 	WAVWriter.cpp
 	WindowInfo.cpp
+	YAML.cpp
 )
 
-# x86emitter headers
 target_sources(common PRIVATE
 	AlignedMalloc.h
 	Assertions.h
@@ -81,11 +80,11 @@ target_sources(common PRIVATE
 	WAVWriter.h
 	WindowInfo.h
 	WrappedMemCopy.h
+	YAML.h
 )
 
 if(_M_X86)
 	target_sources(common PRIVATE
-		emitter/avx.cpp
 		emitter/bmi.cpp
 		emitter/fpu.cpp
 		emitter/groups.cpp
@@ -174,9 +173,6 @@ else()
 		target_compile_definitions(common PRIVATE "HAS_LIBBACKTRACE=1")
 		target_link_libraries(common PRIVATE libbacktrace::libbacktrace)
 	endif()
-	if(${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
-		target_link_libraries(common PRIVATE cpuinfo)
-	endif()
 endif()
 
 set_source_files_properties(PrecompiledHeader.cpp PROPERTIES HEADER_FILE_ONLY TRUE)
@@ -206,11 +202,13 @@ target_link_libraries(common PRIVATE
 	JPEG::JPEG
 	PNG::PNG
 	WebP::libwebp
+	cpuinfo
 )
 
 target_link_libraries(common PUBLIC
 	fmt::fmt
 	fast_float
+	rapidyaml::rapidyaml
 )
 
 fixup_file_properties(common)

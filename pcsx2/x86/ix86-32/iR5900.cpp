@@ -1501,7 +1501,10 @@ void dynarecCheckBreakpoint()
 {
 	u32 pc = cpuRegs.pc;
 	if (CBreakPoints::CheckSkipFirst(BREAKPOINT_EE, pc) != 0)
+	{
+		CBreakPoints::ClearSkipFirst(BREAKPOINT_EE);
 		return;
+	}
 
 	const int bpFlags = isBreakpointNeeded(pc);
 	bool hit = false;
@@ -1535,7 +1538,10 @@ void dynarecMemcheck(size_t i)
 	const u32 op = memRead32(cpuRegs.pc);
 	const OPCODE& opcode = GetInstruction(op);
 	if (CBreakPoints::CheckSkipFirst(BREAKPOINT_EE, pc) != 0)
+	{
+		CBreakPoints::ClearSkipFirst(BREAKPOINT_EE);
 		return;
+	}
 
 	auto mc = CBreakPoints::GetMemChecks(BREAKPOINT_EE)[i];
 
@@ -1609,20 +1615,22 @@ void recMemcheck(u32 op, u32 bits, bool store)
 	}
 }
 
-void encodeBreakpoint()
+bool encodeBreakpoint()
 {
 	if (isBreakpointNeeded(pc) != 0)
 	{
 		iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
 		xFastCall((void*)dynarecCheckBreakpoint);
+		return true;
 	}
+	return false;
 }
 
-void encodeMemcheck()
+bool encodeMemcheck()
 {
 	const int needed = isMemcheckNeeded(pc);
 	if (needed == 0)
-		return;
+		return false;
 
 	const u32 op = memRead32(needed == 2 ? pc + 4 : pc);
 	const OPCODE& opcode = GetInstruction(op);
@@ -1646,6 +1654,7 @@ void encodeMemcheck()
 			recMemcheck(op, 128, store);
 			break;
 	}
+	return true;
 }
 
 void recompileNextInstruction(bool delayslot, bool swapped_delay_slot)
@@ -1658,8 +1667,8 @@ void recompileNextInstruction(bool delayslot, bool swapped_delay_slot)
 	// add breakpoint
 	if (!delayslot)
 	{
-		encodeBreakpoint();
-		encodeMemcheck();
+		if(encodeBreakpoint() || encodeMemcheck())
+			xFastCall((void*)CBreakPoints::CommitClearSkipFirst, BREAKPOINT_EE);
 	}
 	else
 	{
@@ -2567,7 +2576,7 @@ StartRecomp:
 
 #ifdef DUMP_BLOCKS
 	ZydisDecoder disas_decoder;
-	ZydisDecoderInit(&disas_decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_ADDRESS_WIDTH_64);
+	ZydisDecoderInit(&disas_decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_STACK_WIDTH_64);
 
 	ZydisFormatter disas_formatter;
 	ZydisFormatterInit(&disas_formatter, ZYDIS_FORMATTER_STYLE_INTEL);
@@ -2575,7 +2584,6 @@ StartRecomp:
 	s_old_print_address = (ZydisFormatterFunc)&ZydisFormatterPrintAddressAbsolute;
 	ZydisFormatterSetHook(&disas_formatter, ZYDIS_FORMATTER_FUNC_PRINT_ADDRESS_ABS, (const void**)&s_old_print_address);
 
-	ZydisDecodedInstruction disas_instruction;
 #if 0
 	const bool dump_block = (startpc == 0x00000000);
 #elif 1
@@ -2605,20 +2613,34 @@ StartRecomp:
 				//fprintf(stderr, "Compiling %08X %s\n", pc, disasm.c_str());
 				Console.WriteLn("Compiling %08X %s\n", pc, disasm.c_str());
 
-				const u8* instStart = x86Ptr;
+				const u8* inst_start = x86Ptr;
 				recompileNextInstruction(false, false);
 
-				const u8* instPtr = instStart;
-				ZyanUSize instLength = static_cast<ZyanUSize>(x86Ptr - instStart);
-				while (ZYAN_SUCCESS(ZydisDecoderDecodeBuffer(&disas_decoder, instPtr, instLength, &disas_instruction)))
+				const u8* inst_ptr = inst_start;
+				ZyanUSize inst_length = static_cast<ZyanUSize>(x86Ptr - inst_start);
+
+				ZydisDecodedInstruction instruction;
+				ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT];
+
+				while (ZYAN_SUCCESS(ZydisDecoderDecodeFull(&disas_decoder, inst_ptr, inst_length, &instruction, operands)))
 				{
 					char buffer[256];
-					if (ZYAN_SUCCESS(ZydisFormatterFormatInstruction(&disas_formatter, &disas_instruction, buffer, sizeof(buffer), (ZyanU64)instPtr)))
-						Console.WriteLn("    %016" PRIX64 "    %s\n", (u64)instPtr, buffer);
-						//std::fprintf(stderr, "    %016" PRIX64 "    %s\n", (u64)instPtr, buffer);
+					ZyanStatus status = ZydisFormatterFormatInstruction(
+						&disas_formatter,
+						&instruction,
+						operands,
+						instruction.operand_count,
+						buffer,
+						sizeof(buffer),
+						reinterpret_cast<ZyanU64>(inst_ptr),
+						nullptr);
 
-					instPtr += disas_instruction.length;
-					instLength -= disas_instruction.length;
+					if (ZYAN_SUCCESS(status))
+						Console.WriteLn("    %016" PRIX64 "    %s\n", (u64)instPtr, buffer);
+						//std::fprintf(stderr, "    %016" PRIX64 "    %s\n", reinterpret_cast<u64>(inst_ptr), buffer);
+
+					inst_ptr += instruction.length;
+					inst_length -= instruction.length;
 				}
 			}
 			else

@@ -8,7 +8,6 @@
 #include "GS/GS.h"
 #include "GS/Renderers/Common/GSFastList.h"
 #include "GS/Renderers/Common/GSTexture.h"
-#include "GS/Renderers/Vulkan/GSTextureVK.h"
 #include "GS/Renderers/Common/GSVertex.h"
 #include "GS/GSAlignedClass.h"
 #include "GS/GSExtra.h"
@@ -68,6 +67,27 @@ enum class ShaderInterlace
 	MAD_RECONSTRUCT = 4,
 	Count
 };
+
+static inline bool HasVariableWriteMask(ShaderConvert shader)
+{
+	switch (shader)
+	{
+		case ShaderConvert::COPY:
+		case ShaderConvert::RTA_CORRECTION:
+			return true;
+		default:
+			return false;
+	}
+}
+
+static inline int GetShaderIndexForMask(ShaderConvert shader, int mask)
+{
+	pxAssert(HasVariableWriteMask(shader));
+	int index = mask;
+	if (shader == ShaderConvert::RTA_CORRECTION)
+		index |= 1 << 4;
+	return index;
+}
 
 static inline bool HasDepthOutput(ShaderConvert shader)
 {
@@ -412,7 +432,7 @@ struct alignas(16) GSHWDrawConfig
 		{
 			const u32 sw_blend_bits = blend_a | blend_b | blend_d;
 			const bool sw_blend_needs_rt = (sw_blend_bits != 0 && ((sw_blend_bits | blend_c) & 1u)) || ((a_masked & blend_c) != 0);
-			return channel_fb || tex_is_fb || fbmask || (date > 0 && date != 3) || sw_blend_needs_rt;
+			return channel_fb || tex_is_fb || fbmask || (date >= 5) || sw_blend_needs_rt;
 		}
 
 		/// Disables color output from the pixel shader, this is done when all channels are masked.
@@ -549,6 +569,7 @@ struct alignas(16) GSHWDrawConfig
 		constexpr ColorMaskSelector(): key(0xF) {}
 		constexpr ColorMaskSelector(u8 c): key(0) { wrgba = c; }
 	};
+
 #pragma pack(pop)
 	struct alignas(16) VSConstantBuffer
 	{
@@ -560,11 +581,11 @@ struct alignas(16) GSHWDrawConfig
 		GSVector2i max_depth;
 		__fi VSConstantBuffer()
 		{
-			memset(this, 0, sizeof(*this));
+			memset(static_cast<void*>(this), 0, sizeof(*this));
 		}
 		__fi VSConstantBuffer(const VSConstantBuffer& other)
 		{
-			memcpy(this, &other, sizeof(*this));
+			memcpy(static_cast<void*>(this), static_cast<const void*>(&other), sizeof(*this));
 		}
 		__fi VSConstantBuffer& operator=(const VSConstantBuffer& other)
 		{
@@ -584,7 +605,7 @@ struct alignas(16) GSHWDrawConfig
 			if (*this == other)
 				return false;
 
-			memcpy(this, &other, sizeof(*this));
+			memcpy(static_cast<void*>(this), static_cast<const void*>(&other), sizeof(*this));
 			return true;
 		}
 	};
@@ -609,11 +630,11 @@ struct alignas(16) GSHWDrawConfig
 
 		__fi PSConstantBuffer()
 		{
-			memset(this, 0, sizeof(*this));
+			memset(static_cast<void*>(this), 0, sizeof(*this));
 		}
 		__fi PSConstantBuffer(const PSConstantBuffer& other)
 		{
-			memcpy(this, &other, sizeof(*this));
+			memcpy(static_cast<void*>(this), static_cast<const void*>(&other), sizeof(*this));
 		}
 		__fi PSConstantBuffer& operator=(const PSConstantBuffer& other)
 		{
@@ -633,7 +654,7 @@ struct alignas(16) GSHWDrawConfig
 			if (*this == other)
 				return false;
 
-			memcpy(this, &other, sizeof(*this));
+			memcpy(static_cast<void*>(this), static_cast<const void*>(&other), sizeof(*this));
 			return true;
 		}
 	};
@@ -703,7 +724,8 @@ struct alignas(16) GSHWDrawConfig
 	u32 nverts;           ///< Number of vertices
 	u32 nindices;         ///< Number of indices
 	u32 indices_per_prim; ///< Number of indices that make up one primitive
-	const std::vector<size_t>* drawlist; ///< For reducing barriers on sprites
+	const std::vector<size_t>* drawlist;          ///< For reducing barriers on sprites
+	const std::vector<GSVector4i>* drawlist_bbox; ///< For RT copy when barriers not available.
 	GSVector4i scissor; ///< Scissor rect
 	GSVector4i drawarea; ///< Area in the framebuffer which will be modified.
 	Topology topology;  ///< Draw topology
@@ -740,9 +762,10 @@ struct alignas(16) GSHWDrawConfig
 	struct BlendMultiPass
 	{
 		BlendState blend;
-		u8 blend_hw; /*HWBlendType*/
-		u8 dither;
-		bool enable;
+		bool enable : 1;
+		u8 no_color1 : 1;
+		u8 blend_hw : 3; // HWBlendType
+		u8 dither : 2;
 	};
 	static_assert(sizeof(BlendMultiPass) == 8, "blend multi pass is 8 bytes");
 
@@ -756,6 +779,32 @@ struct alignas(16) GSHWDrawConfig
 	GIFRegFRAME colclip_frame;
 	GSVector4i colclip_update_area; ///< Area in the framebuffer which colclip will modify;
 };
+
+static inline u32 GetExpansionFactor(GSHWDrawConfig::VSExpand expand)
+{
+	switch (expand)
+	{
+		case GSHWDrawConfig::VSExpand::Point:
+		case GSHWDrawConfig::VSExpand::Line:
+			return 4;
+		case GSHWDrawConfig::VSExpand::Sprite:
+			return 2;
+		default:
+			return 1;
+	}
+}
+
+static inline u32 GetVertexAlignment(GSHWDrawConfig::VSExpand expand)
+{
+	switch (expand)
+	{
+		case GSHWDrawConfig::VSExpand::Sprite:
+			// Sprite expand does a 2-4 expansion, and relies on the low bit of the vertex ID to figure out if it's the first or second coordinate.
+			return 2;
+		default:
+			return 1;
+	}
+}
 
 class GSDevice : public GSAlignedClass<32>
 {
@@ -783,6 +832,7 @@ public:
 		bool vs_expand            : 1; ///< Supports expanding points/lines/sprites in the vertex shader
 		bool primitive_id         : 1; ///< Supports primitive ID for use with prim tracking destination alpha algorithm
 		bool texture_barrier      : 1; ///< Supports sampling rt and hopefully texture barrier
+		bool multidraw_fb_copy    : 1; ///< Replacement for texture barrier.
 		bool provoking_vertex_last: 1; ///< Supports using the last vertex in a primitive as the value for flat shading.
 		bool point_expand         : 1; ///< Supports point expansion in hardware.
 		bool line_expand          : 1; ///< Supports line expansion in hardware.
@@ -866,8 +916,6 @@ protected:
 	bool m_allow_present_throttle = false;
 	u64 m_last_frame_displayed_time = 0;
 
-	GSTexture* m_imgui_font = nullptr;
-
 	GSTexture* m_merge = nullptr;
 	GSTexture* m_weavebob = nullptr;
 	GSTexture* m_blend = nullptr;
@@ -893,6 +941,15 @@ protected:
 
 	/// Applies CAS and writes to the destination texture, which should be a RWTexture.
 	virtual bool DoCAS(GSTexture* sTex, GSTexture* dTex, bool sharpen_only, const std::array<u32, NUM_CAS_CONSTANTS>& constants) = 0;
+
+	/// Perform texture operations for ImGui
+	void UpdateImGuiTextures();
+
+protected:
+	// Entry point to the renderer-specific StretchRect code.
+	virtual void DoStretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect,
+		GSHWDrawConfig::ColorMaskSelector cms, ShaderConvert shader, bool linear) = 0;
+	void DoStretchRectWithAssertions(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, GSHWDrawConfig::ColorMaskSelector cms, ShaderConvert shader, bool linear);
 
 public:
 	GSDevice();
@@ -946,8 +1003,8 @@ public:
 	/// Returns true if it's an OpenGL-based renderer.
 	bool UsesLowerLeftOrigin() const;
 
-	/// Recreates the font, call when the window scaling changes.
-	bool UpdateImGuiFontTexture();
+	/// Free ImGui textures before shutdown
+	void DestroyImGuiTextures();
 
 	virtual bool Create(GSVSyncMode vsync_mode, bool allow_present_throttle);
 	virtual void Destroy();
@@ -997,6 +1054,7 @@ public:
 
 	void ClearRenderTarget(GSTexture* t, u32 c);
 	void ClearDepth(GSTexture* t, float d);
+	bool ProcessClearsBeforeCopy(GSTexture* sTex, GSTexture* dTex, const bool full_copy);
 	void InvalidateRenderTarget(GSTexture* t);
 
 	virtual void PushDebugGroup(const char* fmt, ...) = 0;
@@ -1010,9 +1068,9 @@ public:
 	virtual std::unique_ptr<GSDownloadTexture> CreateDownloadTexture(u32 width, u32 height, GSTexture::Format format) = 0;
 
 	virtual void CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r, u32 destX, u32 destY) = 0;
-	virtual void StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, ShaderConvert shader = ShaderConvert::COPY, bool linear = true) = 0;
-	virtual void StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, bool red, bool green, bool blue, bool alpha, ShaderConvert shader = ShaderConvert::COPY) = 0;
 
+	void StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, bool red, bool green, bool blue, bool alpha, ShaderConvert shader = ShaderConvert::COPY);
+	void StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, ShaderConvert shader = ShaderConvert::COPY, bool linear = true);
 	void StretchRect(GSTexture* sTex, GSTexture* dTex, const GSVector4& dRect, ShaderConvert shader = ShaderConvert::COPY, bool linear = true);
 
 	/// Performs a screen blit for display. If dTex is null, it assumes you are writing to the system framebuffer/swap chain.

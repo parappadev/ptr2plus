@@ -15,19 +15,23 @@
 
 #include <algorithm>
 
-GamePatchDetailsWidget::GamePatchDetailsWidget(std::string name, const std::string& author,
-	const std::string& description, bool tristate, Qt::CheckState checkState, SettingsWindow* dialog, QWidget* parent)
+GamePatchDetailsWidget::GamePatchDetailsWidget(const Patch::PatchInfo& info, bool tristate, Qt::CheckState checkState, SettingsWindow* dialog, QWidget* parent)
 	: QWidget(parent)
 	, m_dialog(dialog)
-	, m_name(name)
+	, m_name(info.name)
 {
 	m_ui.setupUi(this);
 
-	m_ui.name->setText(QString::fromStdString(name));
+	const QString name = QString::fromStdString(info.name);
+	const QString author = !info.author.empty() ? QString::fromStdString(info.author) : tr("Unknown");
+	const QString place = QString::fromUtf8(PlaceToString(info.place));
+	const QString description = !info.description.empty() ? QString::fromStdString(info.description) : tr("No description provided.");
+	m_ui.name->setText(name);
 	m_ui.description->setText(
-		tr("<strong>Author: </strong>%1<br>%2")
-			.arg(author.empty() ? tr("Unknown") : QString::fromStdString(author))
-			.arg(description.empty() ? tr("No description provided.") : QString::fromStdString(description)));
+		tr("<strong>Author:</strong> %1<br><strong>Applied:</strong> %2<br>%3")
+			.arg(author)
+			.arg(place)
+			.arg(description));
 
 	pxAssert(dialog->getSettingsInterface());
 	m_ui.enabled->setTristate(tristate);
@@ -65,10 +69,11 @@ void GamePatchDetailsWidget::onEnabledStateChanged(int state)
 	g_emu_thread->reloadGameSettings();
 }
 
-GamePatchSettingsWidget::GamePatchSettingsWidget(SettingsWindow* dialog, QWidget* parent)
-	: m_dialog(dialog)
+GamePatchSettingsWidget::GamePatchSettingsWidget(SettingsWindow* settings_dialog, QWidget* parent)
+	: SettingsWidget(settings_dialog, parent)
 {
-	m_ui.setupUi(this);
+	setupTab(m_ui);
+
 	m_ui.scrollArea->setFrameShape(QFrame::WinPanel);
 	m_ui.scrollArea->setFrameShadow(QFrame::Sunken);
 
@@ -76,14 +81,14 @@ GamePatchSettingsWidget::GamePatchSettingsWidget(SettingsWindow* dialog, QWidget
 	setGlobalWsPatchNoteVisibility(false);
 	setGlobalNiPatchNoteVisibility(false);
 
-	SettingsInterface* sif = m_dialog->getSettingsInterface();
+	SettingsInterface* sif = dialog()->getSettingsInterface();
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.allCRCsCheckbox, "EmuCore", "ShowPatchesForAllCRCs", false);
 
 	connect(m_ui.reload, &QPushButton::clicked, this, &GamePatchSettingsWidget::onReloadClicked);
 	connect(m_ui.allCRCsCheckbox, &QCheckBox::checkStateChanged, this, &GamePatchSettingsWidget::reloadList);
-	connect(m_dialog, &SettingsWindow::discSerialChanged, this, &GamePatchSettingsWidget::reloadList);
+	connect(dialog(), &SettingsWindow::discSerialChanged, this, &GamePatchSettingsWidget::reloadList);
 
-	dialog->registerWidgetHelp(m_ui.allCRCsCheckbox, tr("Show Patches For All CRCs"), tr("Checked"),
+	dialog()->registerWidgetHelp(m_ui.allCRCsCheckbox, tr("Show Patches For All CRCs"), tr("Checked"),
 		tr("Toggles scanning patch files for all CRCs of the game. With this enabled available patches for the game serial with different CRCs will also be loaded."));
 
 	reloadList();
@@ -101,31 +106,31 @@ void GamePatchSettingsWidget::onReloadClicked()
 
 void GamePatchSettingsWidget::disableAllPatches()
 {
-	SettingsInterface* si = m_dialog->getSettingsInterface();
+	SettingsInterface* si = dialog()->getSettingsInterface();
 	si->ClearSection(Patch::PATCHES_CONFIG_SECTION);
 	si->Save();
 }
 
 void GamePatchSettingsWidget::reloadList()
 {
-	const SettingsInterface* si = m_dialog->getSettingsInterface();
+	const SettingsInterface* si = dialog()->getSettingsInterface();
 	// Patches shouldn't have any unlabelled patch groups, because they're new.
 	u32 number_of_unlabeled_patches = 0;
 	bool showAllCRCS = m_ui.allCRCsCheckbox->isChecked();
-	std::vector<Patch::PatchInfo> patches = Patch::GetPatchInfo(m_dialog->getSerial(), m_dialog->getDiscCRC(), false, showAllCRCS, &number_of_unlabeled_patches);
+	std::vector<Patch::PatchInfo> patches = Patch::GetPatchInfo(dialog()->getSerial(), dialog()->getDiscCRC(), false, showAllCRCS, &number_of_unlabeled_patches);
 	std::vector<std::string> enabled_list =
 		si->GetStringList(Patch::PATCHES_CONFIG_SECTION, Patch::PATCH_ENABLE_CONFIG_KEY);
 	std::vector<std::string> disabled_list =
 		si->GetStringList(Patch::PATCHES_CONFIG_SECTION, Patch::PATCH_DISABLE_CONFIG_KEY);
 
-	const bool ws_patches_enabled_globally = m_dialog->getEffectiveBoolValue("EmuCore", "EnableWideScreenPatches", false);
-	const bool ni_patches_enabled_globally = m_dialog->getEffectiveBoolValue("EmuCore", "EnableNoInterlacingPatches", false);
+	const bool ws_patches_enabled_globally = dialog()->getEffectiveBoolValue("EmuCore", "EnableWideScreenPatches", false);
+	const bool ni_patches_enabled_globally = dialog()->getEffectiveBoolValue("EmuCore", "EnableNoInterlacingPatches", false);
 
 	setUnlabeledPatchesWarningVisibility(number_of_unlabeled_patches > 0);
 	setGlobalWsPatchNoteVisibility(ws_patches_enabled_globally);
 	setGlobalNiPatchNoteVisibility(ni_patches_enabled_globally);
 	delete m_ui.scrollArea->takeWidget();
-	m_ui.allCRCsCheckbox->setEnabled(!m_dialog->getSerial().empty());
+	m_ui.allCRCsCheckbox->setEnabled(!dialog()->getSerial().empty());
 
 	QWidget* container = new QWidget(m_ui.scrollArea);
 	QVBoxLayout* layout = new QVBoxLayout(container);
@@ -177,7 +182,7 @@ void GamePatchSettingsWidget::reloadList()
 			}
 
 			GamePatchDetailsWidget* it =
-				new GamePatchDetailsWidget(std::move(pi.name), pi.author, pi.description, globally_toggleable_option, check_state, m_dialog, container);
+				new GamePatchDetailsWidget(pi, globally_toggleable_option, check_state, dialog(), container);
 			layout->addWidget(it);
 		}
 	}

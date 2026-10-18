@@ -75,7 +75,7 @@ namespace usb_pad
 			u8 player4_blue : 1;
 
 			u8 tail : 4;
-		} data = {};
+		} data = {}, lastData = {};
 		#pragma pack(pop)
 	};
 
@@ -84,6 +84,7 @@ namespace usb_pad
 	public:
 		const char* Name() const override;
 		const char* TypeName() const override;
+		const char* IconName() const override;
 		bool Freeze(USBDevice* dev, StateWrapper& sw) const override;
 		float GetBindingValue(const USBDevice* dev, u32 bind_index) const override;
 		void SetBindingValue(USBDevice* dev, u32 bind_index, float value) const override;

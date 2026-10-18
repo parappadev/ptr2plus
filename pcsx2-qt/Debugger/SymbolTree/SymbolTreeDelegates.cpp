@@ -1,15 +1,16 @@
 // SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
-// SPDX-License-Identifier: LGPL-3.0+
+// SPDX-License-Identifier: GPL-3.0+
 
 #include "SymbolTreeDelegates.h"
+
+#include "Debugger/SymbolTree/SymbolTreeModel.h"
+#include "Debugger/SymbolTree/TypeString.h"
 
 #include <QtWidgets/QCheckBox>
 #include <QtWidgets/QComboBox>
 #include <QtWidgets/QDoubleSpinBox>
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QMessageBox>
-#include "Debugger/SymbolTree/SymbolTreeModel.h"
-#include "Debugger/SymbolTree/TypeString.h"
 
 SymbolTreeValueDelegate::SymbolTreeValueDelegate(
 	DebugInterface& cpu,
@@ -27,6 +28,8 @@ QWidget* SymbolTreeValueDelegate::createEditor(QWidget* parent, const QStyleOpti
 	const SymbolTreeModel* tree_model = qobject_cast<const SymbolTreeModel*>(index.model());
 	if (!tree_model)
 		return nullptr;
+
+	const SymbolTreeDisplayOptions& display_options = tree_model->displayOptions();
 
 	SymbolTreeNode* node = tree_model->nodeFromIndex(index);
 	if (!node || !node->type.valid())
@@ -46,9 +49,9 @@ QWidget* SymbolTreeValueDelegate::createEditor(QWidget* parent, const QStyleOpti
 		{
 			case ccc::ast::BUILTIN:
 			{
-				const ccc::ast::BuiltIn& builtIn = type.as<ccc::ast::BuiltIn>();
+				const ccc::ast::BuiltIn& builtin = type.as<ccc::ast::BuiltIn>();
 
-				switch (builtIn.bclass)
+				switch (builtin.bclass)
 				{
 					case ccc::ast::BuiltInClass::UNSIGNED_8:
 					case ccc::ast::BuiltInClass::UNQUALIFIED_8:
@@ -56,8 +59,9 @@ QWidget* SymbolTreeValueDelegate::createEditor(QWidget* parent, const QStyleOpti
 					case ccc::ast::BuiltInClass::UNSIGNED_32:
 					case ccc::ast::BuiltInClass::UNSIGNED_64:
 					{
-						QLineEdit* editor = new QLineEdit(parent);
-						editor->setText(QString::number(value.toULongLong()));
+						SymbolTreeIntegerLineEdit* editor = new SymbolTreeIntegerLineEdit(
+							display_options, ccc::ast::builtin_class_size(builtin.bclass) * 8, parent);
+						editor->setUnsignedValue(value.toULongLong());
 						result = editor;
 
 						break;
@@ -67,8 +71,9 @@ QWidget* SymbolTreeValueDelegate::createEditor(QWidget* parent, const QStyleOpti
 					case ccc::ast::BuiltInClass::SIGNED_32:
 					case ccc::ast::BuiltInClass::SIGNED_64:
 					{
-						QLineEdit* editor = new QLineEdit(parent);
-						editor->setText(QString::number(value.toLongLong()));
+						SymbolTreeIntegerLineEdit* editor = new SymbolTreeIntegerLineEdit(
+							display_options, ccc::ast::builtin_class_size(builtin.bclass) * 8, parent);
+						editor->setSignedValue(value.toLongLong());
 						result = editor;
 
 						break;
@@ -109,12 +114,30 @@ QWidget* SymbolTreeValueDelegate::createEditor(QWidget* parent, const QStyleOpti
 				const ccc::ast::Enum& enumeration = type.as<ccc::ast::Enum>();
 
 				QComboBox* combo_box = new QComboBox(parent);
-				for (s32 i = 0; i < (s32)enumeration.constants.size(); i++)
+				bool named = false;
+
+				for (size_t i = 0; i < enumeration.constants.size(); i++)
 				{
-					combo_box->addItem(QString::fromStdString(enumeration.constants[i].second));
+					QString text = QString::fromStdString(enumeration.constants[i].second);
+					combo_box->addItem(text, enumeration.constants[i].first);
 					if (enumeration.constants[i].first == value.toInt())
-						combo_box->setCurrentIndex(i);
+					{
+						combo_box->setCurrentIndex(static_cast<int>(i));
+						named = true;
+					}
 				}
+
+				if (!named)
+				{
+					// The value isn't equal to any of the named constants, so
+					// add an extra item to the combo box representing the
+					// current value so that the first named constant isn't
+					// written back to VM memory accidentally.
+					QString text = display_options.signedIntegerToString(value.toInt(), 32);
+					combo_box->insertItem(0, text, value.toInt());
+					combo_box->setCurrentIndex(0);
+				}
+
 				connect(combo_box, &QComboBox::currentIndexChanged, this, &SymbolTreeValueDelegate::onComboBoxIndexChanged);
 				result = combo_box;
 
@@ -168,9 +191,9 @@ void SymbolTreeValueDelegate::setModelData(QWidget* editor, QAbstractItemModel* 
 		{
 			case ccc::ast::BUILTIN:
 			{
-				const ccc::ast::BuiltIn& builtIn = type.as<ccc::ast::BuiltIn>();
+				const ccc::ast::BuiltIn& builtin = type.as<ccc::ast::BuiltIn>();
 
-				switch (builtIn.bclass)
+				switch (builtin.bclass)
 				{
 					case ccc::ast::BuiltInClass::UNSIGNED_8:
 					case ccc::ast::BuiltInClass::UNQUALIFIED_8:
@@ -178,13 +201,12 @@ void SymbolTreeValueDelegate::setModelData(QWidget* editor, QAbstractItemModel* 
 					case ccc::ast::BuiltInClass::UNSIGNED_32:
 					case ccc::ast::BuiltInClass::UNSIGNED_64:
 					{
-						QLineEdit* line_edit = qobject_cast<QLineEdit*>(editor);
+						auto line_edit = qobject_cast<SymbolTreeIntegerLineEdit*>(editor);
 						Q_ASSERT(line_edit);
 
-						bool ok;
-						qulonglong i = line_edit->text().toULongLong(&ok);
-						if (ok)
-							value = i;
+						std::optional<u64> i = line_edit->unsignedValue();
+						if (i.has_value())
+							value = static_cast<quint64>(*i);
 
 						break;
 					}
@@ -193,13 +215,12 @@ void SymbolTreeValueDelegate::setModelData(QWidget* editor, QAbstractItemModel* 
 					case ccc::ast::BuiltInClass::SIGNED_32:
 					case ccc::ast::BuiltInClass::SIGNED_64:
 					{
-						QLineEdit* line_edit = qobject_cast<QLineEdit*>(editor);
+						auto line_edit = qobject_cast<SymbolTreeIntegerLineEdit*>(editor);
 						Q_ASSERT(line_edit);
 
-						bool ok;
-						qlonglong i = line_edit->text().toLongLong(&ok);
-						if (ok)
-							value = i;
+						std::optional<s64> i = line_edit->signedValue();
+						if (i.has_value())
+							value = static_cast<qint64>(*i);
 
 						break;
 					}
@@ -242,15 +263,10 @@ void SymbolTreeValueDelegate::setModelData(QWidget* editor, QAbstractItemModel* 
 			}
 			case ccc::ast::ENUM:
 			{
-				const ccc::ast::Enum& enumeration = type.as<ccc::ast::Enum>();
 				QComboBox* combo_box = qobject_cast<QComboBox*>(editor);
 				Q_ASSERT(combo_box);
 
-				s32 comboIndex = combo_box->currentIndex();
-				if (comboIndex < 0 || comboIndex >= (s32)enumeration.constants.size())
-					break;
-
-				value = enumeration.constants[comboIndex].first;
+				value = combo_box->currentData().toInt();
 
 				break;
 			}
@@ -480,4 +496,34 @@ void SymbolTreeTypeDelegate::setModelData(QWidget* editor, QAbstractItemModel* m
 	}
 	else
 		QMessageBox::warning(editor, tr("Cannot Change Type"), error_message);
+}
+
+// *****************************************************************************
+
+SymbolTreeIntegerLineEdit::SymbolTreeIntegerLineEdit(
+	SymbolTreeDisplayOptions display_options, s32 size_bits, QWidget* parent)
+	: QLineEdit(parent)
+	, m_display_options(display_options)
+	, m_size_bits(size_bits)
+{
+}
+
+std::optional<u64> SymbolTreeIntegerLineEdit::unsignedValue()
+{
+	return m_display_options.stringToUnsignedInteger(text());
+}
+
+void SymbolTreeIntegerLineEdit::setUnsignedValue(u64 value)
+{
+	setText(m_display_options.unsignedIntegerToString(value, m_size_bits));
+}
+
+std::optional<s64> SymbolTreeIntegerLineEdit::signedValue()
+{
+	return m_display_options.stringToSignedInteger(text());
+}
+
+void SymbolTreeIntegerLineEdit::setSignedValue(s64 value)
+{
+	setText(m_display_options.signedIntegerToString(value, m_size_bits));
 }

@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>698</width>
-    <height>512</height>
+    <width>725</width>
+    <height>637</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
@@ -78,6 +78,13 @@
         </property>
        </widget>
       </item>
+      <item row="3" column="1">
+       <widget class="QCheckBox" name="promptOnStateLoadSaveFailure">
+        <property name="text">
+         <string>Prompt On State Load/Save Failure</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
@@ -129,19 +136,32 @@
         </property>
        </widget>
       </item>
+      <item row="3" column="0">
+       <widget class="QCheckBox" name="startFullscreenUI">
+        <property name="text">
+         <string>Start Big Picture UI</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
    <item>
-    <widget class="QGroupBox" name="preferencesGroup">
+    <widget class="QGroupBox" name="appearancesGroup">
      <property name="title">
-      <string>Preferences</string>
+      <string>Appearance</string>
      </property>
      <layout class="QGridLayout" name="gridLayout">
+      <item row="1" column="1">
+       <widget class="QComboBox" name="theme"/>
+      </item>
       <item row="0" column="0">
        <widget class="QLabel" name="languageLabel">
         <property name="text">
          <string>Language:</string>
+        </property>
+        <property name="buddy">
+         <cstring>language</cstring>
         </property>
        </widget>
       </item>
@@ -153,10 +173,139 @@
         <property name="text">
          <string>Theme:</string>
         </property>
+        <property name="buddy">
+         <cstring>theme</cstring>
+        </property>
        </widget>
       </item>
-      <item row="1" column="1">
-       <widget class="QComboBox" name="theme"/>
+      <item row="2" column="0">
+       <widget class="QLabel" name="backgroundLabel">
+        <property name="text">
+         <string>Game List Background:</string>
+        </property>
+        <property name="buddy">
+         <cstring>backgroundBrowse</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <layout class="QHBoxLayout" name="backgroundPathLayout">
+        <item>
+         <widget class="QPushButton" name="backgroundBrowse">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>Browse...</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QToolButton" name="backgroundReset">
+          <property name="text">
+           <string>Reset</string>
+          </property>
+          <property name="icon">
+           <iconset theme="trash-fill"/>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="backgroundOpacityLabel">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>Opacity:</string>
+          </property>
+          <property name="buddy">
+           <cstring>backgroundOpacity</cstring>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QSpinBox" name="backgroundOpacity">
+          <property name="buttonSymbols">
+           <enum>QAbstractSpinBox::ButtonSymbols::PlusMinus</enum>
+          </property>
+          <property name="showGroupSeparator" stdset="0">
+           <bool>false</bool>
+          </property>
+          <property name="suffix">
+           <string notr="true">%</string>
+          </property>
+          <property name="minimum">
+           <number>0</number>
+          </property>
+          <property name="maximum">
+           <number>100</number>
+          </property>
+          <property name="singleStep">
+           <number>5</number>
+          </property>
+          <property name="value">
+           <number>100</number>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="backgroundScaleLabel">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>Scaling:</string>
+          </property>
+          <property name="buddy">
+           <cstring>backgroundScale</cstring>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="backgroundScale">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <item>
+           <property name="text">
+            <string>Fit</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Fill</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Stretch</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Center</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Tile</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+       </layout>
       </item>
      </layout>
     </widget>
@@ -167,6 +316,16 @@
       <string>Automatic Updater</string>
      </property>
      <layout class="QGridLayout" name="gridLayout_2">
+      <item row="0" column="0">
+       <widget class="QLabel" name="updaterChannelLabel">
+        <property name="text">
+         <string>Update Channel:</string>
+        </property>
+        <property name="buddy">
+         <cstring>autoUpdateTag</cstring>
+        </property>
+       </widget>
+      </item>
       <item row="1" column="1">
        <widget class="QLabel" name="autoUpdateCurrentVersion">
         <property name="text">
@@ -174,12 +333,8 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="0">
-       <widget class="QLabel" name="updaterChannelLabel">
-        <property name="text">
-         <string>Update Channel:</string>
-        </property>
-       </widget>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="autoUpdateTag"/>
       </item>
       <item row="1" column="0">
        <widget class="QLabel" name="currentVersionLabel">
@@ -187,9 +342,6 @@
          <string>Current Version:</string>
         </property>
        </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QComboBox" name="autoUpdateTag"/>
       </item>
       <item row="2" column="0" colspan="2">
        <layout class="QHBoxLayout" name="automaticUpdaterCheckGroup" stretch="1,0">
@@ -220,13 +372,39 @@
      <property name="sizeHint" stdset="0">
       <size>
        <width>20</width>
-       <height>40</height>
+       <height>0</height>
       </size>
      </property>
     </spacer>
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>confirmShutdown</tabstop>
+  <tabstop>pauseOnFocusLoss</tabstop>
+  <tabstop>inhibitScreensaver</tabstop>
+  <tabstop>pauseOnStart</tabstop>
+  <tabstop>discordPresence</tabstop>
+  <tabstop>pauseOnControllerDisconnection</tabstop>
+  <tabstop>mouseLock</tabstop>
+  <tabstop>promptOnStateLoadSaveFailure</tabstop>
+  <tabstop>startFullscreen</tabstop>
+  <tabstop>doubleClickTogglesFullscreen</tabstop>
+  <tabstop>renderToSeparateWindow</tabstop>
+  <tabstop>hideMainWindow</tabstop>
+  <tabstop>disableWindowResizing</tabstop>
+  <tabstop>hideMouseCursor</tabstop>
+  <tabstop>startFullscreenUI</tabstop>
+  <tabstop>language</tabstop>
+  <tabstop>theme</tabstop>
+  <tabstop>backgroundBrowse</tabstop>
+  <tabstop>backgroundReset</tabstop>
+  <tabstop>backgroundOpacity</tabstop>
+  <tabstop>backgroundScale</tabstop>
+  <tabstop>autoUpdateTag</tabstop>
+  <tabstop>autoUpdateEnabled</tabstop>
+  <tabstop>checkForUpdates</tabstop>
+ </tabstops>
  <resources>
   <include location="../resources/resources.qrc"/>
  </resources>

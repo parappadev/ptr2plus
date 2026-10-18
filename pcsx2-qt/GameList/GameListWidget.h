@@ -3,12 +3,16 @@
 
 #pragma once
 
+#include "QtUtils.h"
 #include "ui_EmptyGameListWidget.h"
 #include "ui_GameListWidget.h"
 
 #include "pcsx2/GameList.h"
 
+#include <QtGui/QMovie>
+#include <QtGui/QPixmap>
 #include <QtWidgets/QListView>
+#include <QtWidgets/QStackedWidget>
 #include <QtWidgets/QTableView>
 
 Q_DECLARE_METATYPE(const GameList::Entry*);
@@ -45,15 +49,18 @@ public:
 	void initialize();
 	void resizeTableViewColumnsToFit();
 
-	void refresh(bool invalidate_cache);
+	void refresh(bool invalidate_cache, bool popup_on_error);
 	void cancelRefresh();
 	void reloadThemeSpecificImages();
+	void setCustomBackground();
+	void updateCustomBackgroundState(const bool force_start = false);
+	void processBackgroundFrames();
 
 	bool isShowingGameList() const;
 	bool isShowingGameGrid() const;
 	bool getShowGridCoverTitles() const;
 
-	const GameList::Entry* getSelectedEntry() const;
+	std::optional<GameList::Entry> getSelectedEntry() const;
 
 	/// Rescans a single file. NOTE: Happens on UI thread.
 	void rescanFile(const std::string& path);
@@ -77,10 +84,10 @@ private Q_SLOTS:
 	void onTableViewItemActivated(const QModelIndex& index);
 	void onTableViewContextMenuRequested(const QPoint& point);
 	void onTableViewHeaderContextMenuRequested(const QPoint& point);
-	void onTableViewHeaderSortIndicatorChanged(int, Qt::SortOrder);
 	void onListViewItemActivated(const QModelIndex& index);
 	void onListViewContextMenuRequested(const QPoint& point);
 	void onCoverScaleChanged();
+	void onTableHeaderStateChanged();
 
 public Q_SLOTS:
 	void showGameList();
@@ -92,15 +99,17 @@ public Q_SLOTS:
 	void refreshGridCovers();
 
 protected:
+	void showEvent(QShowEvent* event) override;
+	void hideEvent(QHideEvent* event) override;
 	void resizeEvent(QResizeEvent* event) override;
 	bool event(QEvent* event) override;
+	bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
-	void loadTableViewColumnVisibilitySettings();
-	void saveTableViewColumnVisibilitySettings();
-	void saveTableViewColumnVisibilitySettings(int column);
-	void loadTableViewColumnSortSettings();
-	void saveTableViewColumnSortSettings();
+	void loadTableHeaderState();
+	void applyTableHeaderDefaults();
+	void resetTableHeaderToDefault();
+	void saveSortSettings(int column, Qt::SortOrder sort_order);
 	void listZoom(float delta);
 	void updateToolbar();
 
@@ -115,4 +124,9 @@ private:
 	Ui::EmptyGameListWidget m_empty_ui;
 
 	GameListRefreshThread* m_refresh_thread = nullptr;
+
+	QMovie* m_background_movie = nullptr;
+	QPixmap m_background_pixmap;
+	QtUtils::ScalingMode m_background_scaling = QtUtils::ScalingMode::Fit;
+	float m_background_opacity = 100.0f;
 };

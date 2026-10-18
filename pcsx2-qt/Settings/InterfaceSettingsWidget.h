@@ -3,26 +3,29 @@
 
 #pragma once
 
-#include <QtWidgets/QWidget>
-
 #include "ui_InterfaceSettingsWidget.h"
 
-class SettingsWindow;
+#include "SettingsWidget.h"
 
-class InterfaceSettingsWidget : public QWidget
+class InterfaceSettingsWidget : public SettingsWidget
 {
 	Q_OBJECT
 
 public:
-	InterfaceSettingsWidget(SettingsWindow* dialog, QWidget* parent);
+	InterfaceSettingsWidget(SettingsWindow* settings_dialog, QWidget* parent);
 	~InterfaceSettingsWidget();
+
+	void updatePromptOnStateLoadSaveFailureCheckbox(Qt::CheckState state);
 
 Q_SIGNALS:
 	void themeChanged();
 	void languageChanged();
+	void backgroundChanged();
 
 private Q_SLOTS:
 	void onRenderToSeparateWindowChanged();
+	void onSetGameListBackgroundTriggered();
+	void onClearGameListBackgroundTriggered();
 
 private:
 	void populateLanguages();
@@ -32,4 +35,6 @@ private:
 public:
 	static const char* THEME_NAMES[];
 	static const char* THEME_VALUES[];
+	static const char* BACKGROUND_SCALE_NAMES[];
+	static const char* IMAGE_FILE_FILTER;
 };

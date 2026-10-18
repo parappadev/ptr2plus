@@ -240,7 +240,11 @@
     <ClCompile Include="$(IntDir)moc_CoverDownloadDialog.cpp">
       <Filter>moc</Filter>
     </ClCompile>
+    <ClCompile Include="$(IntDir)moc_ShortcutCreationDialog.cpp">
+      <Filter>moc</Filter>
+    </ClCompile>
     <ClCompile Include="CoverDownloadDialog.cpp" />
+    <ClCompile Include="ShortcutCreationDialog.cpp" />
     <ClCompile Include="QtProgressCallback.cpp" />
     <ClCompile Include="$(IntDir)moc_QtProgressCallback.cpp">
       <Filter>moc</Filter>
@@ -266,13 +270,7 @@
     <ClCompile Include="Settings\DebugAnalysisSettingsWidget.cpp">
       <Filter>Settings</Filter>
     </ClCompile>
-    <ClCompile Include="Settings\DebugUserInterfaceSettingsWidget.cpp">
-      <Filter>Settings</Filter>
-    </ClCompile>
     <ClCompile Include="$(IntDir)Settings\moc_DebugAnalysisSettingsWidget.cpp">
-      <Filter>moc</Filter>
-    </ClCompile>
-    <ClCompile Include="$(IntDir)Settings\moc_DebugUserInterfaceSettingsWidget.cpp">
       <Filter>moc</Filter>
     </ClCompile>
     <ClCompile Include="Settings\DebugSettingsWidget.cpp">
@@ -495,6 +493,24 @@
     <ClCompile Include="Debugger\ThreadView.cpp">
       <Filter>Debugger</Filter>
     </ClCompile>
+    <ClCompile Include="$(IntDir)Debugger\moc_ModuleModel.cpp">
+      <Filter>moc</Filter>
+    </ClCompile>
+    <ClCompile Include="$(IntDir)Debugger\moc_ModuleView.cpp">
+      <Filter>moc</Filter>
+    </ClCompile>
+    <ClCompile Include="$(IntDir)Settings\moc_SettingsWidget.cpp">
+      <Filter>moc</Filter>
+    </ClCompile>
+    <ClCompile Include="Settings\SettingsWidget.cpp">
+      <Filter>Settings</Filter>
+    </ClCompile>
+    <ClCompile Include="Debugger\ModuleView.cpp">
+      <Filter>Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="Debugger\ModuleModel.cpp">
+      <Filter>Debugger</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="..\pcsx2\windows\PCSX2.manifest">
@@ -607,6 +623,7 @@
     <QtMoc Include="QtHost.h" />
     <QtMoc Include="CoverDownloadDialog.h" />
     <QtMoc Include="QtProgressCallback.h" />
+    <QtMoc Include="ShortcutCreationDialog.h" />
     <QtMoc Include="Settings\AchievementLoginDialog.h">
       <Filter>Settings</Filter>
     </QtMoc>
@@ -615,9 +632,6 @@
     </QtMoc>
     <QtMoc Include="Tools\InputRecording\InputRecordingViewer.h" />
     <QtMoc Include="Settings\DebugAnalysisSettingsWidget.h">
-      <Filter>Settings</Filter>
-    </QtMoc>
-    <QtMoc Include="Settings\DebugUserInterfaceSettingsWidget.h">
       <Filter>Settings</Filter>
     </QtMoc>
     <QtMoc Include="Settings\DebugSettingsWidget.h">
@@ -651,7 +665,6 @@
     </QtMoc>
     <QtMoc Include="Settings\QuickSettingsWidget.h" />
     <QtMoc Include="LogWindow.h" />
-    <QtMoc Include="Debugger\SymbolTree\TypeString.h" />
     <QtMoc Include="Debugger\Breakpoints\BreakpointDialog.h">
       <Filter>Debugger\Breakpoints</Filter>
     </QtMoc>
@@ -728,6 +741,18 @@
       <Filter>Debugger</Filter>
     </QtMoc>
     <QtMoc Include="Debugger\ThreadView.h">
+      <Filter>Debugger</Filter>
+    </QtMoc>
+    <QtMoc Include="Debugger\SymbolTree\TypeString.h">
+      <Filter>Debugger\SymbolTree</Filter>
+    </QtMoc>
+    <QtMoc Include="Settings\SettingsWidget.h">
+      <Filter>Settings</Filter>
+    </QtMoc>
+    <QtMoc Include="Debugger\ModuleView.h">
+      <Filter>Debugger</Filter>
+    </QtMoc>
+    <QtMoc Include="Debugger\ModuleModel.h">
       <Filter>Debugger</Filter>
     </QtMoc>
   </ItemGroup>
@@ -836,10 +861,16 @@
     <QtUi Include="Settings\DebugAnalysisSettingsWidget.ui">
       <Filter>Settings</Filter>
     </QtUi>
-    <QtUi Include="Settings\DebugSettingsWidget.ui">
+    <QtUi Include="Settings\DebugAnalysisSettingsTab.ui">
       <Filter>Settings</Filter>
     </QtUi>
-    <QtUi Include="Settings\DebugUserInterfaceSettingsWidget.ui">
+    <QtUi Include="Settings\DebugGSSettingsTab.ui">
+      <Filter>Settings</Filter>
+    </QtUi>
+    <QtUi Include="Settings\DebugLoggingSettingsTab.ui">
+      <Filter>Settings</Filter>
+    </QtUi>
+    <QtUi Include="Settings\DebugUserInterfaceSettingsTab.ui">
       <Filter>Settings</Filter>
     </QtUi>
     <QtUi Include="Settings\DEV9DnsHostDialog.ui">
@@ -872,7 +903,37 @@
     <QtUi Include="Settings\GameSummaryWidget.ui">
       <Filter>Settings</Filter>
     </QtUi>
-    <QtUi Include="Settings\GraphicsSettingsWidget.ui">
+    <QtUi Include="Settings\GraphicsAdvancedSettingsTab.ui">
+      <Filter>Settings</Filter>
+    </QtUi>
+    <QtUi Include="Settings\GraphicsDisplaySettingsTab.ui">
+      <Filter>Settings</Filter>
+    </QtUi>
+    <QtUi Include="Settings\GraphicsHardwareFixesSettingsTab.ui">
+      <Filter>Settings</Filter>
+    </QtUi>
+    <QtUi Include="Settings\GraphicsHardwareRenderingSettingsTab.ui">
+      <Filter>Settings</Filter>
+    </QtUi>
+    <QtUi Include="Settings\GraphicsMediaCaptureSettingsTab.ui">
+      <Filter>Settings</Filter>
+    </QtUi>
+    <QtUi Include="Settings\GraphicsOnScreenDisplaySettingsTab.ui">
+      <Filter>Settings</Filter>
+    </QtUi>
+    <QtUi Include="Settings\GraphicsPostProcessingSettingsTab.ui">
+      <Filter>Settings</Filter>
+    </QtUi>
+    <QtUi Include="Settings\GraphicsSettingsHeader.ui">
+      <Filter>Settings</Filter>
+    </QtUi>
+    <QtUi Include="Settings\GraphicsSoftwareRenderingSettingsTab.ui">
+      <Filter>Settings</Filter>
+    </QtUi>
+    <QtUi Include="Settings\GraphicsTextureReplacementSettingsTab.ui">
+      <Filter>Settings</Filter>
+    </QtUi>
+    <QtUi Include="Settings\GraphicsUpscalingFixesSettingsTab.ui">
       <Filter>Settings</Filter>
     </QtUi>
     <QtUi Include="Settings\InputBindingDialog.ui">
@@ -941,6 +1002,7 @@
     <QtUi Include="CoverDownloadDialog.ui" />
     <QtUi Include="MainWindow.ui" />
     <QtUi Include="SetupWizardDialog.ui" />
+    <QtUi Include="ShortcutCreationDialog.ui" />
     <QtUi Include="Debugger\StackView.ui">
       <Filter>Debugger</Filter>
     </QtUi>
@@ -954,6 +1016,9 @@
       <Filter>Debugger</Filter>
     </QtUi>
     <QtUi Include="Debugger\ThreadView.ui">
+      <Filter>Debugger</Filter>
+    </QtUi>
+    <QtUi Include="Debugger\ModuleView.ui">
       <Filter>Debugger</Filter>
     </QtUi>
   </ItemGroup>
