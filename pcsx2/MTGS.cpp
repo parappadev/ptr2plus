@@ -955,10 +955,10 @@ void MTGS::ResizeDisplayWindow(int width, int height, float scale)
 		GSResizeDisplayWindow(width, height, scale);
 
 		//ptr2plus
-		if (EmuConfig.GS.AspectRatio == AspectRatioType::Stretch)
+		/*if (EmuConfig.GS.AspectRatio == AspectRatioType::Stretch)
 		{
 			PTR2AspectRatioSet();
-		}
+		}*/
 
 		// If we're paused, re-present the current frame at the new window size.
 		if (VMManager::GetState() == VMState::Paused)
@@ -977,10 +977,10 @@ void MTGS::UpdateDisplayWindow()
 		GSUpdateDisplayWindow();
 
 		//ptr2plus
-		if (EmuConfig.GS.AspectRatio == AspectRatioType::Stretch)
+		/*if (EmuConfig.GS.AspectRatio == AspectRatioType::Stretch)
 		{
 			PTR2AspectRatioSet();
-		}
+		}*/
 
 		// If we're paused, re-present the current frame at the new window size.
 		if (VMManager::GetState() == VMState::Paused)
