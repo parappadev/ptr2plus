@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "GS/GS.h"
@@ -586,7 +586,7 @@ bool GSDeviceVK::CreateDevice(VkSurfaceKHR surface, bool enable_validation_layer
 		if (spin_queue_index != 0)
 			queue_infos[1].queueCount = 2; // present queue
 	}
-	else
+	else if (m_spin_queue_family_index != queue_family_count)
 	{
 		VkDeviceQueueCreateInfo& spin_queue_info = queue_infos[device_info.queueCreateInfoCount++];
 		spin_queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -1295,7 +1295,7 @@ void GSDeviceVK::SubmitCommandBuffer(VKSwapChain* present_swap_chain)
 
 		present_swap_chain->ResetImageAcquireResult();
 
-		const VkResult res = vkQueuePresentKHR(m_present_queue, &present_info);
+		res = vkQueuePresentKHR(m_present_queue, &present_info);
 		if (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
 		{
 			// VK_ERROR_OUT_OF_DATE_KHR is not fatal, just means we need to recreate our swap chain.
@@ -2216,12 +2216,12 @@ bool GSDeviceVK::UpdateWindow()
 	return true;
 }
 
-void GSDeviceVK::ResizeWindow(s32 new_window_width, s32 new_window_height, float new_window_scale)
+void GSDeviceVK::ResizeWindow(u32 new_window_width, u32 new_window_height, float new_window_scale)
 {
 	m_resize_requested = false;
 
-	if (!m_swap_chain || (m_swap_chain->GetWidth() == static_cast<u32>(new_window_width) &&
-							 m_swap_chain->GetHeight() == static_cast<u32>(new_window_height)))
+	if (!m_swap_chain || (m_swap_chain->GetWidth() == new_window_width &&
+							 m_swap_chain->GetHeight() == new_window_height))
 	{
 		// skip unnecessary resizes
 		m_window_info.surface_scale = new_window_scale;
@@ -3131,7 +3131,7 @@ void GSDeviceVK::UpdateCLUTTexture(
 	GSTexture* sTex, float sScale, u32 offsetX, u32 offsetY, GSTexture* dTex, u32 dOffset, u32 dSize)
 {
 	// Super annoying, but apparently NVIDIA doesn't like floats/ints packed together in the same vec4?
-	struct Uniforms
+	struct alignas(16) Uniforms
 	{
 		u32 offsetX, offsetY, dOffset, pad1;
 		float scale;
@@ -3150,7 +3150,7 @@ void GSDeviceVK::UpdateCLUTTexture(
 void GSDeviceVK::ConvertToIndexedTexture(
 	GSTexture* sTex, float sScale, u32 offsetX, u32 offsetY, u32 SBW, u32 SPSM, GSTexture* dTex, u32 DBW, u32 DPSM)
 {
-	struct Uniforms
+	struct alignas(16) Uniforms
 	{
 		u32 SBW;
 		u32 DBW;
@@ -3171,7 +3171,7 @@ void GSDeviceVK::ConvertToIndexedTexture(
 
 void GSDeviceVK::FilteredDownsampleTexture(GSTexture* sTex, GSTexture* dTex, u32 downsample_factor, const GSVector2i& clamp_min, const GSVector4& dRect)
 {
-	struct Uniforms
+	struct alignas(16) Uniforms
 	{
 		GSVector2i clamp_min;
 		int downsample_factor;
@@ -4434,16 +4434,13 @@ void GSDeviceVK::RenderImGui()
 
 	UpdateImGuiTextures();
 
-	const float uniforms[2][2] = {{
-									  2.0f / static_cast<float>(m_window_info.surface_width),
-									  2.0f / static_cast<float>(m_window_info.surface_height),
-								  },
-		{
-			-1.0f,
-			-1.0f,
-		}};
+	const GSVector4 uniforms(
+		2.0f / static_cast<float>(m_window_info.surface_width),
+		2.0f / static_cast<float>(m_window_info.surface_height),
+		-1.0f,
+		-1.0f);
 
-	SetUtilityPushConstants(uniforms, sizeof(uniforms));
+	SetUtilityPushConstants(&uniforms, sizeof(uniforms));
 	SetPipeline(m_imgui_pipeline);
 
 	if (m_utility_sampler != m_linear_sampler)
@@ -4777,6 +4774,7 @@ VkShaderModule GSDeviceVK::GetTFXFragmentShader(const GSHWDrawConfig::PSSelector
 	AddMacro(ss, "PS_DITHER", sel.dither);
 	AddMacro(ss, "PS_DITHER_ADJUST", sel.dither_adjust);
 	AddMacro(ss, "PS_ZCLAMP", sel.zclamp);
+	AddMacro(ss, "PS_ZFLOOR", sel.zfloor);
 	AddMacro(ss, "PS_PABE", sel.pabe);
 	AddMacro(ss, "PS_SCANMSK", sel.scanmsk);
 	AddMacro(ss, "PS_TEX_IS_FB", sel.tex_is_fb);

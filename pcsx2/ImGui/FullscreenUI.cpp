@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "BuildVersion.h"
@@ -46,7 +46,7 @@
 #include "SIO/Pad/Pad.h"
 #include "SIO/Sio.h"
 
-#include "IconsFontAwesome6.h"
+#include "IconsFontAwesome.h"
 #include "IconsPromptFont.h"
 #include "imgui.h"
 #include "imgui_internal.h"
@@ -1583,7 +1583,7 @@ void FullscreenUI::DoVMInitialize(const VMBootParameters& boot_params, bool swit
 
 			if (switch_to_landing_on_failure)
 				MTGS::RunOnGSThread(SwitchToLanding);
-			
+
 			return;
 		}
 
@@ -2743,6 +2743,18 @@ void FullscreenUI::DrawIntRangeSetting(SettingsInterface* bsi, const char* title
 		const float end = ImGui::GetCurrentWindow()->WorkRect.GetWidth();
 		ImGui::SetNextItemWidth(end);
 		s32 dlg_value = static_cast<s32>(value.value_or(default_value));
+
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, LayoutScale(8.0f));
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, LayoutScale(1.0f));
+		ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, LayoutScale(8.0f));
+		ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.45f, 0.65f, 0.95f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(0.55f, 0.75f, 1.0f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+
 		if (ImGui::SliderInt("##value", &dlg_value, min_value, max_value, format, ImGuiSliderFlags_NoInput))
 		{
 			if (IsEditingGameSettings(bsi) && dlg_value == default_value)
@@ -2752,6 +2764,9 @@ void FullscreenUI::DrawIntRangeSetting(SettingsInterface* bsi, const char* title
 
 			SetSettingsChanged(bsi);
 		}
+
+		ImGui::PopStyleColor(7);
+		ImGui::PopStyleVar(3);
 
 		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + LayoutScale(10.0f));
 		if (MenuButtonWithoutSummary(FSUI_CSTR("OK"), true, LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY, g_large_font, ImVec2(0.5f, 0.0f)))
@@ -2824,12 +2839,24 @@ void FullscreenUI::DrawIntSpinBoxSetting(SettingsInterface* bsi, const char* tit
 			const float end = ImGui::GetCurrentWindow()->WorkRect.GetWidth();
 			ImGui::SetNextItemWidth(end);
 
+			ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, LayoutScale(8.0f));
+			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, LayoutScale(12.0f, 10.0f));
+			ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, LayoutScale(1.0f));
+			ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+			ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
+			ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+			ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
+			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+
 			if (ImGui::InputText("##value", str_value, std::size(str_value), ImGuiInputTextFlags_CharsDecimal))
 			{
 				const s32 new_value = StringUtil::FromChars<s32>(str_value).value_or(dlg_value);
 				dlg_value_changed = (dlg_value != new_value);
 				dlg_value = new_value;
 			}
+
+			ImGui::PopStyleColor(5);
+			ImGui::PopStyleVar(3);
 
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + LayoutScale(10.0f));
 		}
@@ -2924,13 +2951,25 @@ void FullscreenUI::DrawFloatRangeSetting(SettingsInterface* bsi, const char* tit
 		LayoutScale(ImGuiFullscreen::LAYOUT_MENU_BUTTON_X_PADDING, ImGuiFullscreen::LAYOUT_MENU_BUTTON_Y_PADDING));
 
 	bool is_open = true;
-	if (ImGui::BeginPopupModal(title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
+	if (ImGui::BeginPopupModal(title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar))
 	{
 		BeginMenuButtons();
 
 		const float end = ImGui::GetCurrentWindow()->WorkRect.GetWidth();
 		ImGui::SetNextItemWidth(end);
 		float dlg_value = value.value_or(default_value) * multiplier;
+
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, LayoutScale(8.0f));
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, LayoutScale(1.0f));
+		ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, LayoutScale(8.0f));
+		ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.45f, 0.65f, 0.95f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(0.55f, 0.75f, 1.0f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+
 		if (ImGui::SliderFloat("##value", &dlg_value, min_value * multiplier, max_value * multiplier, format, ImGuiSliderFlags_NoInput))
 		{
 			dlg_value /= multiplier;
@@ -2942,6 +2981,9 @@ void FullscreenUI::DrawFloatRangeSetting(SettingsInterface* bsi, const char* tit
 
 			SetSettingsChanged(bsi);
 		}
+
+		ImGui::PopStyleColor(7);
+		ImGui::PopStyleVar(3);
 
 		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + LayoutScale(10.0f));
 		if (MenuButtonWithoutSummary(FSUI_CSTR("OK"), true, LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY, g_large_font, ImVec2(0.5f, 0.0f)))
@@ -3017,12 +3059,22 @@ void FullscreenUI::DrawFloatSpinBoxSetting(SettingsInterface* bsi, const char* t
 					((tmp_value.value() - std::floor(tmp_value.value())) < 0.01f) ? "%.0f" : "%f", tmp_value.value());
 			}
 
+			ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, LayoutScale(8.0f));
+			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, LayoutScale(12.0f, 10.0f));
+			ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+			ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
+			ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+
 			if (ImGui::InputText("##value", str_value, std::size(str_value), ImGuiInputTextFlags_CharsDecimal))
 			{
 				const float new_value = StringUtil::FromChars<float>(str_value).value_or(dlg_value);
 				dlg_value_changed = (dlg_value != new_value);
 				dlg_value = new_value;
 			}
+
+			ImGui::PopStyleColor(4);
+			ImGui::PopStyleVar(2);
 
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + LayoutScale(10.0f));
 		}
@@ -3200,12 +3252,24 @@ void FullscreenUI::DrawIntRectSetting(SettingsInterface* bsi, const char* title,
 				ImGui::SetNextItemWidth(end);
 				ImGui::SetCursorPosY(button_pos.y);
 
+				ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, LayoutScale(8.0f));
+				ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, LayoutScale(12.0f, 10.0f));
+				ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, LayoutScale(1.0f));
+				ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+				ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
+				ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+				ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
+				ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+
 				if (ImGui::InputText("##value", str_value, std::size(str_value), ImGuiInputTextFlags_CharsDecimal))
 				{
 					const s32 new_value = StringUtil::FromChars<s32>(str_value).value_or(dlg_value);
 					dlg_value_changed = (dlg_value != new_value);
 					dlg_value = new_value;
 				}
+
+				ImGui::PopStyleColor(5);
+				ImGui::PopStyleVar(3);
 
 				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + LayoutScale(10.0f));
 			}
@@ -5469,7 +5533,7 @@ void FullscreenUI::DrawBIOSSettingsPage()
 			});
 	}
 
-	MenuHeading(FSUI_CSTR("Options and Patches"));
+	MenuHeading(FSUI_CSTR("Fast Boot Options"));
 	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_FORWARD_FAST, "Fast Boot"), FSUI_CSTR("Skips the intro screen, and bypasses region checks."),
 		"EmuCore", "EnableFastBoot", true);
 
@@ -5698,7 +5762,7 @@ void FullscreenUI::DrawGraphicsSettingsPage(SettingsInterface* bsi, bool show_ad
 	static constexpr const char* s_renderer_names[] = {
 		FSUI_NSTR("Automatic (Default)"),
 #ifdef _WIN32
-		FSUI_NSTR("Direct3D 11"),
+		FSUI_NSTR("Direct3D 11 (Legacy)"),
 		FSUI_NSTR("Direct3D 12"),
 #endif
 #ifdef ENABLE_OPENGL
@@ -7440,18 +7504,33 @@ void FullscreenUI::DrawControllerSettingsPage()
 				LayoutScale(ImGuiFullscreen::LAYOUT_MENU_BUTTON_X_PADDING, ImGuiFullscreen::LAYOUT_MENU_BUTTON_Y_PADDING));
 
 			if (ImGui::BeginPopupModal(
-					freq_label.c_str(), nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
+					freq_label.c_str(), nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar))
 			{
-				ImGui::SetNextItemWidth(LayoutScale(450.0f));
-				if (ImGui::SliderInt("##value", &frequency, 0, 60, FSUI_CSTR("Toggle every %d frames"), ImGuiSliderFlags_NoInput))
-				{
-					if (frequency == 0)
-						bsi->DeleteValue(section, freq_key.c_str());
-					else
-						bsi->SetIntValue(section, freq_key.c_str(), frequency);
+			ImGui::SetNextItemWidth(LayoutScale(450.0f));
 
-					SetSettingsChanged(bsi);
-				}
+			ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, LayoutScale(8.0f));
+			ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, LayoutScale(1.0f));
+			ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, LayoutScale(8.0f));
+			ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+			ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
+			ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+			ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
+			ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.45f, 0.65f, 0.95f, 1.0f));
+			ImGui::PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(0.55f, 0.75f, 1.0f, 1.0f));
+			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+
+			if (ImGui::SliderInt("##value", &frequency, 0, 60, FSUI_CSTR("Toggle every %d frames"), ImGuiSliderFlags_NoInput))
+			{
+				if (frequency == 0)
+					bsi->DeleteValue(section, freq_key.c_str());
+				else
+					bsi->SetIntValue(section, freq_key.c_str(), frequency);
+
+				SetSettingsChanged(bsi);
+			}
+
+			ImGui::PopStyleColor(7);
+			ImGui::PopStyleVar(3);
 
 				BeginMenuButtons();
 				if (MenuButton("OK", nullptr, true, LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY))
@@ -7688,57 +7767,57 @@ void FullscreenUI::DrawAdvancedSettingsPage()
 	{
 		MenuHeading(FSUI_CSTR("Emotion Engine"));
 
-		DrawIntListSetting(bsi, FSUI_CSTR("Rounding Mode"),
+		DrawIntListSetting(bsi, FSUI_ICONSTR(ICON_FA_ARROW_TREND_DOWN, "Rounding Mode"),
 			FSUI_CSTR("Determines how the results of floating-point operations are rounded. Some games need specific settings."),
 			"EmuCore/CPU", "FPU.Roundmode", static_cast<int>(FPRoundMode::ChopZero), ee_rounding_mode_settings,
 			std::size(ee_rounding_mode_settings), true);
-		DrawIntListSetting(bsi, FSUI_CSTR("Division Rounding Mode"),
+		DrawIntListSetting(bsi, FSUI_ICONSTR(ICON_FA_DIVIDE, "Division Rounding Mode"),
 			FSUI_CSTR("Determines how the results of floating-point division is rounded. Some games need specific settings."),
 			"EmuCore/CPU", "FPUDiv.Roundmode", static_cast<int>(FPRoundMode::Nearest),
 			ee_rounding_mode_settings, std::size(ee_rounding_mode_settings), true);
-		DrawClampingModeSetting(bsi, FSUI_CSTR("Clamping Mode"),
+		DrawClampingModeSetting(bsi, FSUI_ICONSTR(ICON_FA_ARROW_TURN_DOWN, "Clamping Mode"),
 			FSUI_CSTR("Determines how out-of-range floating point numbers are handled. Some games need specific settings."), -1);
 
-		DrawToggleSetting(bsi, FSUI_CSTR("Enable EE Recompiler"),
+		DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_MICROCHIP, "Enable EE Recompiler"),
 			FSUI_CSTR("Performs just-in-time binary translation of 64-bit MIPS-IV machine code to native code."), "EmuCore/CPU/Recompiler",
 			"EnableEE", true);
-		DrawToggleSetting(bsi, FSUI_CSTR("Enable EE Cache"), FSUI_CSTR("Enables simulation of the EE's cache. Slow."),
+		DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_BUCKET, "Enable EE Cache"), FSUI_CSTR("Enables simulation of the EE's cache. Slow."),
 			"EmuCore/CPU/Recompiler", "EnableEECache", false);
-		DrawToggleSetting(bsi, FSUI_CSTR("Enable INTC Spin Detection"),
+		DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_ARROWS_SPIN, "Enable INTC Spin Detection"),
 			FSUI_CSTR("Huge speedup for some games, with almost no compatibility side effects."), "EmuCore/Speedhacks", "IntcStat", true);
-		DrawToggleSetting(bsi, FSUI_CSTR("Enable Wait Loop Detection"),
+		DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_ARROWS_SPIN, "Enable Wait Loop Detection"),
 			FSUI_CSTR("Moderate speedup for some games, with no known side effects."), "EmuCore/Speedhacks", "WaitLoop", true);
-		DrawToggleSetting(bsi, FSUI_CSTR("Enable Fast Memory Access"),
+		DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_MEMORY, "Enable Fast Memory Access"),
 			FSUI_CSTR("Uses backpatching to avoid register flushing on every memory access."), "EmuCore/CPU/Recompiler", "EnableFastmem",
 			true);
 
 		MenuHeading(FSUI_CSTR("Vector Units"));
-		DrawIntListSetting(bsi, FSUI_CSTR("VU0 Rounding Mode"),
+		DrawIntListSetting(bsi, FSUI_ICONSTR(ICON_FA_ARROW_TREND_DOWN, "VU0 Rounding Mode"),
 			FSUI_CSTR("Determines how the results of floating-point operations are rounded. Some games need specific settings."),
 			"EmuCore/CPU", "VU0.Roundmode", static_cast<int>(FPRoundMode::ChopZero),
 			ee_rounding_mode_settings, std::size(ee_rounding_mode_settings), true);
-		DrawClampingModeSetting(bsi, FSUI_CSTR("VU0 Clamping Mode"),
+		DrawClampingModeSetting(bsi, FSUI_ICONSTR(ICON_FA_ARROW_TURN_DOWN, "VU0 Clamping Mode"),
 			FSUI_CSTR("Determines how out-of-range floating point numbers are handled. Some games need specific settings."), 0);
-		DrawIntListSetting(bsi, FSUI_CSTR("VU1 Rounding Mode"),
+		DrawIntListSetting(bsi, FSUI_ICONSTR(ICON_FA_ARROW_TREND_DOWN, "VU1 Rounding Mode"),
 			FSUI_CSTR("Determines how the results of floating-point operations are rounded. Some games need specific settings."),
 			"EmuCore/CPU", "VU1.Roundmode", static_cast<int>(FPRoundMode::ChopZero),
 			ee_rounding_mode_settings, std::size(ee_rounding_mode_settings), true);
-		DrawClampingModeSetting(bsi, FSUI_CSTR("VU1 Clamping Mode"),
+		DrawClampingModeSetting(bsi, FSUI_ICONSTR(ICON_FA_ARROW_TURN_DOWN, "VU1 Clamping Mode"),
 			FSUI_CSTR("Determines how out-of-range floating point numbers are handled. Some games need specific settings."), 1);
-		DrawToggleSetting(bsi, FSUI_CSTR("Enable VU0 Recompiler (Micro Mode)"),
+		DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_MICROCHIP, "Enable VU0 Recompiler (Micro Mode)"),
 			FSUI_CSTR("New Vector Unit recompiler with much improved compatibility. Recommended."), "EmuCore/CPU/Recompiler", "EnableVU0",
 			true);
-		DrawToggleSetting(bsi, FSUI_CSTR("Enable VU1 Recompiler"),
+		DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_MICROCHIP, "Enable VU1 Recompiler"),
 			FSUI_CSTR("New Vector Unit recompiler with much improved compatibility. Recommended."), "EmuCore/CPU/Recompiler", "EnableVU1",
 			true);
-		DrawToggleSetting(bsi, FSUI_CSTR("Enable VU Flag Optimization"),
+		DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_FLAG, "Enable VU Flag Optimization"),
 			FSUI_CSTR("Good speedup and high compatibility, may cause graphical errors."), "EmuCore/Speedhacks", "vuFlagHack", true);
-		DrawToggleSetting(bsi, FSUI_CSTR("Enable Instant VU1"),
+		DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_CLOCK, "Enable Instant VU1"),
 			FSUI_CSTR("Runs VU1 instantly. Provides a modest speed improvement in most games. Safe for most games, but a few games may exhibit graphical errors."),
 			"EmuCore/Speedhacks", "vu1Instant", true);
 
 		MenuHeading(FSUI_CSTR("I/O Processor"));
-		DrawToggleSetting(bsi, FSUI_CSTR("Enable IOP Recompiler"),
+		DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_MICROCHIP, "Enable IOP Recompiler"),
 			FSUI_CSTR("Performs just-in-time binary translation of 32-bit MIPS-I machine code to native code."), "EmuCore/CPU/Recompiler",
 			"EnableIOP", true);
 
@@ -9073,7 +9152,7 @@ void FullscreenUI::DrawResumeStateSelector()
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, LayoutScale(20.0f, 20.0f));
 
 	bool is_open = true;
-	if (ImGui::BeginPopupModal(FSUI_CSTR("Load Resume State"), &is_open, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize))
+	if (ImGui::BeginPopupModal(FSUI_CSTR("Load Resume State"), &is_open, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar))
 	{
 		const SaveStateListEntry& entry = s_save_state_selector_slots.front();
 		ImGui::TextWrapped(FSUI_CSTR("A resume save state created at %s was found.\n\nDo you want to load this save and continue?"),
@@ -10227,11 +10306,14 @@ void FullscreenUI::DrawAchievementsLoginWindow()
 		ImGui::Spacing();
 		ImGui::Spacing();
 
-		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, LayoutScale(6.0f));
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, LayoutScale(8.0f));
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, LayoutScale(12.0f, 10.0f));
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, LayoutScale(1.0f));
 		ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
 		ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
 		ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 
 		if (s_achievements_login_logging_in)
 			ImGui::BeginDisabled();
@@ -10244,8 +10326,8 @@ void FullscreenUI::DrawAchievementsLoginWindow()
 		ImGui::SetNextItemWidth(content_width);
 		ImGui::InputTextWithHint("##password", FSUI_CSTR("Password"), s_achievements_login_password, sizeof(s_achievements_login_password), ImGuiInputTextFlags_Password);
 
-		ImGui::PopStyleColor(3);
-		ImGui::PopStyleVar(2);
+		ImGui::PopStyleColor(5);
+		ImGui::PopStyleVar(3);
 
 		if (s_achievements_login_logging_in)
 			ImGui::EndDisabled();
@@ -10271,7 +10353,7 @@ void FullscreenUI::DrawAchievementsLoginWindow()
 
 		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + start_x);
 
-		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, LayoutScale(6.0f));
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, LayoutScale(8.0f));
 
 		const bool can_login = !s_achievements_login_logging_in &&
 							   strlen(s_achievements_login_username) > 0 &&
@@ -10905,7 +10987,7 @@ TRANSLATE_NOOP("FullscreenUI", "Resets configuration to defaults (excluding cont
 TRANSLATE_NOOP("FullscreenUI", "BIOS Configuration");
 TRANSLATE_NOOP("FullscreenUI", "Changes the BIOS image used to start future sessions.");
 TRANSLATE_NOOP("FullscreenUI", "BIOS Selection");
-TRANSLATE_NOOP("FullscreenUI", "Options and Patches");
+TRANSLATE_NOOP("FullscreenUI", "Fast Boot Options");
 TRANSLATE_NOOP("FullscreenUI", "Skips the intro screen, and bypasses region checks.");
 TRANSLATE_NOOP("FullscreenUI", "Speed Control");
 TRANSLATE_NOOP("FullscreenUI", "Sets the speed when running without fast forwarding.");
@@ -11126,36 +11208,19 @@ TRANSLATE_NOOP("FullscreenUI", "Writes debug messages from the game's EE code to
 TRANSLATE_NOOP("FullscreenUI", "Writes debug messages from the game's IOP code to the console.");
 TRANSLATE_NOOP("FullscreenUI", "Logs disc reads from games.");
 TRANSLATE_NOOP("FullscreenUI", "Emotion Engine");
-TRANSLATE_NOOP("FullscreenUI", "Rounding Mode");
 TRANSLATE_NOOP("FullscreenUI", "Determines how the results of floating-point operations are rounded. Some games need specific settings.");
-TRANSLATE_NOOP("FullscreenUI", "Division Rounding Mode");
 TRANSLATE_NOOP("FullscreenUI", "Determines how the results of floating-point division is rounded. Some games need specific settings.");
-TRANSLATE_NOOP("FullscreenUI", "Clamping Mode");
 TRANSLATE_NOOP("FullscreenUI", "Determines how out-of-range floating point numbers are handled. Some games need specific settings.");
-TRANSLATE_NOOP("FullscreenUI", "Enable EE Recompiler");
 TRANSLATE_NOOP("FullscreenUI", "Performs just-in-time binary translation of 64-bit MIPS-IV machine code to native code.");
-TRANSLATE_NOOP("FullscreenUI", "Enable EE Cache");
 TRANSLATE_NOOP("FullscreenUI", "Enables simulation of the EE's cache. Slow.");
-TRANSLATE_NOOP("FullscreenUI", "Enable INTC Spin Detection");
 TRANSLATE_NOOP("FullscreenUI", "Huge speedup for some games, with almost no compatibility side effects.");
-TRANSLATE_NOOP("FullscreenUI", "Enable Wait Loop Detection");
 TRANSLATE_NOOP("FullscreenUI", "Moderate speedup for some games, with no known side effects.");
-TRANSLATE_NOOP("FullscreenUI", "Enable Fast Memory Access");
 TRANSLATE_NOOP("FullscreenUI", "Uses backpatching to avoid register flushing on every memory access.");
 TRANSLATE_NOOP("FullscreenUI", "Vector Units");
-TRANSLATE_NOOP("FullscreenUI", "VU0 Rounding Mode");
-TRANSLATE_NOOP("FullscreenUI", "VU0 Clamping Mode");
-TRANSLATE_NOOP("FullscreenUI", "VU1 Rounding Mode");
-TRANSLATE_NOOP("FullscreenUI", "VU1 Clamping Mode");
-TRANSLATE_NOOP("FullscreenUI", "Enable VU0 Recompiler (Micro Mode)");
 TRANSLATE_NOOP("FullscreenUI", "New Vector Unit recompiler with much improved compatibility. Recommended.");
-TRANSLATE_NOOP("FullscreenUI", "Enable VU1 Recompiler");
-TRANSLATE_NOOP("FullscreenUI", "Enable VU Flag Optimization");
 TRANSLATE_NOOP("FullscreenUI", "Good speedup and high compatibility, may cause graphical errors.");
-TRANSLATE_NOOP("FullscreenUI", "Enable Instant VU1");
 TRANSLATE_NOOP("FullscreenUI", "Runs VU1 instantly. Provides a modest speed improvement in most games. Safe for most games, but a few games may exhibit graphical errors.");
 TRANSLATE_NOOP("FullscreenUI", "I/O Processor");
-TRANSLATE_NOOP("FullscreenUI", "Enable IOP Recompiler");
 TRANSLATE_NOOP("FullscreenUI", "Performs just-in-time binary translation of 32-bit MIPS-I machine code to native code.");
 TRANSLATE_NOOP("FullscreenUI", "Save State Management");
 TRANSLATE_NOOP("FullscreenUI", "Sets the compression algorithm for savestate.");
@@ -11385,7 +11450,7 @@ TRANSLATE_NOOP("FullscreenUI", "Extra + Preserve Sign");
 TRANSLATE_NOOP("FullscreenUI", "Full");
 TRANSLATE_NOOP("FullscreenUI", "Extra");
 TRANSLATE_NOOP("FullscreenUI", "Automatic (Default)");
-TRANSLATE_NOOP("FullscreenUI", "Direct3D 11");
+TRANSLATE_NOOP("FullscreenUI", "Direct3D 11 (Legacy)");
 TRANSLATE_NOOP("FullscreenUI", "Direct3D 12");
 TRANSLATE_NOOP("FullscreenUI", "OpenGL");
 TRANSLATE_NOOP("FullscreenUI", "Vulkan");
@@ -11736,6 +11801,23 @@ TRANSLATE_NOOP("FullscreenUI", "Log Timestamps");
 TRANSLATE_NOOP("FullscreenUI", "EE Console");
 TRANSLATE_NOOP("FullscreenUI", "IOP Console");
 TRANSLATE_NOOP("FullscreenUI", "CDVD Verbose Reads");
+TRANSLATE_NOOP("FullscreenUI", "Rounding Mode");
+TRANSLATE_NOOP("FullscreenUI", "Division Rounding Mode");
+TRANSLATE_NOOP("FullscreenUI", "Clamping Mode");
+TRANSLATE_NOOP("FullscreenUI", "Enable EE Recompiler");
+TRANSLATE_NOOP("FullscreenUI", "Enable EE Cache");
+TRANSLATE_NOOP("FullscreenUI", "Enable INTC Spin Detection");
+TRANSLATE_NOOP("FullscreenUI", "Enable Wait Loop Detection");
+TRANSLATE_NOOP("FullscreenUI", "Enable Fast Memory Access");
+TRANSLATE_NOOP("FullscreenUI", "VU0 Rounding Mode");
+TRANSLATE_NOOP("FullscreenUI", "VU0 Clamping Mode");
+TRANSLATE_NOOP("FullscreenUI", "VU1 Rounding Mode");
+TRANSLATE_NOOP("FullscreenUI", "VU1 Clamping Mode");
+TRANSLATE_NOOP("FullscreenUI", "Enable VU0 Recompiler (Micro Mode)");
+TRANSLATE_NOOP("FullscreenUI", "Enable VU1 Recompiler");
+TRANSLATE_NOOP("FullscreenUI", "Enable VU Flag Optimization");
+TRANSLATE_NOOP("FullscreenUI", "Enable Instant VU1");
+TRANSLATE_NOOP("FullscreenUI", "Enable IOP Recompiler");
 TRANSLATE_NOOP("FullscreenUI", "Compression Method");
 TRANSLATE_NOOP("FullscreenUI", "Compression Level");
 TRANSLATE_NOOP("FullscreenUI", "Use Debug Device");

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "DisplayWidget.h"
@@ -26,8 +26,6 @@
 
 #if defined(_WIN32)
 #include "common/RedtapeWindows.h"
-#elif !defined(APPLE)
-#include <qpa/qplatformnativeinterface.h>
 #endif
 
 DisplaySurface::DisplaySurface()
@@ -477,6 +475,13 @@ bool DisplaySurface::eventFilter(QObject* object, QEvent* event)
 			}
 			return false;
 
+		case QEvent::FocusIn:
+			// macOS: When we (the display window) get focus from another window with a toolbar we update to the MainWindow toolbar.
+			// This is because we are a different native window from our MainWindow. So, whenever we get focus, focus our MainWindow.
+			// That way macOS will show the MainWindow toolbar when you click from the debugger / log window to the game.
+			if (auto* w = qobject_cast<QWidget*>(object))
+				w->window()->activateWindow();
+			return false;
 		default:
 			return false;
 	}

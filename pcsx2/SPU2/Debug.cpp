@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "SPU2/Debug.h"
@@ -200,7 +200,6 @@ void SPU2::DoFullDump()
 				fprintf(dump, "  - Sound Start Address: %x\n", Cores[c].Voices[v].StartA);
 				fprintf(dump, "  - Next Data Address:   %x\n", Cores[c].Voices[v].NextA);
 				fprintf(dump, "  - Play Status:         %s\n", (Cores[c].Voices[v].ADSR.Phase > 0) ? "Playing" : "Not Playing");
-				fprintf(dump, "  - Block Sample:        %d\n", Cores[c].Voices[v].SCurrent);
 			}
 			fprintf(dump, "#### END OF DUMP.\n\n");
 		}

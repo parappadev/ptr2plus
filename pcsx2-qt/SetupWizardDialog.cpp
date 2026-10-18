@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "pcsx2/SIO/Pad/Pad.h"
@@ -565,7 +565,7 @@ void SetupWizardDialog::setupLanguagePage()
 {
 	SettingWidgetBinder::BindWidgetToEnumSetting(nullptr, m_ui.theme, "UI", "Theme",
 		InterfaceSettingsWidget::THEME_NAMES, InterfaceSettingsWidget::THEME_VALUES, QtHost::GetDefaultThemeName(), "InterfaceSettingsWidget");
-	connect(m_ui.theme, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &SetupWizardDialog::themeChanged);
+	connect(m_ui.theme, &QComboBox::currentIndexChanged, this, &SetupWizardDialog::themeChanged);
 
 	for (const std::pair<QString, QString>& it : QtHost::GetAvailableLanguageList())
 	{
@@ -578,7 +578,7 @@ void SetupWizardDialog::setupLanguagePage()
 	SettingWidgetBinder::BindWidgetToStringSetting(
 		nullptr, m_ui.language, "UI", "Language", QtHost::GetDefaultLanguage());
 	connect(
-		m_ui.language, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &SetupWizardDialog::languageChanged);
+		m_ui.language, &QComboBox::currentIndexChanged, this, &SetupWizardDialog::languageChanged);
 
 	//SettingWidgetBinder::BindWidgetToBoolSetting(
 	//	nullptr, m_ui.autoUpdateEnabled, "AutoUpdater", "CheckAtStartup", true);

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #pragma once
@@ -211,13 +211,20 @@ protected:
 	void CorrectATEAlphaMinMax(const u32 atst, const int aref);
 
 public:
+	enum EEGS_TransferType
+	{
+		EE_to_GS,
+		GS_to_GS,
+		GS_to_EE
+	};
+
 	struct GSUploadQueue
 	{
 		GIFRegBITBLTBUF blit;
 		GSVector4i rect;
 		int draw;
 		bool zero_clear;
-		bool ee_to_gs;
+		EEGS_TransferType transfer_type;
 	};
 
 	enum NoGapsType
@@ -251,7 +258,7 @@ public:
 	bool m_using_temp_z = false;
 	bool m_temp_z_full_copy = false;
 	bool m_in_target_draw = false;
-	bool m_channel_shuffle_abort = false;
+	bool m_channel_shuffle_finish = false;
 
 	u32 m_target_offset = 0;
 	u8 m_scanmask_used = 0;
@@ -401,7 +408,7 @@ public:
 
 		// Calculate framebuffer read offsets, should be considered if only one circuit is enabled, or difference is more than 1 line.
 		// Only considered if "Anti-blur" is enabled.
-		void CalculateFramebufferOffset(bool scanmask);
+		void CalculateFramebufferOffset(bool scanmask, GSRegDISPFB framebuffer0Reg, GSRegDISPFB framebuffer1Reg);
 
 		// Used in software mode to align the buffer when reading. Offset is accounted for (block aligned) by GetOutput.
 		void RemoveFramebufferOffset(int display);

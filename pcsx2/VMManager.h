@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #pragma once
@@ -6,6 +6,7 @@
 #include <functional>
 #include <mutex>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -263,6 +264,9 @@ namespace VMManager
 
 	/// Called when the rich presence string, provided by RetroAchievements, changes.
 	void UpdateDiscordPresence(bool update_session_time);
+
+	/// Append bytes to the EE SIO RX FIFO. If it returns false, the FIFO is full and data is not inserted.
+	bool WriteBytesToEESIORXFIFO(const std::span<const u8> data);
 
 	/// Internal callbacks, implemented in the emu core.
 	namespace Internal

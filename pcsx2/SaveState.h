@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #pragma once
@@ -26,7 +26,7 @@ enum class FreezeAction
 // [SAVEVERSION+]
 // This informs the auto updater that the users savestates will be invalidated.
 
-static const u32 g_SaveVersion = (0x9A55 << 16) | 0x0000;
+static const u32 g_SaveVersion = (0x9A57 << 16) | 0x0000;
 
 
 // the freezing data between submodules and core

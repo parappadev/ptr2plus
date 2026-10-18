@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #pragma once
@@ -401,6 +401,7 @@ struct alignas(16) GSHWDrawConfig
 
 				// Depth clamp
 				u32 zclamp : 1;
+				u32 zfloor : 1;
 
 				// Hack
 				u32 tcoffsethack : 1;
@@ -621,6 +622,7 @@ struct alignas(16) GSHWDrawConfig
 		GSVector4 LODParams;
 		GSVector4 STRange;
 		GSVector4i ChannelShuffle;
+		GSVector2 ChannelShuffleOffset;
 		GSVector2 TCOffsetHack;
 		GSVector2 STScale;
 
@@ -1022,7 +1024,7 @@ public:
 	virtual bool UpdateWindow() = 0;
 
 	/// Call when the window size changes externally to recreate any resources.
-	virtual void ResizeWindow(s32 new_window_width, s32 new_window_height, float new_window_scale) = 0;
+	virtual void ResizeWindow(u32 new_window_width, u32 new_window_height, float new_window_scale) = 0;
 
 	/// Returns true if exclusive fullscreen is supported.
 	virtual bool SupportsExclusiveFullscreen() const = 0;

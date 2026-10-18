@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "BuildVersion.h"
@@ -10,7 +10,7 @@
 #include "GS/Renderers/Common/GSDevice.h"
 #include "GS/Renderers/HW/GSTextureReplacements.h"
 #include "Host.h"
-#include "IconsFontAwesome6.h"
+#include "IconsFontAwesome.h"
 #include "IconsPromptFont.h"
 #include "ImGui/FullscreenUI.h"
 #include "ImGui/ImGuiAnimated.h"
@@ -619,6 +619,8 @@ __ri void ImGuiManager::DrawSettingsOverlay(float scale, float margin, float mar
 			APPEND("SD={}/{} ", GSConfig.SkipDrawStart, GSConfig.SkipDrawEnd);
 		if (GSConfig.UserHacks_TextureInsideRt != GSTextureInRtMode::Disabled)
 			APPEND("TexRT={} ", static_cast<unsigned>(GSConfig.UserHacks_TextureInsideRt));
+		if (GSConfig.UserHacks_Limit24BitDepth != GSLimit24BitDepth::Disabled)
+			APPEND("TDR={} ", static_cast<unsigned>(GSConfig.UserHacks_Limit24BitDepth));
 		if (GSConfig.UserHacks_BilinearHack != GSBilinearDirtyMode::Automatic)
 			APPEND("BLU={} ", static_cast<unsigned>(GSConfig.UserHacks_BilinearHack));
 		if (GSConfig.UserHacks_ForceEvenSpritePosition)

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "GS.h"
@@ -16,7 +16,7 @@
 #include "common/StringUtil.h"
 
 #include "imgui.h"
-#include "IconsFontAwesome6.h"
+#include "IconsFontAwesome.h"
 
 #include <bit>
 #include <fstream>
@@ -278,7 +278,7 @@ bool GSDevice11::Create(GSVSyncMode vsync_mode, bool allow_present_throttle)
 
 	for (size_t i = 0; i < std::size(m_merge.ps); i++)
 	{
-		const std::string entry_point(StringUtil::StdStringFromFormat("ps_main%d", i));
+		const std::string entry_point(StringUtil::StdStringFromFormat("ps_main%zu", i));
 		m_merge.ps[i] = m_shader_cache.GetPixelShader(m_dev.get(), *shader, nullptr, entry_point.c_str());
 		if (!m_merge.ps[i])
 			return false;
@@ -312,7 +312,7 @@ bool GSDevice11::Create(GSVSyncMode vsync_mode, bool allow_present_throttle)
 		return false;
 	for (size_t i = 0; i < std::size(m_interlace.ps); i++)
 	{
-		const std::string entry_point(StringUtil::StdStringFromFormat("ps_main%d", i));
+		const std::string entry_point(StringUtil::StdStringFromFormat("ps_main%zu", i));
 		m_interlace.ps[i] = m_shader_cache.GetPixelShader(m_dev.get(), *shader, nullptr, entry_point.c_str());
 		if (!m_interlace.ps[i])
 			return false;
@@ -498,7 +498,7 @@ bool GSDevice11::Create(GSVSyncMode vsync_mode, bool allow_present_throttle)
 
 	for (size_t i = 0; i < std::size(m_date.primid_init_ps); i++)
 	{
-		const std::string entry_point(StringUtil::StdStringFromFormat("ps_stencil_image_init_%d", i));
+		const std::string entry_point(StringUtil::StdStringFromFormat("ps_stencil_image_init_%zu", i));
 		m_date.primid_init_ps[i] = m_shader_cache.GetPixelShader(m_dev.get(), *convert_hlsl, nullptr, entry_point.c_str());
 		if (!m_date.primid_init_ps[i])
 			return false;
@@ -659,7 +659,7 @@ bool GSDevice11::CreateSwapChain()
 		float fullscreen_refresh_rate;
 		m_is_exclusive_fullscreen =
 			GetRequestedExclusiveFullscreenMode(&fullscreen_width, &fullscreen_height, &fullscreen_refresh_rate) &&
-			D3D::GetRequestedExclusiveFullscreenModeDesc(m_dxgi_factory.get(), client_rc, fullscreen_width,
+			D3D::GetRequestedExclusiveFullscreenModeDesc(m_dxgi_factory.get(), window_hwnd, fullscreen_width,
 				fullscreen_height, fullscreen_refresh_rate, swap_chain_format, &fullscreen_mode,
 				fullscreen_output.put());
 
@@ -893,7 +893,7 @@ std::string GSDevice11::GetDriverInfo() const
 	return ret;
 }
 
-void GSDevice11::ResizeWindow(s32 new_window_width, s32 new_window_height, float new_window_scale)
+void GSDevice11::ResizeWindow(u32 new_window_width, u32 new_window_height, float new_window_scale)
 {
 	if (!m_swap_chain || m_is_exclusive_fullscreen)
 		return;
@@ -1237,7 +1237,17 @@ void GSDevice11::CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r,
 		return;
 	}
 
+	const GSVector4i src_rect(0, 0, sTex->GetWidth(), sTex->GetHeight());
 	const GSVector4i dst_rect(0, 0, dTex->GetWidth(), dTex->GetHeight());
+	const bool src_dst_rect_match = src_rect.eq(dst_rect);
+
+	// Sizes must match for full depth copies when no partial copies are supported.
+	if (sTex->IsDepthStencil() && !src_dst_rect_match)
+	{
+		GL_INS("D3D11: CopyRect rect mismatch for full depth copy.");
+		return;
+	}
+
 	const bool full_draw_copy = sTex->IsDepthStencil() || dst_rect.eq(r);
 
 	// Source is cleared, if destination is a render target, we can carry the clear forward.
@@ -1259,8 +1269,7 @@ void GSDevice11::CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r,
 	// DX11 doesn't support partial depth copy so we need to
 	// either pass a nullptr D3D11_BOX for a full depth copy or use CopyResource instead.
 	// Optimization: Use CopyResource for depth copies or full rect color copies, it's faster than CopySubresourceRegion.
-	const GSVector4i src_rect(0, 0, sTex->GetWidth(), sTex->GetHeight());
-	const bool full_rt_copy = sTex->IsDepthStencil() || (destX == 0 && destY == 0 && r.eq(src_rect) && src_rect.eq(dst_rect));
+	const bool full_rt_copy = src_dst_rect_match && (sTex->IsDepthStencil() || (destX == 0 && destY == 0 && r.eq(src_rect)));
 	if (full_rt_copy)
 	{
 		m_ctx->CopyResource(*static_cast<GSTexture11*>(dTex), *static_cast<GSTexture11*>(sTex));
@@ -1388,7 +1397,7 @@ void GSDevice11::PresentRect(GSTexture* sTex, const GSVector4& sRect, GSTexture*
 	const float right = dRect.z * 2 / ds.x - 1.0f;
 	const float bottom = 1.0f - dRect.w * 2 / ds.y;
 
-	GSVertexPT1 vertices[] =
+	const GSVertexPT1 vertices[] =
 	{
 		{GSVector4(left, top, 0.5f, 1.0f), GSVector2(sRect.x, sRect.y)},
 		{GSVector4(right, top, 0.5f, 1.0f), GSVector2(sRect.z, sRect.y)},
@@ -1418,13 +1427,14 @@ void GSDevice11::PresentRect(GSTexture* sTex, const GSVector4& sRect, GSTexture*
 void GSDevice11::UpdateCLUTTexture(GSTexture* sTex, float sScale, u32 offsetX, u32 offsetY, GSTexture* dTex, u32 dOffset, u32 dSize)
 {
 	// match merge cb
-	struct Uniforms
+	struct alignas(16) Uniforms
 	{
 		float scale;
 		float pad1[3];
 		u32 offsetX, offsetY, dOffset;
+		u32 pad2;
 	};
-	const Uniforms cb = {sScale, {}, offsetX, offsetY, dOffset};
+	const Uniforms cb = {sScale, {}, offsetX, offsetY, dOffset, 0};
 	m_ctx->UpdateSubresource(m_merge.cb.get(), 0, nullptr, &cb, 0, 0);
 
 	const GSVector4 dRect(0, 0, dSize, 1);
@@ -1435,14 +1445,15 @@ void GSDevice11::UpdateCLUTTexture(GSTexture* sTex, float sScale, u32 offsetX, u
 void GSDevice11::ConvertToIndexedTexture(GSTexture* sTex, float sScale, u32 offsetX, u32 offsetY, u32 SBW, u32 SPSM, GSTexture* dTex, u32 DBW, u32 DPSM)
 {
 	// match merge cb
-	struct Uniforms
+	struct alignas(16) Uniforms
 	{
 		float scale;
 		float pad1[3];
 		u32 SBW, DBW, SPSM;
+		u32 pad2;
 	};
 
-	const Uniforms cb = {sScale, {}, SBW, DBW, SPSM};
+	const Uniforms cb = {sScale, {}, SBW, DBW, SPSM, 0};
 	m_ctx->UpdateSubresource(m_merge.cb.get(), 0, nullptr, &cb, 0, 0);
 
 	const GSVector4 dRect(0, 0, dTex->GetWidth(), dTex->GetHeight());
@@ -1452,7 +1463,7 @@ void GSDevice11::ConvertToIndexedTexture(GSTexture* sTex, float sScale, u32 offs
 
 void GSDevice11::FilteredDownsampleTexture(GSTexture* sTex, GSTexture* dTex, u32 downsample_factor, const GSVector2i& clamp_min, const GSVector4& dRect)
 {
-	struct Uniforms
+	struct alignas(16) Uniforms
 	{
 		float weight;
 		float step_multiplier;
@@ -1760,6 +1771,7 @@ void GSDevice11::SetupPS(const PSSelector& sel, const GSHWDrawConfig::PSConstant
 		sm.AddMacro("PS_DITHER", sel.dither);
 		sm.AddMacro("PS_DITHER_ADJUST", sel.dither_adjust);
 		sm.AddMacro("PS_ZCLAMP", sel.zclamp);
+		sm.AddMacro("PS_ZFLOOR", sel.zfloor);
 		sm.AddMacro("PS_SCANMSK", sel.scanmsk);
 		sm.AddMacro("PS_AUTOMATIC_LOD", sel.automatic_lod);
 		sm.AddMacro("PS_MANUAL_LOD", sel.manual_lod);
@@ -2053,13 +2065,13 @@ void GSDevice11::RenderImGui()
 
 	UpdateImGuiTextures();
 
-	const float L = 0.0f;
+	constexpr float L = 0.0f;
 	const float R = static_cast<float>(m_window_info.surface_width);
-	const float T = 0.0f;
+	constexpr float T = 0.0f;
 	const float B = static_cast<float>(m_window_info.surface_height);
 
 	// clang-format off
-  const float ortho_projection[4][4] =
+	const GSVector4 ortho_projection[4] =
 	{
 		{ 2.0f/(R-L),   0.0f,           0.0f,       0.0f },
 		{ 0.0f,         2.0f/(T-B),     0.0f,       0.0f },

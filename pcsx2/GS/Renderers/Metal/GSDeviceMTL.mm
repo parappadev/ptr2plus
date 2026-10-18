@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "Host.h"
@@ -1267,11 +1267,11 @@ std::string GSDeviceMTL::GetDriverInfo() const
 	return desc;
 }}
 
-void GSDeviceMTL::ResizeWindow(s32 new_window_width, s32 new_window_height, float new_window_scale)
+void GSDeviceMTL::ResizeWindow(u32 new_window_width, u32 new_window_height, float new_window_scale)
 {
 	m_window_info.surface_scale = new_window_scale;
 	if (!m_layer ||
-		(m_window_info.surface_width == static_cast<u32>(new_window_width) && m_window_info.surface_height == static_cast<u32>(new_window_height)))
+		(m_window_info.surface_width == new_window_width && m_window_info.surface_height == new_window_height))
 	{
 		return;
 	}
@@ -1878,6 +1878,7 @@ void GSDeviceMTL::MRESetHWPipelineState(GSHWDrawConfig::VSSelector vssel, GSHWDr
 		setFnConstantI(m_fn_constants, pssel.dither,                GSMTLConstantIndex_PS_DITHER);
 		setFnConstantI(m_fn_constants, pssel.dither_adjust,         GSMTLConstantIndex_PS_DITHER_ADJUST);
 		setFnConstantB(m_fn_constants, pssel.zclamp,                GSMTLConstantIndex_PS_ZCLAMP);
+		setFnConstantB(m_fn_constants, pssel.zfloor,                GSMTLConstantIndex_PS_ZFLOOR);
 		setFnConstantB(m_fn_constants, pssel.tcoffsethack,          GSMTLConstantIndex_PS_TCOFFSETHACK);
 		setFnConstantB(m_fn_constants, pssel.urban_chaos_hle,       GSMTLConstantIndex_PS_URBAN_CHAOS_HLE);
 		setFnConstantB(m_fn_constants, pssel.tales_of_abyss_hle,    GSMTLConstantIndex_PS_TALES_OF_ABYSS_HLE);
@@ -2080,6 +2081,7 @@ static_assert(offsetof(GSHWDrawConfig::PSConstantBuffer, HalfTexel)        == of
 static_assert(offsetof(GSHWDrawConfig::PSConstantBuffer, MinMax)           == offsetof(GSMTLMainPSUniform, uv_min_max));
 static_assert(offsetof(GSHWDrawConfig::PSConstantBuffer, STRange)          == offsetof(GSMTLMainPSUniform, st_range));
 static_assert(offsetof(GSHWDrawConfig::PSConstantBuffer, ChannelShuffle)   == offsetof(GSMTLMainPSUniform, channel_shuffle));
+static_assert(offsetof(GSHWDrawConfig::PSConstantBuffer, ChannelShuffleOffset) == offsetof(GSMTLMainPSUniform, channel_shuffle_offset));
 static_assert(offsetof(GSHWDrawConfig::PSConstantBuffer, TCOffsetHack)     == offsetof(GSMTLMainPSUniform, tc_offset));
 static_assert(offsetof(GSHWDrawConfig::PSConstantBuffer, STScale)          == offsetof(GSMTLMainPSUniform, st_scale));
 static_assert(offsetof(GSHWDrawConfig::PSConstantBuffer, DitherMatrix)     == offsetof(GSMTLMainPSUniform, dither_matrix));

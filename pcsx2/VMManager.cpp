@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "Achievements.h"
@@ -56,7 +56,7 @@
 #include "common/Timer.h"
 #include "common/emitter/x86emitter.h"
 
-#include "IconsFontAwesome6.h"
+#include "IconsFontAwesome.h"
 #include "IconsPromptFont.h"
 #include "cpuinfo.h"
 #include "discord_rpc.h"
@@ -531,6 +531,7 @@ void VMManager::SetDefaultLoggingSettings(SettingsInterface& si)
 	si.SetBoolValue("Logging", "EnableSystemConsole", false);
 	si.SetBoolValue("Logging", "EnableFileLogging", true);
 	si.SetBoolValue("Logging", "EnableTimestamps", true);
+	si.SetBoolValue("Logging", "EnableEESIOInput", false);
 	si.SetBoolValue("Logging", "EnableVerbose", false);
 	si.SetBoolValue("Logging", "EnableEEConsole", false);
 	si.SetBoolValue("Logging", "EnableIOPConsole", false);
@@ -3015,8 +3016,6 @@ void VMManager::CheckForMemoryCardConfigChanges(const Pcsx2Config& old_config)
 		}
 	}
 
-	changed |= (EmuConfig.McdFolderAutoManage != old_config.McdFolderAutoManage);
-
 	if (!changed)
 		return;
 
@@ -3748,15 +3747,16 @@ void VMManager::UpdateDiscordPresence(bool update_session_time)
 
 	auto lock = Achievements::GetLock();
 
-	if (Achievements::HasRichPresence())
+	if (Achievements::HasActiveGame() && Achievements::HasAchievementsOrLeaderboards())
 	{
-		rp.state = (state_string = StringUtil::Ellipsise(Achievements::GetRichPresenceString(), 128)).c_str();
-
 		if (const std::string& icon_url = Achievements::GetGameIconURL(); !icon_url.empty())
 		{
 			rp.largeImageKey = icon_url.c_str();
 			rp.largeImageText = s_title.c_str();
 		}
+
+		if (Achievements::HasRichPresence())
+			rp.state = (state_string = StringUtil::Ellipsise(Achievements::GetRichPresenceString(), 128)).c_str();
 	}
 
 	Discord_UpdatePresence(&rp);
@@ -3769,4 +3769,16 @@ void VMManager::PollDiscordPresence()
 		return;
 
 	Discord_RunCallbacks();
+}
+
+bool VMManager::WriteBytesToEESIORXFIFO(const std::span<const u8> data)
+{
+	if(ee_sio_rx_fifo.size() + data.size() > 1024)
+	{
+		Console.Warning("EE RX FIFO is full, not appending more bytes.");
+		return false;
+	}
+
+	ee_sio_rx_fifo.insert(ee_sio_rx_fifo.end(), data.begin(), data.end());
+	return true;
 }

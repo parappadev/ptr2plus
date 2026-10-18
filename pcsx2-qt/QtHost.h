@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #pragma once
@@ -191,7 +191,7 @@ private:
 private Q_SLOTS:
 	void stopInThread();
 	void doBackgroundControllerPoll();
-	void onDisplayWindowResized(int width, int height, float scale);
+	void onDisplayWindowResized(u32 width, u32 height, float scale);
 	void onApplicationStateChanged(Qt::ApplicationState state);
 	void redrawDisplayWindow();
 

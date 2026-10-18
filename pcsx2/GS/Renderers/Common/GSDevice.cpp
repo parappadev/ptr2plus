@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "GS/Renderers/Common/GSDevice.h"
@@ -244,7 +244,7 @@ const char* GSDevice::RenderAPIToString(RenderAPI api)
 
 bool GSDevice::GetRequestedExclusiveFullscreenMode(u32* width, u32* height, float* refresh_rate)
 {
-	const std::string mode = Host::GetBaseStringSettingValue("EmuCore/GS", "FullscreenMode", "");
+	const std::string mode = Host::GetStringSettingValue("EmuCore/GS", "FullscreenMode", "");
 	if (!mode.empty())
 	{
 		const std::string_view mode_view = mode;
@@ -899,14 +899,13 @@ void GSDevice::ShadeBoost()
 	if (ResizeRenderTarget(&m_target_tmp, m_current->GetWidth(), m_current->GetHeight(), false, false))
 	{
 		// predivide to avoid the divide (multiply) in the shader
-		const float params[4] = {
+		const GSVector4 params(
 			static_cast<float>(GSConfig.ShadeBoost_Brightness) * (1.0f / 50.0f),
 			static_cast<float>(GSConfig.ShadeBoost_Contrast) * (1.0f / 50.0f),
 			static_cast<float>(GSConfig.ShadeBoost_Saturation) * (1.0f / 50.0f),
-			static_cast<float>(GSConfig.ShadeBoost_Gamma) * (1.0f / 50.0f),
-		};
+			static_cast<float>(GSConfig.ShadeBoost_Gamma) * (1.0f / 50.0f));
 
-		DoShadeBoost(m_current, m_target_tmp, params);
+		DoShadeBoost(m_current, m_target_tmp, params.v);
 
 		m_current = m_target_tmp;
 	}
@@ -918,10 +917,15 @@ void GSDevice::Resize(int width, int height)
 	GSVector2i s = m_current->GetSize();
 	int multiplier = 1;
 
-	while (width > s.x || height > s.y)
+	if ((width > s.x || height > s.y))
 	{
-		s = m_current->GetSize() * GSVector2i(++multiplier);
+		while (width > s.x || height > s.y)
+		{
+			s = m_current->GetSize() * GSVector2i(++multiplier);
+		}
 	}
+	else
+		s = GSVector2i(width, height);
 
 	if (ResizeRenderTarget(&dTex, s.x, s.y, false, false))
 	{

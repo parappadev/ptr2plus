@@ -2075,6 +2075,8 @@ SCAJ-20128:
 SCAJ-20129:
   name: "Ponkotsu Roman Daikatsugeki Bumpy Trot"
   region: "NTSC-Unk"
+  roundModes:
+    eeRoundMode: 0 # Fixes broken load triggers.
   gsHWFixes:
     getSkipCount: "GSC_IRem"
     halfPixelOffset: 2 # Aligns effects.
@@ -2239,6 +2241,8 @@ SCAJ-20152:
   gsHWFixes:
     alignSprite: 1 # Fixes vertical lines.
     textureInsideRT: 1 # Fixes corruption.
+    halfPixelOffset: 4 # Aligns post bloom.
+    nativeScaling: 2 # Fixes post effects.
     getSkipCount: "GSC_UrbanReign"
 SCAJ-20153:
   name: "コード・エイジ コマンダーズ"
@@ -4762,6 +4766,9 @@ SCES-50034:
   name: "MotoGP"
   region: "PAL-M5"
   compat: 5
+  gsHWFixes:
+    gpuTargetCLUT: 2 # Fixes some (haze?) shuffle colors.
+    textureInsideRT: 1 # Fixes rendering artifacts on racers.
 SCES-50105:
   name: "Sky Odyssey"
   region: "PAL-M5"
@@ -5600,7 +5607,7 @@ SCES-52033:
         author=refraction
         // Cop2 problems.
         patch=0,EE,003953F8,word,48438000
-        patch=0,EE,003735FC,word,4B06521B
+        patch=0,EE,003953FC,word,4B06521B
         author=YukiXXL
         // Speed Correction (25 FPS)
         patch=1,EE,00175E1C,extended,00000019
@@ -6229,6 +6236,8 @@ SCES-53688:
   gsHWFixes:
     alignSprite: 1 # Fixes vertical lines.
     textureInsideRT: 1 # Fixes corruption.
+    halfPixelOffset: 4 # Aligns post bloom.
+    nativeScaling: 2 # Fixes post effects.
     getSkipCount: "GSC_UrbanReign"
 SCES-53795:
   name: "SingStar - '80s"
@@ -7607,6 +7616,8 @@ SCKA-20058:
   name: "액션 로망 범피 트롯"
   name-en: "Action Romance Bumpy Trot"
   region: "NTSC-K"
+  roundModes:
+    eeRoundMode: 0 # Fixes broken load triggers.
   gsHWFixes:
     getSkipCount: "GSC_IRem"
     halfPixelOffset: 2 # Aligns effects.
@@ -7698,6 +7709,8 @@ SCKA-20065:
   gsHWFixes:
     alignSprite: 1 # Fixes vertical lines.
     textureInsideRT: 1 # Fixes corruption.
+    halfPixelOffset: 4 # Aligns post bloom.
+    nativeScaling: 2 # Fixes post effects.
     getSkipCount: "GSC_UrbanReign"
 SCKA-20066:
   name: "아이토이 - 플레이 3"
@@ -11384,6 +11397,10 @@ SCUS-97197:
   name: "War of the Monsters"
   region: "NTSC-U"
   compat: 5
+  memcardFilters: # Reads Twisted Metal Black for bonus unlockable.
+    - "SCUS-97101"
+    - "SCUS-97179"
+    - "SCUS-97197"
 SCUS-97198:
   name: "Sly Cooper and the Thievius Raccoonus"
   region: "NTSC-U"
@@ -11682,6 +11699,15 @@ SCUS-97264:
         // Cop2 problems.
         patch=0,EE,003735F8,word,48438000
         patch=0,EE,003735FC,word,4B06521B
+    062BC79E:
+      content: |-
+        author=YukiXXL
+        // Cop2 problems.
+        patch=0,EE,00395D28,word,48438000
+        patch=0,EE,00395D2C,word,4B06521B
+        // Other languages SNDVAG fix
+        patch=1,EE,204A0C3C,word,482E7325
+        patch=1,EE,204A0C40,word,0000474F
 SCUS-97265:
   name: "Jak II"
   region: "NTSC-U"
@@ -12069,12 +12095,21 @@ SCUS-97396:
   gsHWFixes:
     PCRTCOffsets: 1 # Fixes boot videos screen size.
 SCUS-97397:
-  name: "Syphon Filter - The Omega Strain"
+  name: "Syphon Filter - The Omega Strain Public Beta 1.0"
   region: "NTSC-U"
   gsHWFixes:
     autoFlush: 2 # Fixes lights going through walls.
     preloadFrameData: 1 # Fixes light flicker.
     halfPixelOffset: 2 # Corrects light position.
+  gameFixes:
+    - EETimingHack # Fixes random hangs.
+  patches:
+    C909A32E:
+      content: |-
+        author=YukiXXL
+        // Cop2 problems.
+        patch=0,EE,00367798,word,48438000
+        patch=0,EE,0036779C,word,4B06521B
 SCUS-97398:
   name: "Siren [Demo]"
   region: "NTSC-U"
@@ -25547,6 +25582,8 @@ SLES-54137:
 SLES-54138:
   name: "Steambot Chronicles"
   region: "PAL-E"
+  roundModes:
+    eeRoundMode: 0 # Fixes broken load triggers.
   gsHWFixes:
     getSkipCount: "GSC_IRem"
     halfPixelOffset: 2 # Aligns effects.
@@ -26197,6 +26234,8 @@ SLES-54333:
 SLES-54335:
   name: "Steambot Chronicles"
   region: "PAL-F"
+  roundModes:
+    eeRoundMode: 0 # Fixes broken load triggers.
   gsHWFixes:
     getSkipCount: "GSC_IRem"
     halfPixelOffset: 2 # Aligns effects.
@@ -27824,8 +27863,6 @@ SLES-54812:
 SLES-54813:
   name: "NASCAR 08"
   region: "PAL-A-E"
-  gsHWFixes:
-    deinterlace: 8 # Game requires AdaptiveTFF de-interlacing when auto.
 SLES-54814:
   name: "Dead Eye Jim"
   region: "PAL-E"
@@ -29178,8 +29215,6 @@ SLES-55199:
   name: "NASCAR 09"
   region: "PAL-M5"
   compat: 5
-  gsHWFixes:
-    deinterlace: 8 # Game requires AdaptiveTFF de-interlacing when auto.
 SLES-55200:
   name: "Guitar Hero - Aerosmith"
   region: "PAL-M4"
@@ -30583,6 +30618,11 @@ SLES-82030:
     halfPixelOffset: 5 # Fixes shadow positioning.
     autoFlush: 2 # Makes the shadow monsters appear.
     nativeScaling: 2 # Aligns post processing and bloom.
+  memcardFilters: # Reads Shadow Hearts for extra items.
+    - "SLES-82030"
+    - "SLES-82031"
+    - "SLES-50677"
+    - "SLES-50822"
 SLES-82031:
   name: "Shadow Hearts - Covenant [Disc 2 of 2]"
   region: "PAL-M3"
@@ -30590,8 +30630,11 @@ SLES-82031:
     halfPixelOffset: 5 # Fixes shadow positioning.
     autoFlush: 2 # Makes the shadow monsters appear.
     nativeScaling: 2 # Aligns post processing and bloom.
-  memcardFilters:
+  memcardFilters: # Reads Shadow Hearts for extra items.
     - "SLES-82030"
+    - "SLES-82031"
+    - "SLES-50677"
+    - "SLES-50822"
 SLES-82032:
   name: "Metal Gear Solid 3 - Snake Eater"
   region: "PAL-G"
@@ -35818,6 +35861,8 @@ SLPM-60255:
   name-sort: "ぽんこつろまんだいかつげきばんぴーとろっと [たいけんばん]"
   name-en: "Ponkotsu Roeman Daikatsugeki Bumpy Trot [Trial]"
   region: "NTSC-J"
+  roundModes:
+    eeRoundMode: 0 # Fixes broken load triggers.
   gsHWFixes:
     getSkipCount: "GSC_IRem"
     halfPixelOffset: 2 # Aligns effects.
@@ -35889,6 +35934,8 @@ SLPM-60266:
   name-sort: "ぽんこつろまんだいかつげきばんぴーとろっと [たいけんばん]"
   name-en: "Ponkotsu Roeman Daikatsugeki Bumpy Trot [Trial]"
   region: "NTSC-J"
+  roundModes:
+    eeRoundMode: 0 # Fixes broken load triggers.
   gsHWFixes:
     getSkipCount: "GSC_IRem"
     halfPixelOffset: 2 # Aligns effects.
@@ -35940,6 +35987,8 @@ SLPM-60272:
   gsHWFixes:
     alignSprite: 1 # Fixes vertical lines.
     textureInsideRT: 1 # Fixes corruption.
+    halfPixelOffset: 4 # Aligns post bloom.
+    nativeScaling: 2 # Fixes post effects.
     getSkipCount: "GSC_UrbanReign"
 SLPM-60273:
   name: "絶体絶命都市2 -凍てついた記憶たち- [体験版 Type-B]"
@@ -43473,6 +43522,11 @@ SLPM-65428:
   name-en: "BioHazard Outbreak"
   region: "NTSC-J"
   compat: 5
+  memcardFilters:
+    - "SLPM-65428"
+    - "SLPM-74201"
+    - "SLPM-65286"
+    - "BWNETCNF"
 SLPM-65429:
   name: "ギャラクシーエンジェル Moonlit Lovers [初回限定版ファーストパッケージ]"
   name-sort: "ぎゃらくしーえんじぇる Moonlit Lovers [しょかいげんていばんふぁーすとぱっけーじ]"
@@ -44973,6 +45027,8 @@ SLPM-65692:
     - "SLPM-65692"
     - "SLPM-65428"
     - "SLPM-74201"
+    - "SLPM-65286"
+    - "BWNETCNF"
 SLPM-65693:
   name: "ときめきメモリアル3 ～約束のあの場所で～ [コナミ殿堂セレクション]"
   name-sort: "ときめきめもりある3 やくそくのあのばしょで [こなみでんどうせれくしょん]"
@@ -53680,6 +53736,11 @@ SLPM-74201:
   name-sort: "ばいおはざーど あうとぶれいく [PlayStation2 the Best]"
   name-en: "BioHazard Outbreak [PlayStation2 the Best]"
   region: "NTSC-J"
+  memcardFilters:
+    - "SLPM-65428"
+    - "SLPM-74201"
+    - "SLPM-65286"
+    - "BWNETCNF"
 SLPM-74202:
   name: "風雲 新撰組 [PlayStation2 the Best]"
   name-sort: "ふううん しんせんぐみ [PlayStation2 the Best]"
@@ -54549,6 +54610,28 @@ SLPS-20017:
   name-sort: "すとりーとまーじゃんとらんす あさしん2"
   name-en: "Street Mahjong Trance 2"
   region: "NTSC-J"
+  patches:
+    7EF05210:
+      content: |-
+        author= Goatman13
+        comment=Hack sceCdDiskReady to not wait for drive ready.
+        patch=1,EE,000ffef4,word,304200c0
+        patch=1,EE,000ffef8,word,1443fffb
+        patch=1,EE,000fff00,word,3c19bc01
+        patch=1,EE,000fff04,word,9f2f0000
+        patch=1,EE,000fff08,word,3c180010
+        patch=1,EE,000fff0c,word,9f18fef4
+        patch=1,EE,000fff10,word,130f0003
+        patch=1,EE,000fff14,word,27390004
+        patch=1,EE,000fff18,word,1000fffa
+        patch=1,EE,000fff1c,word,00000000
+        patch=1,EE,000fff20,word,9f2f0000
+        patch=1,EE,000fff24,word,3c180010
+        patch=1,EE,000fff28,word,9f18fef8
+        patch=1,EE,000fff2c,word,170ffff6
+        patch=1,EE,000fff34,word,af200000
+        patch=1,EE,000fff38,word,03e00008
+        patch=1,EE,00273870,word,0803ffc0
 SLPS-20018:
   name: "ステッピングセレクション [ディスク1/2]"
   name-sort: "すてっぴんぐせれくしょん [でぃすく1/2]"
@@ -54675,6 +54758,9 @@ SLPS-20040:
   name-sort: "もとGP"
   name-en: "MotoGP"
   region: "NTSC-J"
+  gsHWFixes:
+    gpuTargetCLUT: 2 # Fixes some (haze?) shuffle colors.
+    textureInsideRT: 1 # Fixes rendering artifacts on racers.
 SLPS-20041:
   name: "麻雀悟空 大聖"
   name-sort: "まーじゃんごくう たいせい"
@@ -58845,6 +58931,11 @@ SLPS-25317:
     halfPixelOffset: 5 # Fixes shadow positioning.
     autoFlush: 2 # Makes the shadow monsters appear.
     nativeScaling: 2 # Aligns post processing and bloom.
+  memcardFilters: # Reads Shadow Hearts for extra items.
+    - "SLPS-25317"
+    - "SLPS-25318"
+    - "SLPS-25041"
+    - "SLPS-73418"
 SLPS-25318:
   name: "シャドウハーツⅡ [DXパック] [ディスク2/2]"
   name-sort: "しゃどうはーつ2 [DXぱっく] [でぃすく2/2]"
@@ -58854,8 +58945,11 @@ SLPS-25318:
     halfPixelOffset: 5 # Fixes shadow positioning.
     autoFlush: 2 # Makes the shadow monsters appear.
     nativeScaling: 2 # Aligns post processing and bloom.
-  memcardFilters:
+  memcardFilters: # Reads Shadow Hearts for extra items.
     - "SLPS-25317"
+    - "SLPS-25318"
+    - "SLPS-25041"
+    - "SLPS-73418"
 SLPS-25319:
   name: "ケロケロキング スーパーDX"
   name-sort: "けろけろきんぐ すーぱーDX"
@@ -58934,6 +59028,11 @@ SLPS-25334:
     halfPixelOffset: 5 # Fixes shadow positioning.
     autoFlush: 2 # Makes the shadow monsters appear.
     nativeScaling: 2 # Aligns post processing and bloom.
+  memcardFilters: # Reads Shadow Hearts for extra items.
+    - "SLPS-25334"
+    - "SLPS-25335"
+    - "SLPS-25041"
+    - "SLPS-73418"
 SLPS-25335:
   name: "シャドウハーツⅡ [通常版] [ディスク2/2]"
   name-sort: "しゃどうはーつ2 [つうじょうばん] [でぃすく2/2]"
@@ -58943,8 +59042,11 @@ SLPS-25335:
     halfPixelOffset: 5 # Fixes shadow positioning.
     autoFlush: 2 # Makes the shadow monsters appear.
     nativeScaling: 2 # Aligns post processing and bloom.
-  memcardFilters:
+  memcardFilters: # Reads Shadow Hearts for extra items.
     - "SLPS-25334"
+    - "SLPS-25335"
+    - "SLPS-25041"
+    - "SLPS-73418"
 SLPS-25336:
   name: "バスランディング3 [Sammy best] [つりコン2+ 同梱版]"
   name-sort: "ばすらんでぃんぐ3 [Sammy best] [つりこん2 どうこんばん]"
@@ -59734,6 +59836,8 @@ SLPS-25457:
   name-sort: "ぽんこつろまんだいかつげきばんぴーとろっと"
   name-en: "Ponkotsu Roeman Daikatsugeki Bumpy Trot"
   region: "NTSC-J"
+  roundModes:
+    eeRoundMode: 0 # Fixes broken load triggers.
   gsHWFixes:
     getSkipCount: "GSC_IRem"
     halfPixelOffset: 2 # Aligns effects.
@@ -60300,6 +60404,8 @@ SLPS-25557:
   gsHWFixes:
     alignSprite: 1 # Fixes vertical lines.
     textureInsideRT: 1 # Fixes corruption.
+    halfPixelOffset: 4 # Aligns post bloom.
+    nativeScaling: 2 # Fixes post effects.
     getSkipCount: "GSC_UrbanReign"
 SLPS-25558:
   name: "ネオジオ バトルコロシアム"
@@ -60405,7 +60511,6 @@ SLPS-25574:
     halfPixelOffset: 2 # Aligns effects.
     nativeScaling: 1 # Helps align effects.
     textureInsideRT: 1 # Fixes channel shuffles.
-    preloadFrameData: 1 # Fixes menu graphics.
     autoFlush: 1 # Fixes motion blur.
     minimumBlendingLevel: 2 # Improves post effects.
 SLPS-25575:
@@ -61130,7 +61235,6 @@ SLPS-25682:
     halfPixelOffset: 2 # Aligns effects.
     nativeScaling: 1 # Helps align effects.
     textureInsideRT: 1 # Fixes channel shuffles.
-    preloadFrameData: 1 # Fixes menu graphics.
     autoFlush: 1 # Fixes motion blur.
     minimumBlendingLevel: 2 # Improves post effects.
 SLPS-25683:
@@ -61138,6 +61242,8 @@ SLPS-25683:
   name-sort: "ぽんこつろまんだいかつげきばんぴーとろっと [Irem COLLECTION]"
   name-en: "Ponkotsu Roman Daikatsugeki Bumpy Trot [Irem Collection]"
   region: "NTSC-J"
+  roundModes:
+    eeRoundMode: 0 # Fixes broken load triggers.
   gsHWFixes:
     getSkipCount: "GSC_IRem"
     halfPixelOffset: 2 # Aligns effects.
@@ -61760,7 +61866,6 @@ SLPS-25787:
     halfPixelOffset: 2 # Aligns effects.
     nativeScaling: 1 # Helps align effects.
     textureInsideRT: 1 # Fixes channel shuffles.
-    preloadFrameData: 1 # Fixes menu graphics.
     autoFlush: 1 # Fixes motion blur.
     minimumBlendingLevel: 2 # Improves post effects.
 SLPS-25788:
@@ -62172,7 +62277,6 @@ SLPS-25852:
     halfPixelOffset: 2 # Aligns effects.
     nativeScaling: 1 # Helps align effects.
     textureInsideRT: 1 # Fixes channel shuffles.
-    preloadFrameData: 1 # Fixes menu graphics.
     autoFlush: 1 # Fixes motion blur.
     minimumBlendingLevel: 2 # Improves post effects.
 SLPS-25853:
@@ -63242,6 +63346,11 @@ SLPS-73214:
     halfPixelOffset: 5 # Fixes shadow positioning.
     autoFlush: 2 # Makes the shadow monsters appear.
     nativeScaling: 2 # Aligns post processing and bloom.
+  memcardFilters: # Reads Shadow Hearts for extra items.
+    - "SLPS-73214"
+    - "SLPS-73215"
+    - "SLPS-25041"
+    - "SLPS-73418"
 SLPS-73215:
   name: "シャドウハーツⅡ ディレクターズカット [PlayStation2 the Best] [ディスク2/2]"
   name-sort: "しゃどうはーつ2 でぃれくたーずかっと [PlayStation2 the Best] [でぃすく2/2]"
@@ -63251,8 +63360,11 @@ SLPS-73215:
     halfPixelOffset: 5 # Fixes shadow positioning.
     autoFlush: 2 # Makes the shadow monsters appear.
     nativeScaling: 2 # Aligns post processing and bloom.
-  memcardFilters:
+  memcardFilters: # Reads Shadow Hearts for extra items.
     - "SLPS-73214"
+    - "SLPS-73215"
+    - "SLPS-25041"
+    - "SLPS-73418"
 SLPS-73216:
   name: "マグナカルタ [PlayStation2 the Best]"
   name-sort: "まぐなかるた [PlayStation2 the Best]"
@@ -64139,6 +64251,9 @@ SLUS-20058:
   name: "MotoGP"
   region: "NTSC-U"
   compat: 5
+  gsHWFixes:
+    gpuTargetCLUT: 2 # Fixes some (haze?) shuffle colors.
+    textureInsideRT: 1 # Fixes rendering artifacts on racers.
 SLUS-20062:
   name: "Grand Theft Auto III"
   region: "NTSC-U"
@@ -66407,7 +66522,6 @@ SLUS-20535:
   compat: 5
   gsHWFixes:
     roundSprite: 1 # Fix horizontal and vertical lines when racing.
-    deinterlace: 8 # Fixes misdetection of game deinterlace.
 SLUS-20536:
   name: "NBA Live 2003"
   region: "NTSC-U"
@@ -67607,7 +67721,6 @@ SLUS-20754:
   region: "NTSC-U"
   gsHWFixes:
     roundSprite: 1 # Fix horizontal and vertical lines when racing.
-    deinterlace: 8 # Fixes misdetection of game deinterlace.
   memcardFilters:
     - "PSCD10088" # Enables EA Sports BIO.
     - "SLUS-20754"
@@ -67972,7 +68085,6 @@ SLUS-20824:
   region: "NTSC-U"
   gsHWFixes:
     roundSprite: 1 # Fix horizontal and vertical lines when racing.
-    deinterlace: 8 # Fixes misdetection of game deinterlace.
   memcardFilters:
     - "PSCD10088" # Enables EA Sports BIO.
     - "SLUS-20824"
@@ -69321,6 +69433,10 @@ SLUS-21041:
     halfPixelOffset: 5 # Fixes shadow positioning.
     autoFlush: 2 # Makes the shadow monsters appear.
     nativeScaling: 2 # Aligns post processing and bloom.
+  memcardFilters: # Reads Shadow Hearts for extra items.
+    - "SLUS-21041"
+    - "SLUS-21044"
+    - "SLUS-20347"
 SLUS-21042:
   name: "Darkwatch"
   region: "NTSC-U"
@@ -69339,8 +69455,10 @@ SLUS-21044:
     halfPixelOffset: 5 # Fixes shadow positioning.
     autoFlush: 2 # Makes the shadow monsters appear.
     nativeScaling: 2 # Aligns post processing and bloom.
-  memcardFilters:
+  memcardFilters: # Reads Shadow Hearts for extra items.
     - "SLUS-21041"
+    - "SLUS-21044"
+    - "SLUS-20347"
 SLUS-21045:
   name: "Conflict - Vietnam"
   region: "NTSC-U"
@@ -70306,6 +70424,8 @@ SLUS-21209:
   gsHWFixes:
     alignSprite: 1 # Fixes vertical lines.
     textureInsideRT: 1 # Fixes corruption.
+    halfPixelOffset: 4 # Aligns post bloom.
+    nativeScaling: 2 # Fixes post effects.
     getSkipCount: "GSC_UrbanReign"
 SLUS-21212:
   name: "Spartan - Total Warrior"
@@ -71256,6 +71376,8 @@ SLUS-21344:
   name: "Steambot Chronicles"
   region: "NTSC-U"
   compat: 5
+  roundModes:
+    eeRoundMode: 0 # Fixes broken load triggers.
   gsHWFixes:
     getSkipCount: "GSC_IRem"
     halfPixelOffset: 2 # Aligns effects.
@@ -73012,8 +73134,6 @@ SLUS-21639:
   name: "NASCAR 08"
   region: "NTSC-U"
   compat: 5
-  gsHWFixes:
-    deinterlace: 8 # Game requires AdaptiveTFF de-interlacing when auto.
 SLUS-21640:
   name: "Rugby 08"
   region: "NTSC-U"
@@ -73581,8 +73701,6 @@ SLUS-21744:
   name: "NASCAR 09"
   region: "NTSC-U"
   compat: 5
-  gsHWFixes:
-    deinterlace: 8 # Game requires AdaptiveTFF de-interlacing when auto.
   patches:
     1B6C22B9:
       content: |-
@@ -74801,6 +74919,8 @@ SLUS-28059:
 SLUS-28061:
   name: "Steambot Chronicles [Trade Demo]"
   region: "NTSC-U"
+  roundModes:
+    eeRoundMode: 0 # Fixes broken load triggers.
   gsHWFixes:
     getSkipCount: "GSC_IRem"
     halfPixelOffset: 2 # Aligns effects.
@@ -75579,6 +75699,8 @@ SLUS-29185:
 SLUS-29188:
   name: "Steambot Chronicles [Regular Demo]"
   region: "NTSC-U"
+  roundModes:
+    eeRoundMode: 0 # Fixes broken load triggers.
   gsHWFixes:
     getSkipCount: "GSC_IRem"
     halfPixelOffset: 2 # Aligns effects.
@@ -75714,6 +75836,9 @@ TCES-52033:
     0DDA2728:
       content: |-
         author=YukiXXL
+        // Cop2 problems.
+        patch=0,EE,0038E8E8,word,48438000
+        patch=0,EE,0038E8EC,word,4B06521B
         // Speed Correction (25 FPS)
         patch=1,EE,00175a7c,extended,00000019
         patch=1,EE,00175848,extended,00000019

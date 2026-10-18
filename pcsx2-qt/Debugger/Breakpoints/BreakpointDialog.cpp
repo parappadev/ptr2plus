@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "BreakpointDialog.h"
@@ -123,6 +123,11 @@ void BreakpointDialog::accept()
 			bp->cond.expression = expr;
 			bp->cond.expressionString = m_ui.txtCondition->text().toStdString();
 		}
+		else
+		{
+			bp->hasCond = false;
+			bp->cond = {};
+		}
 	}
 	if (auto* mc = std::get_if<MemCheck>(&m_bp_mc))
 	{
@@ -158,6 +163,11 @@ void BreakpointDialog::accept()
 
 			mc->cond.expression = expr;
 			mc->cond.expressionString = m_ui.txtCondition->text().toStdString();
+		}
+		else
+		{
+			mc->hasCond = false;
+			mc->cond = {};
 		}
 
 		int condition = 0;

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #pragma once
@@ -37,7 +37,7 @@ public:
 	void restoreGeometry(const QByteArray& geometry);
 
 Q_SIGNALS:
-	void windowResizedEvent(int width, int height, float scale);
+	void windowResizedEvent(u32 width, u32 height, float scale);
 	void windowRestoredEvent();
 
 	void dragEnterEvent(QDragEnterEvent* event);

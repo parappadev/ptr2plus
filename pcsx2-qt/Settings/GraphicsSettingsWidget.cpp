@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "GraphicsSettingsWidget.h"
@@ -24,7 +24,7 @@ static constexpr RendererInfo s_renderer_info[] = {
 	{QT_TRANSLATE_NOOP("GraphicsSettingsWidget", "Automatic (Default)"), GSRendererType::Auto},
 #ifdef _WIN32
 	//: Graphics backend/engine type. Leave as-is.
-	{QT_TRANSLATE_NOOP("GraphicsSettingsWidget", "Direct3D 11"), GSRendererType::DX11},
+	{QT_TRANSLATE_NOOP("GraphicsSettingsWidget", "Direct3D 11 (Legacy)"), GSRendererType::DX11},
 	//: Graphics backend/engine type. Leave as-is.
 	{QT_TRANSLATE_NOOP("GraphicsSettingsWidget", "Direct3D 12"), GSRendererType::DX12},
 #endif
@@ -103,7 +103,7 @@ GraphicsSettingsWidget::GraphicsSettingsWidget(SettingsWindow* settings_dialog, 
 	SettingWidgetBinder::BindWidgetToIntSetting(sif, m_display.cropBottom, "EmuCore/GS", "CropBottom", 0);
 
 	connect(
-		m_display.fullscreenModes, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &GraphicsSettingsWidget::onFullscreenModeChanged);
+		m_display.fullscreenModes, &QComboBox::currentIndexChanged, this, &GraphicsSettingsWidget::onFullscreenModeChanged);
 
 	//////////////////////////////////////////////////////////////////////////
 	// HW Settings
@@ -118,9 +118,9 @@ GraphicsSettingsWidget::GraphicsSettingsWidget(SettingsWindow* settings_dialog, 
 	SettingWidgetBinder::BindWidgetToIntSetting(
 		sif, m_hw.blending, "EmuCore/GS", "accurate_blending_unit", static_cast<int>(AccBlendLevel::Basic));
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_hw.enableHWFixes, "EmuCore/GS", "UserHacks", false);
-	connect(m_hw.upscaleMultiplier, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+	connect(m_hw.upscaleMultiplier, &QComboBox::currentIndexChanged, this,
 		&GraphicsSettingsWidget::onUpscaleMultiplierChanged);
-	connect(m_hw.trilinearFiltering, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+	connect(m_hw.trilinearFiltering, &QComboBox::currentIndexChanged, this,
 		&GraphicsSettingsWidget::onTrilinearFilteringChanged);
 	onTrilinearFilteringChanged();
 
@@ -151,10 +151,12 @@ GraphicsSettingsWidget::GraphicsSettingsWidget(SettingsWindow* settings_dialog, 
 		sif, m_fixes.disablePartialInvalidation, "EmuCore/GS", "UserHacks_DisablePartialInvalidation", false);
 	SettingWidgetBinder::BindWidgetToIntSetting(
 		sif, m_fixes.textureInsideRt, "EmuCore/GS", "UserHacks_TextureInsideRt", static_cast<int>(GSTextureInRtMode::Disabled));
+	SettingWidgetBinder::BindWidgetToIntSetting(
+		sif, m_fixes.limit24BitDepth, "EmuCore/GS", "UserHacks_Limit24BitDepth", static_cast<int>(GSLimit24BitDepth::Disabled));
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_fixes.readTCOnClose, "EmuCore/GS", "UserHacks_ReadTCOnClose", false);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_fixes.estimateTextureRegion, "EmuCore/GS", "UserHacks_EstimateTextureRegion", false);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_fixes.gpuPaletteConversion, "EmuCore/GS", "paltex", false);
-	connect(m_fixes.cpuSpriteRenderBW, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+	connect(m_fixes.cpuSpriteRenderBW, &QComboBox::currentIndexChanged, this,
 		&GraphicsSettingsWidget::onCPUSpriteRenderBWChanged);
 	connect(m_fixes.gpuPaletteConversion, &QCheckBox::checkStateChanged, this, &GraphicsSettingsWidget::onGpuPaletteConversionChanged);
 	onCPUSpriteRenderBWChanged();
@@ -299,8 +301,8 @@ GraphicsSettingsWidget::GraphicsSettingsWidget(SettingsWindow* settings_dialog, 
 			m_header.rendererDropdown->setCurrentIndex(0);
 	}
 
-	connect(m_header.rendererDropdown, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &GraphicsSettingsWidget::onRendererChanged);
-	connect(m_header.adapterDropdown, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &GraphicsSettingsWidget::onAdapterChanged);
+	connect(m_header.rendererDropdown, &QComboBox::currentIndexChanged, this, &GraphicsSettingsWidget::onRendererChanged);
+	connect(m_header.adapterDropdown, &QComboBox::currentIndexChanged, this, &GraphicsSettingsWidget::onAdapterChanged);
 	connect(m_hw.enableHWFixes, &QCheckBox::checkStateChanged, this, &GraphicsSettingsWidget::updateRendererDependentOptions);
 	connect(m_advanced.extendedUpscales, &QCheckBox::checkStateChanged, this, &GraphicsSettingsWidget::updateRendererDependentOptions);
 	connect(m_hw.textureFiltering, &QComboBox::currentIndexChanged, this, &GraphicsSettingsWidget::onTextureFilteringChange);
@@ -627,6 +629,9 @@ GraphicsSettingsWidget::GraphicsSettingsWidget(SettingsWindow* settings_dialog, 
 
 		dialog()->registerWidgetHelp(m_fixes.textureInsideRt, tr("Texture Inside RT"), tr("Disabled"),
 			tr("Allows the texture cache to reuse as an input texture the inner portion of a previous framebuffer."));
+
+		dialog()->registerWidgetHelp(m_fixes.limit24BitDepth, tr("Limit Depth to 24 Bits"), tr("Disabled"),
+			tr("Truncate 32-bit depth values to 24 bits. Helps games struggling with Z-fighting."));
 
 		dialog()->registerWidgetHelp(m_fixes.readTCOnClose, tr("Read Targets When Closing"), tr("Unchecked"),
 			tr("Flushes all targets in the texture cache back to local memory when shutting down. Can prevent lost visuals when saving "

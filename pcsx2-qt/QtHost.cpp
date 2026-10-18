@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "AutoUpdaterDialog.h"
@@ -780,7 +780,7 @@ void EmuThread::connectDisplaySignals(DisplaySurface* widget)
 	connect(widget, &DisplaySurface::windowRestoredEvent, this, &EmuThread::redrawDisplayWindow);
 }
 
-void EmuThread::onDisplayWindowResized(int width, int height, float scale)
+void EmuThread::onDisplayWindowResized(u32 width, u32 height, float scale)
 {
 	if (!MTGS::IsOpen())
 		return;

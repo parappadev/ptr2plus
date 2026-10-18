@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "Config.h"
@@ -48,7 +48,7 @@
 #include "common/SmallString.h"
 #include "common/StringUtil.h"
 
-#include "IconsFontAwesome6.h"
+#include "IconsFontAwesome.h"
 
 #include "fmt/format.h"
 
@@ -442,7 +442,7 @@ void GSvsync(u32 field, bool registers_written)
 	g_gs_renderer->PCRTCDisplays.SetRects(0, g_gs_renderer->m_regs->DISP[0].DISPLAY, g_gs_renderer->m_regs->DISP[0].DISPFB);
 	g_gs_renderer->PCRTCDisplays.SetRects(1, g_gs_renderer->m_regs->DISP[1].DISPLAY, g_gs_renderer->m_regs->DISP[1].DISPFB);
 	g_gs_renderer->PCRTCDisplays.CalculateDisplayOffset(g_gs_renderer->m_scanmask_used);
-	g_gs_renderer->PCRTCDisplays.CalculateFramebufferOffset(g_gs_renderer->m_scanmask_used);
+	g_gs_renderer->PCRTCDisplays.CalculateFramebufferOffset(g_gs_renderer->m_scanmask_used, g_gs_renderer->m_regs->DISP[0].DISPFB, g_gs_renderer->m_regs->DISP[1].DISPFB);
 
 	// Do not move the flush into the VSync() method. It's here because EE transfers
 	// get cleared in HW VSync, and may be needed for a buffered draw (FFX FMVs).
@@ -533,7 +533,7 @@ bool GSHasDisplayWindow()
 	return (g_gs_device->GetWindowInfo().type != WindowInfo::Type::Surfaceless);
 }
 
-void GSResizeDisplayWindow(int width, int height, float scale)
+void GSResizeDisplayWindow(u32 width, u32 height, float scale)
 {
 	g_gs_device->ResizeWindow(width, height, scale);
 	//ImGuiManager::WindowResized(); commented out as new function made for this - GSResizeImGUIOnly()

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "common/AlignedMalloc.h"
@@ -12,7 +12,7 @@
 
 #include "Config.h"
 #include "Host.h"
-#include "IconsFontAwesome6.h"
+#include "IconsFontAwesome.h"
 #include "GS/GSExtra.h"
 #include "GS/GSLocalMemory.h"
 #include "GS/Renderers/HW/GSTextureReplacements.h"

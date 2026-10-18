@@ -45,7 +45,7 @@ set HARFBUZZ=12.2.0
 set LIBJPEGTURBO=3.1.2
 set LIBPNG=1653
 set LIBPNGLONG=1.6.53
-set SDL=SDL3-3.2.26
+set SDL=SDL3-3.4.0
 set QT=6.10.1
 set QTMINOR=6.10
 set QTAPNG=1.3.0
@@ -63,13 +63,15 @@ set SHADERC_GLSLANG=7a47e2531cb334982b2a2dd8513dca0a3de4373d
 set SHADERC_SPIRVHEADERS=b824a462d4256d720bebb40e78b9eb8f78bbb305
 set SHADERC_SPIRVTOOLS=971a7b6e8d7740035bbff089bbbf9f42951ecfd5
 
+set AGILITYSDK=1.618.5
+
 call :downloadfile "freetype-%FREETYPE%.tar.gz" https://sourceforge.net/projects/freetype/files/freetype2/%FREETYPE%/freetype-%FREETYPE%.tar.gz/download 174d9e53402e1bf9ec7277e22ec199ba3e55a6be2c0740cb18c0ee9850fc8c34 || goto error
 call :downloadfile "harfbuzz-%HARFBUZZ%.zip" https://github.com/harfbuzz/harfbuzz/archive/refs/tags/%HARFBUZZ%.zip 31490c781bacd2ce56862555b11c51c964977c39f14f51b817dfaecf0be089fe || goto error
 call :downloadfile "lpng%LIBPNG%.zip" https://download.sourceforge.net/libpng/lpng1653.zip 140566abc64bb2320cb35f1d154d1cb3eb7174a12234d33bfdffb446bdc0a1d2 || goto error
 call :downloadfile "lpng%LIBPNG%-apng.patch.gz" https://download.sourceforge.net/libpng-apng/libpng-%LIBPNGLONG%-apng.patch.gz 452a1a290bd0cf18737fad0057dc17b7fdf10a73eda2d6d4f31ba04fda25ef2c || goto error
 call :downloadfile "libjpeg-turbo-%LIBJPEGTURBO%.tar.gz" "https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/%LIBJPEGTURBO%/libjpeg-turbo-%LIBJPEGTURBO%.tar.gz" 8f0012234b464ce50890c490f18194f913a7b1f4e6a03d6644179fa0f867d0cf || goto error
 call :downloadfile "libwebp-%WEBP%.tar.gz" "https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-%WEBP%.tar.gz" e4ab7009bf0629fd11982d4c2aa83964cf244cffba7347ecd39019a9e38c4564 || goto error
-call :downloadfile "%SDL%.zip" "https://libsdl.org/release/%SDL%.zip" 739356eef1192fff9d641c320a8f5ef4a10506b8927def4b9ceb764c7e947369 || goto error
+call :downloadfile "%SDL%.zip" "https://libsdl.org/release/%SDL%.zip" 9ac2debb493e0d3e13dbd2729fb91f4bfeb00a0f4dff5e04b73cc9bac276b38d || goto error
 call :downloadfile "qtbase-everywhere-src-%QT%.zip" "https://download.qt.io/official_releases/qt/%QTMINOR%/%QT%/submodules/qtbase-everywhere-src-%QT%.zip" c43f471a808b07fc541528410e94ce89c6745bdc1d744492e19911d35fbf7d33 || goto error
 call :downloadfile "qtimageformats-everywhere-src-%QT%.zip" "https://download.qt.io/official_releases/qt/%QTMINOR%/%QT%/submodules/qtimageformats-everywhere-src-%QT%.zip" 2d828d8c999fdd18167937c071781c22321c643b04a106c714411c2356cdb26d || goto error
 call :downloadfile "qtsvg-everywhere-src-%QT%.zip" "https://download.qt.io/official_releases/qt/%QTMINOR%/%QT%/submodules/qtsvg-everywhere-src-%QT%.zip" ddd74a417d2397eb085d047a9b6ba52b76e748055817f728fe691f8456035d23 || goto error
@@ -82,6 +84,7 @@ call :downloadfile "zstd-%ZSTD%.zip" "https://github.com/facebook/zstd/archive/r
 call :downloadfile "KDDockWidgets-%KDDOCKWIDGETS%.zip" "https://github.com/KDAB/KDDockWidgets/archive/v%KDDOCKWIDGETS%.zip" 47ddb48197872055f0adf8e90a7235f8a3b795ca1ee3a28ac2c504c673ae3806 || goto error
 call :downloadfile "plutovg-%PLUTOVG%.zip" "https://github.com/sammycage/plutovg/archive/v%PLUTOVG%.zip" 4fe4e48f28aa80171b2166d45c0976ab0f21eecedb52cd4c3ef73b5afb48fac9 || goto error
 call :downloadfile "plutosvg-%PLUTOSVG%.zip" "https://github.com/sammycage/plutosvg/archive/v%PLUTOSVG%.zip" 82dee2c57ad712bdd6d6d81d3e76249d89caa4b5a4214353660fd5adff12201a || goto error
+call :downloadfile: "agility-sdk-%AGILITYSDK%.nupkg" "https://www.nuget.org/api/v2/package/Microsoft.Direct3D.D3D12/%AGILITYSDK%" 0027fc24f947c48dbded13ada7d280be221eb651644e23a8a476f0f1f0a079dd || goto error
 
 call :downloadfile "shaderc-%SHADERC%.zip" "https://github.com/google/shaderc/archive/refs/tags/v%SHADERC%.zip" fab72d1a38eacea52710d18edb95dfd75db894ad869675d07a1eb26827da9b15 || goto error
 call :downloadfile "shaderc-glslang-%SHADERC_GLSLANG%.zip" "https://github.com/KhronosGroup/glslang/archive/%SHADERC_GLSLANG%.zip" 4a118247386ffba9160113f146f2189ba5abe3995db357114d7112ede6bd3cd1 || goto error
@@ -201,10 +204,6 @@ echo Building Qt base...
 rmdir /S /Q "qtbase-everywhere-src-%QT%"
 %SEVENZIP% x "qtbase-everywhere-src-%QT%.zip" || goto error
 cd "qtbase-everywhere-src-%QT%" || goto error
-
-rem Disable the PCRE2 JIT, it doesn't properly verify AVX2 support.
-%PATCH% -p1 < "%SCRIPTDIR%\qtbase-disable-pcre2-jit.patch" || goto error
-
 cmake -B build -DFEATURE_sql=OFF -DCMAKE_INSTALL_PREFIX="%INSTALLDIR%" %FORCEPDB% -DINPUT_gui=yes -DINPUT_widgets=yes -DINPUT_ssl=yes -DINPUT_openssl=no -DINPUT_schannel=yes -DFEATURE_system_png=ON -DFEATURE_system_jpeg=ON -DFEATURE_system_zlib=ON -DFEATURE_system_freetype=ON -DFEATURE_system_harfbuzz=ON %QTBUILDSPEC% || goto error
 cmake --build build --parallel || goto error
 ninja -C build install || goto error
@@ -304,6 +303,20 @@ cd "plutosvg-%PLUTOSVG%" || goto error
 cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="%INSTALLDIR%" -DCMAKE_INSTALL_PREFIX="%INSTALLDIR%" -DBUILD_SHARED_LIBS=ON -DPLUTOSVG_ENABLE_FREETYPE=ON -DPLUTOSVG_BUILD_EXAMPLES=OFF -B build -G Ninja || goto error
 cmake --build build --parallel || goto error
 ninja -C build install || goto error
+cd .. || goto error
+
+echo Unpacking Agility SDK
+rmdir /S /Q "agility-sdk-%AGILITYSDK%"
+%SEVENZIP% x -o"agility-sdk-%AGILITYSDK%" "agility-sdk-%AGILITYSDK%.nupkg" || goto error
+cd "agility-sdk-%AGILITYSDK%" || goto error
+if not exist "%INSTALLDIR%\bin\D3D12" (
+  mkdir "%INSTALLDIR%\bin\D3D12" || goto error
+)
+rem the pdbs aren't in the list of distributable files, so only copy the dlls.
+copy "build\native\bin\x64\D3D12Core.dll" "%INSTALLDIR%\bin\D3D12\D3D12Core.dll" || goto error
+if %DEBUG%==1 (
+  copy "build\native\bin\x64\d3d12SDKLayers.dll" "%INSTALLDIR%\bin\D3D12\d3d12SDKLayers.dll" || goto error
+)
 cd .. || goto error
 
 echo Building shaderc...

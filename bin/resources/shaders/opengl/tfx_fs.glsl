@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 //#version 420 // Keep it for text editor detection
@@ -49,6 +49,7 @@ layout(std140, binding = 0) uniform cb21
 	vec4 STRange;
 
 	ivec4 ChannelShuffle;
+	vec2 ChannelShuffleOffset;
 
 	vec2 TC_OffsetHack;
 	vec2 STScale;
@@ -110,6 +111,10 @@ layout(binding = 3) uniform sampler2D img_prim_min;
 
 // I don't remember why I set this parameter but it is surely useless
 //layout(pixel_center_integer) in vec4 gl_FragCoord;
+#endif
+
+#if (PS_ZFLOOR || PS_ZCLAMP) && HAS_CONSERVATIVE_DEPTH
+layout(depth_less) out float gl_FragDepth;
 #endif
 
 vec4 sample_from_rt()
@@ -315,7 +320,7 @@ int fetch_raw_depth()
 #if PS_TEX_IS_FB == 1
 	return int(sample_from_rt().r * multiplier);
 #else
-	return int(texelFetch(TextureSampler, ivec2(gl_FragCoord.xy), 0).r * multiplier);
+	return int(texelFetch(TextureSampler, ivec2(gl_FragCoord.xy + ChannelShuffleOffset), 0).r * multiplier);
 #endif
 }
 
@@ -324,7 +329,7 @@ vec4 fetch_raw_color()
 #if PS_TEX_IS_FB == 1
 	return sample_from_rt();
 #else
-	return texelFetch(TextureSampler, ivec2(gl_FragCoord.xy), 0);
+	return texelFetch(TextureSampler, ivec2(gl_FragCoord.xy + ChannelShuffleOffset), 0);
 #endif
 }
 
@@ -646,7 +651,7 @@ bool atst(vec4 C)
 void fog(inout vec4 C, float f)
 {
 #if PS_FOG != 0
-	C.rgb = trunc(mix(FogColor, C.rgb, f));
+	C.rgb = trunc(mix(FogColor, C.rgb, (f * 255.0f) / 256.0f));
 #endif
 }
 
@@ -1143,7 +1148,16 @@ void ps_main()
 	#endif
 #endif
 
-#if PS_ZCLAMP
-	gl_FragDepth = min(gl_FragCoord.z, MaxDepthPS);
+#if PS_ZFLOOR
+float depth_value = floor(gl_FragCoord.z * exp2(32.0f)) * exp2(-32.0f);
+#else
+float depth_value = gl_FragCoord.z;
 #endif
+	
+#if PS_ZCLAMP
+	gl_FragDepth = min(depth_value, MaxDepthPS);
+#elif PS_ZFLOOR
+	gl_FragDepth = depth_value;
+#endif
+
 }
