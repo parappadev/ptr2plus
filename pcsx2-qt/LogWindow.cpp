@@ -2,9 +2,13 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "LogWindow.h"
+
 #include "MainWindow.h"
 #include "QtHost.h"
 #include "SettingWidgetBinder.h"
+
+#include "Achievements.h"
+#include "Host.h"
 #include "VMManager.h"
 
 #include <QtCore/QLatin1StringView>
@@ -52,7 +56,7 @@ void LogWindow::updateSettings()
 	const bool curr_enabled = Log::IsHostOutputEnabled();
 	const bool input_enabled = Host::GetBaseBoolSettingValue("Logging", "ShowEESIOInput");
 
-	if(g_log_window && g_log_window->m_line_input)
+	if (g_log_window && g_log_window->m_line_input)
 	{
 		g_log_window->m_input_widget->setVisible(input_enabled);
 	}
@@ -199,22 +203,20 @@ void LogWindow::createUi()
 
 	m_line_input = new QLineEdit(this);
 	connect(m_line_input, &QLineEdit::returnPressed, this, &LogWindow::onInputEntered);
-	
+
 	m_local_echo_checkbox = new QCheckBox(tr("Local Echo"), this);
 	m_local_echo_checkbox->setChecked(m_local_echo);
-	connect(m_local_echo_checkbox, &QCheckBox::checkStateChanged, this, [&](Qt::CheckState state)
-	{
+	connect(m_local_echo_checkbox, &QCheckBox::checkStateChanged, this, [&](Qt::CheckState state) {
 		m_local_echo = state == Qt::CheckState::Checked;
 	});
-	
+
 	m_newline_on_enter_checkbox = new QCheckBox(tr("Newline on send"), this);
 	m_newline_on_enter_checkbox->setChecked(m_newline_on_enter);
-	connect(m_newline_on_enter_checkbox, &QCheckBox::checkStateChanged, this, [&](Qt::CheckState state)
-	{
+	connect(m_newline_on_enter_checkbox, &QCheckBox::checkStateChanged, this, [&](Qt::CheckState state) {
 		m_newline_on_enter = state == Qt::CheckState::Checked;
 	});
 
-	m_input_hbox = new QHBoxLayout(this);
+	m_input_hbox = new QHBoxLayout;
 	m_input_hbox->addWidget(m_line_input, 1);
 	m_input_hbox->addWidget(m_local_echo_checkbox);
 	m_input_hbox->addWidget(m_newline_on_enter_checkbox);
@@ -243,7 +245,6 @@ void LogWindow::createUi()
 	vlayout->addWidget(m_text);
 	vlayout->addWidget(m_input_widget);
 
-	central_widget->setLayout(vlayout);
 	setCentralWidget(central_widget);
 }
 
@@ -417,23 +418,61 @@ void LogWindow::onInputEntered()
 	if (text.isEmpty() && !m_newline_on_enter)
 		return;
 
-	if(m_newline_on_enter)
+	if (m_newline_on_enter)
 		text.append('\n');
 
+	if (!m_line_input->isEnabled())
+		return;
+
+	bool focus = m_line_input->hasFocus();
+	m_line_input->setDisabled(true);
+
+	const QPointer<LogWindow> window(this);
 	std::string str = text.toUtf8().toStdString();
 
-	if(VMManager::WriteBytesToEESIORXFIFO({reinterpret_cast<const u8*>(str.data()), str.size()}))
-	{
-		m_line_input->clear();
+	Host::RunOnCPUThread([str = std::move(str), focus, window]() {
+		bool success = true;
 
-		if(m_local_echo)
-			// appendMessage expects a newline to be at the end of the string
-			appendMessage(0, 0, m_newline_on_enter ? text : (text + '\n') );
+		if (!VMManager::HasValidVM())
+		{
+			Console.Warning("Cannot write to EE SIO RX FIFO while there is no virtual machine running.");
+			success = false;
+		}
 
-		QTextCursor cursor(m_text->textCursor());
-		cursor.movePosition(QTextCursor::End);
-		m_text->setTextCursor(cursor);
-	}
+		if (success && Achievements::IsHardcoreModeActive())
+		{
+			Console.Warning("Cannot write to EE SIO RX FIFO while RetroAchievements hardcore mode is active.");
+			success = false;
+		}
+
+		if (success)
+			success = VMManager::WriteBytesToEESIORXFIFO({reinterpret_cast<const u8*>(str.data()), str.size()});
+
+		QtHost::RunOnUIThread([success, str = std::move(str), focus, window]() {
+			if (!window)
+				return;
+
+			if (success)
+			{
+				window->m_line_input->clear();
+
+				if (window->m_local_echo)
+				{
+					// appendMessage expects a newline to be at the end of the string
+					QString text = QString::fromStdString(str);
+					window->appendMessage(0, 0, window->m_newline_on_enter ? text : (text + '\n'));
+				}
+
+				QTextCursor cursor(window->m_text->textCursor());
+				cursor.movePosition(QTextCursor::End);
+				window->m_text->setTextCursor(cursor);
+			}
+
+			window->m_line_input->setDisabled(false);
+			if (focus)
+				window->m_line_input->setFocus();
+		});
+	});
 }
 
 void LogWindow::saveSize()
@@ -464,3 +503,5 @@ void LogWindow::restoreSize()
 	const int height = Host::GetBaseIntSettingValue("UI", "LogWindowHeight", DEFAULT_HEIGHT);
 	resize(width, height);
 }
+
+#include "moc_LogWindow.cpp"

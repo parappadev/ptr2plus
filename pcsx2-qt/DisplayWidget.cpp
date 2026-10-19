@@ -284,7 +284,7 @@ void DisplaySurface::handleKeyInputEvent(QEvent* event)
 
 void DisplaySurface::onResizeDebounceTimer()
 {
-	emit windowResizedEvent(m_pending_window_width, m_pending_window_height, m_pending_window_scale);
+	emit windowResizedEvent(m_last_window_width, m_last_window_height, m_last_window_scale);
 }
 
 bool DisplaySurface::event(QEvent* event)
@@ -397,10 +397,6 @@ bool DisplaySurface::event(QEvent* event)
 			// avoid spamming resize events for paint events (sent on move on windows)
 			if (m_last_window_width != scaled_width || m_last_window_height != scaled_height || m_last_window_scale != dpr)
 			{
-				m_pending_window_width = scaled_width;
-				m_pending_window_height = scaled_height;
-				m_pending_window_scale = dpr;
-
 				m_last_window_width = scaled_width;
 				m_last_window_height = scaled_height;
 				m_last_window_scale = dpr;
@@ -479,10 +475,19 @@ bool DisplaySurface::eventFilter(QObject* object, QEvent* event)
 			// macOS: When we (the display window) get focus from another window with a toolbar we update to the MainWindow toolbar.
 			// This is because we are a different native window from our MainWindow. So, whenever we get focus, focus our MainWindow.
 			// That way macOS will show the MainWindow toolbar when you click from the debugger / log window to the game.
-			if (auto* w = qobject_cast<QWidget*>(object))
+
+			// Don't try to steal focus when we're showing a modal dialog
+			// We end up ping ponging focus in a feedback loop
+			if (QApplication::activeModalWidget() != nullptr)
+				return false;
+
+			if (const auto* w = qobject_cast<QWidget*>(object))
 				w->window()->activateWindow();
+
 			return false;
 		default:
 			return false;
 	}
 }
+
+#include "moc_DisplayWidget.cpp"

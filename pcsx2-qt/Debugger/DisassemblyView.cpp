@@ -3,6 +3,7 @@
 
 #include "DisassemblyView.h"
 
+#include "AsyncDialogs.h"
 #include "Debugger/DebuggerWindow.h"
 #include "Debugger/JsonValueWrapper.h"
 #include "Debugger/Breakpoints/BreakpointModel.h"
@@ -18,8 +19,6 @@
 #include <QtGui/QMouseEvent>
 #include <QtWidgets/QMenu>
 #include <QtGui/QClipboard>
-#include <QtWidgets/QInputDialog>
-#include <QtWidgets/QMessageBox>
 #include "SymbolTree/NewSymbolDialogs.h"
 #include "common/StringUtil.h"
 
@@ -77,7 +76,11 @@ bool DisassemblyView::fromJson(const JsonValueWrapper& json)
 
 	auto start_address = json.value().FindMember("startAddress");
 	if (start_address != json.value().MemberEnd() && start_address->value.IsUint())
+	{
 		m_visibleStart = start_address->value.GetUint() & ~3;
+		m_navigation_history.clear();
+		m_navigation_history.pushInstantly(m_visibleStart);
+	}
 
 	auto go_to_pc_on_pause = json.value().FindMember("goToPCOnPause");
 	if (go_to_pc_on_pause != json.value().MemberEnd() && go_to_pc_on_pause->value.IsBool())
@@ -87,7 +90,7 @@ bool DisassemblyView::fromJson(const JsonValueWrapper& json)
 	if (show_instruction_bytes != json.value().MemberEnd() && show_instruction_bytes->value.IsBool())
 		m_showInstructionBytes = show_instruction_bytes->value.GetBool();
 
-	repaint();
+	update();
 
 	return true;
 }
@@ -111,7 +114,7 @@ void DisassemblyView::contextPasteInstructionText()
 {
 	if (!cpu().isCpuPaused())
 	{
-		QMessageBox::warning(this, tr("Assemble Error"), tr("Unable to change assembly while core is running"));
+		AsyncDialogs::warning(this, tr("Assemble Error"), tr("Unable to change assembly while core is running"));
 		return;
 	}
 
@@ -130,7 +133,7 @@ void DisassemblyView::contextPasteInstructionText()
 		bool valid = MipsAssembleOpcode(newInstructions[instructionIdx].c_str(), &cpu(), replaceAddress, encodedInstruction, errorText);
 		if (!valid)
 		{
-			QMessageBox::warning(this, tr("Assemble Error"), QString("%1 %2").arg(errorText.c_str()).arg(newInstructions[instructionIdx].c_str()));
+			AsyncDialogs::warning(this, tr("Assemble Error"), QString("%1 %2").arg(errorText.c_str()).arg(newInstructions[instructionIdx].c_str()));
 			return;
 		}
 		encodedInstructions.push_back(encodedInstruction);
@@ -148,29 +151,28 @@ void DisassemblyView::contextAssembleInstruction()
 {
 	if (!cpu().isCpuPaused())
 	{
-		QMessageBox::warning(this, tr("Assemble Error"), tr("Unable to change assembly while core is running"));
+		AsyncDialogs::warning(this, tr("Assemble Error"), tr("Unable to change assembly while core is running"));
 		return;
 	}
 
 	DisassemblyLineInfo line;
-	bool ok;
 	m_disassemblyManager.getLine(m_selectedAddressStart, false, line);
-	QString instruction = QInputDialog::getText(this, tr("Assemble Instruction"), "",
-		QLineEdit::Normal, QString("%1 %2").arg(line.name.c_str()).arg(line.params.c_str()), &ok);
 
-	if (!ok)
-		return;
+	const QString title = tr("Assemble Instruction");
+	const QString text = QString("%1 %2").arg(line.name.c_str()).arg(line.params.c_str());
 
-	u32 encodedInstruction;
-	std::string errorText;
-	bool valid = MipsAssembleOpcode(instruction.toLocal8Bit().constData(), &cpu(), m_selectedAddressStart, encodedInstruction, errorText);
-	if (!valid)
-	{
-		QMessageBox::warning(this, tr("Assemble Error"), QString::fromStdString(errorText));
-		return;
-	}
+	AsyncDialogs::getText(this, title, "", text, [this](QString instruction) {
+		u32 encodedInstruction;
+		std::string errorText;
+		bool valid = MipsAssembleOpcode(instruction.toLocal8Bit().constData(), &cpu(), m_selectedAddressStart, encodedInstruction, errorText);
+		if (!valid)
+		{
+			AsyncDialogs::warning(this, tr("Assemble Error"), QString::fromStdString(errorText));
+			return;
+		}
 
-	setInstructions(m_selectedAddressStart, m_selectedAddressEnd, encodedInstruction);
+		setInstructions(m_selectedAddressStart, m_selectedAddressEnd, encodedInstruction);
+	});
 }
 
 void DisassemblyView::contextNoopInstruction()
@@ -206,7 +208,7 @@ void DisassemblyView::contextRestoreInstruction()
 		{
 			u32 address = start + i * 4;
 			if (original_instructions[i].has_value())
-				cpu->write32(address, *original_instructions[i]);
+				cpu->Write32(address, *original_instructions[i]);
 		}
 		DebuggerView::broadcastEvent(DebuggerEvents::VMUpdate());
 	});
@@ -224,7 +226,7 @@ void DisassemblyView::contextRunToCursor()
 void DisassemblyView::contextJumpToCursor()
 {
 	cpu().setPc(m_selectedAddressStart);
-	this->repaint();
+	update();
 }
 
 void DisassemblyView::contextToggleBreakpoint()
@@ -249,34 +251,34 @@ void DisassemblyView::contextFollowBranch()
 
 void DisassemblyView::contextGoToAddress()
 {
-	bool ok;
-	const QString targetString = QInputDialog::getText(this, tr("Go To In Disassembly"), "",
-		QLineEdit::Normal, "", &ok);
+	const QString title = tr("Go To In Disassembly");
 
-	if (!ok)
-		return;
+	AsyncDialogs::getText(this, title, "", "", [this](QString expression) {
+		u64 address = 0;
+		std::string error;
+		if (!cpu().evaluateExpression(expression.toStdString().c_str(), address, error))
+		{
+			AsyncDialogs::warning(this, tr("Cannot Go To"), QString::fromStdString(error));
+			return;
+		}
 
-	u64 address = 0;
-	std::string error;
-	if (!cpu().evaluateExpression(targetString.toStdString().c_str(), address, error))
-	{
-		QMessageBox::warning(this, tr("Cannot Go To"), QString::fromStdString(error));
-		return;
-	}
-
-	gotoAddressAndSetFocus(static_cast<u32>(address) & ~3);
+		gotoAddressAndSetFocus(static_cast<u32>(address) & ~3);
+	});
 }
 
 void DisassemblyView::contextAddFunction()
 {
 	NewFunctionDialog* dialog = new NewFunctionDialog(cpu(), this);
-	dialog->setAttribute(Qt::WA_DeleteOnClose);
 	dialog->setName(QString("func_%1").arg(m_selectedAddressStart, 8, 16, QChar('0')));
 	dialog->setAddress(m_selectedAddressStart);
+	dialog->setAttribute(Qt::WA_DeleteOnClose);
+
 	if (m_selectedAddressEnd != m_selectedAddressStart)
 		dialog->setCustomSize(m_selectedAddressEnd - m_selectedAddressStart + 4);
-	if (dialog->exec() == QDialog::Accepted)
-		update();
+
+	connect(dialog, &QDialog::accepted, this, [this]() { update(); });
+
+	dialog->open();
 }
 
 void DisassemblyView::contextCopyFunctionName()
@@ -304,28 +306,26 @@ void DisassemblyView::contextRemoveFunction()
 void DisassemblyView::contextRenameFunction()
 {
 	const FunctionInfo curFunc = cpu().GetSymbolGuardian().FunctionOverlappingAddress(m_selectedAddressStart);
-
 	if (!curFunc.address.valid())
 	{
-		QMessageBox::warning(this, tr("Rename Function Error"), tr("No function / symbol is currently selected."));
+		AsyncDialogs::warning(this, tr("Rename Function Error"), tr("No function / symbol is currently selected."));
 		return;
 	}
 
-	QString oldName = QString::fromStdString(curFunc.name);
+	const QString title = tr("Rename Function");
+	const QString label = tr("Function name");
+	const QString oldName = QString::fromStdString(curFunc.name);
 
-	bool ok;
-	QString newName = QInputDialog::getText(this, tr("Rename Function"), tr("Function name"), QLineEdit::Normal, oldName, &ok);
-	if (!ok)
-		return;
+	AsyncDialogs::getText(this, title, label, oldName, [this, curFunc](QString newName) {
+		if (newName.isEmpty())
+		{
+			AsyncDialogs::warning(this, tr("Rename Function Error"), tr("Function name cannot be nothing."));
+			return;
+		}
 
-	if (newName.isEmpty())
-	{
-		QMessageBox::warning(this, tr("Rename Function Error"), tr("Function name cannot be nothing."));
-		return;
-	}
-
-	cpu().GetSymbolGuardian().ReadWrite([&](ccc::SymbolDatabase& database) {
-		database.functions.rename_symbol(curFunc.handle, newName.toStdString());
+		cpu().GetSymbolGuardian().ReadWrite([&](ccc::SymbolDatabase& database) {
+			database.functions.rename_symbol(curFunc.handle, newName.toStdString());
+		});
 	});
 }
 
@@ -336,11 +336,11 @@ void DisassemblyView::contextStubFunction()
 
 	const QPointer<DisassemblyView> view(this);
 	Host::RunOnCPUThread([view, address, cpu = &cpu()] {
-		const u32 first_instruction = cpu->read32(address);
-		const u32 second_instruction = cpu->read32(address + 4);
+		const u32 first_instruction = cpu->Read32(address);
+		const u32 second_instruction = cpu->Read32(address + 4);
 
-		cpu->write32(address, 0x03E00008); // jr ra
-		cpu->write32(address + 4, 0x00000000); // nop
+		cpu->Write32(address, 0x03E00008); // jr ra
+		cpu->Write32(address + 4, 0x00000000); // nop
 
 		QtHost::RunOnUIThread([view, address, first_instruction, second_instruction]() {
 			if (!view)
@@ -368,21 +368,21 @@ void DisassemblyView::contextRestoreFunction()
 		m_stubbedFunctions.erase(stub);
 
 		Host::RunOnCPUThread([address, cpu = &cpu(), first_instruction, second_instruction] {
-			cpu->write32(address, first_instruction);
-			cpu->write32(address + 4, second_instruction);
+			cpu->Write32(address, first_instruction);
+			cpu->Write32(address + 4, second_instruction);
 			DebuggerView::broadcastEvent(DebuggerEvents::VMUpdate());
 		});
 	}
 	else
 	{
-		QMessageBox::warning(this, tr("Restore Function Error"), tr("Unable to stub selected address."));
+		AsyncDialogs::warning(this, tr("Restore Function Error"), tr("Unable to stub selected address."));
 	}
 }
 
 void DisassemblyView::contextShowInstructionBytes()
 {
 	m_showInstructionBytes = !m_showInstructionBytes;
-	this->repaint();
+	update();
 }
 
 QString DisassemblyView::GetLineDisasm(u32 address)
@@ -391,6 +391,41 @@ QString DisassemblyView::GetLineDisasm(u32 address)
 	m_disassemblyManager.getLine(address, true, lineInfo);
 	return QString("%1 %2").arg(lineInfo.name.c_str()).arg(lineInfo.params.c_str());
 };
+
+bool DisassemblyView::supportsNavigation()
+{
+	return true;
+}
+
+bool DisassemblyView::canNavigateBack()
+{
+	return m_navigation_history.canGoBack();
+}
+
+bool DisassemblyView::canNavigateForward()
+{
+	return m_navigation_history.canGoForward();
+}
+
+void DisassemblyView::navigateBack()
+{
+	std::optional<u32> address = m_navigation_history.back();
+	if (!address.has_value())
+		return;
+
+	m_visibleStart = *address;
+	update();
+}
+
+void DisassemblyView::navigateForward()
+{
+	std::optional<u32> address = m_navigation_history.forward();
+	if (!address.has_value())
+		return;
+
+	m_visibleStart = *address;
+	update();
+}
 
 // Here we go!
 void DisassemblyView::paintEvent(QPaintEvent* event)
@@ -614,7 +649,7 @@ void DisassemblyView::mousePressEvent(QMouseEvent* event)
 				m_selectedAddressEnd = selectedAddress;
 			}
 		}
-		this->repaint();
+		update();
 	}
 }
 
@@ -633,19 +668,21 @@ void DisassemblyView::mouseDoubleClickEvent(QMouseEvent* event)
 
 void DisassemblyView::wheelEvent(QWheelEvent* event)
 {
-	if (event->angleDelta().y() < 0) // todo: max address bounds check?
-	{
+	if (event->angleDelta().y() < 0)
 		m_visibleStart += 4;
-	}
 	else if (event->angleDelta().y() && m_visibleStart > 0)
-	{
 		m_visibleStart -= 4;
-	}
-	this->repaint();
+
+	m_navigation_history.pushWithDelay(m_visibleStart);
+	update();
 }
 
 void DisassemblyView::keyPressEvent(QKeyEvent* event)
 {
+	// Alt is used for the global navigation shortcuts.
+	if (event->modifiers() & Qt::AltModifier)
+		return;
+
 	switch (event->key())
 	{
 		case Qt::Key_Up:
@@ -657,15 +694,19 @@ void DisassemblyView::keyPressEvent(QKeyEvent* event)
 			// Auto scroll
 			if (m_visibleStart > m_selectedAddressStart)
 				m_visibleStart -= 4;
+
+			m_navigation_history.pushWithDelay(m_visibleStart);
+			break;
 		}
-		break;
 		case Qt::Key_PageUp:
 		{
 			m_selectedAddressStart -= m_visibleRows * 4;
 			m_selectedAddressEnd = m_selectedAddressStart;
 			m_visibleStart -= m_visibleRows * 4;
+
+			m_navigation_history.pushWithDelay(m_visibleStart);
+			break;
 		}
-		break;
 		case Qt::Key_Down:
 		{
 			m_selectedAddressEnd += 4;
@@ -677,6 +718,7 @@ void DisassemblyView::keyPressEvent(QKeyEvent* event)
 			if (m_visibleStart + ((m_visibleRows - 1) * 4) < m_selectedAddressEnd)
 				m_visibleStart += 4;
 
+			m_navigation_history.pushWithDelay(m_visibleStart);
 			break;
 		}
 		case Qt::Key_PageDown:
@@ -684,6 +726,7 @@ void DisassemblyView::keyPressEvent(QKeyEvent* event)
 			m_selectedAddressStart += m_visibleRows * 4;
 			m_selectedAddressEnd = m_selectedAddressStart;
 			m_visibleStart += m_visibleRows * 4;
+			m_navigation_history.pushWithDelay(m_visibleStart);
 			break;
 		}
 		case Qt::Key_G:
@@ -713,7 +756,7 @@ void DisassemblyView::keyPressEvent(QKeyEvent* event)
 			break;
 	}
 
-	this->repaint();
+	update();
 }
 
 void DisassemblyView::openContextMenu(QPoint pos)
@@ -923,7 +966,7 @@ inline QString DisassemblyView::DisassemblyStringFromAddress(u32 address, QFont 
 
 	if (showOpcode)
 	{
-		const u32 opcode = cpu().read32(address);
+		const u32 opcode = cpu().Read32(address);
 		lineString = lineString.arg(QtUtils::FilledQStringFromValue(opcode, 16));
 	}
 
@@ -993,7 +1036,7 @@ QString DisassemblyView::FetchSelectionInfo(SelectionInfo selInfo)
 		}
 		else // INSTRUCTIONHEX
 		{
-			infoBlock += FilledQStringFromValue(cpu().read32(i), 16);
+			infoBlock += FilledQStringFromValue(cpu().Read32(i), 16);
 		}
 	}
 	return infoBlock;
@@ -1018,9 +1061,11 @@ void DisassemblyView::gotoAddress(u32 address, bool should_set_focus)
 	m_selectedAddressStart = destAddress;
 	m_selectedAddressEnd = destAddress;
 
-	this->repaint();
+	m_navigation_history.pushInstantly(m_visibleStart);
+
+	update();
 	if (should_set_focus)
-		this->setFocus();
+		setFocus();
 }
 
 void DisassemblyView::toggleBreakpoint(u32 address)
@@ -1038,7 +1083,7 @@ void DisassemblyView::toggleBreakpoint(u32 address)
 		QtHost::RunOnUIThread([view, cpu]() {
 			BreakpointModel::getInstance(*cpu)->refreshData();
 			if (view)
-				view->repaint();
+				view->update();
 		});
 	});
 }
@@ -1054,8 +1099,8 @@ void DisassemblyView::setInstructions(u32 start, u32 end, u32 value)
 		for (u32 i = 0; i < count; i++)
 		{
 			const u32 address = start + i * 4;
-			original_instructions.emplace_back(cpu->read32(address));
-			cpu->write32(address, value);
+			original_instructions.emplace_back(cpu->Read32(address));
+			cpu->Write32(address, value);
 		}
 
 		QtHost::RunOnUIThread([view, start, count, original_instructions = std::move(original_instructions)]() {
@@ -1093,3 +1138,5 @@ bool DisassemblyView::FunctionCanRestore(u32 address)
 
 	return m_stubbedFunctions.find(address) != m_stubbedFunctions.end();
 }
+
+#include "moc_DisassemblyView.cpp"

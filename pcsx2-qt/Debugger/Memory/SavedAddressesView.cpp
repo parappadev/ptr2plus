@@ -30,7 +30,8 @@ SavedAddressesView::SavedAddressesView(const DebuggerViewParameters& parameters)
 			DebuggerSettingsManager::loadGameSettings(m_model);
 	});
 
-	DebuggerSettingsManager::loadGameSettings(m_model);
+	if (m_model->rowCount() == 0)
+		DebuggerSettingsManager::loadGameSettings(m_model);
 
 	for (std::size_t i = 0; auto mode : SavedAddressesModel::HeaderResizeModes)
 	{
@@ -165,3 +166,5 @@ void SavedAddressesView::saveToDebuggerSettings()
 {
 	DebuggerSettingsManager::saveGameSettings(m_model);
 }
+
+#include "moc_SavedAddressesView.cpp"

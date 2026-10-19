@@ -21,16 +21,11 @@ private:
 	u32 m_skipped_duplicate_frames = 0;
 
 	// Tracking draw counters for idle frame detection.
-	int m_last_draw_n = 0;
-	int m_last_transfer_n = 0;
+	u64 m_last_draw_n = 0;
+	u64 m_last_transfer_n = 0;
 
 protected:
 	GSVector2i m_real_size{0, 0};
-	bool m_texture_shuffle = false;
-	bool m_process_texture = false;
-	bool m_copy_16bit_to_target_shuffle = false;
-	bool m_same_group_texture_shuffle = false;
-	bool m_downscale_source = false;
 
 	virtual GSTexture* GetOutput(int i, float& scale, int& y_offset) = 0;
 	virtual GSTexture* GetFeedbackOutput(float& scale) { return nullptr; }

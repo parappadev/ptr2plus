@@ -9,6 +9,7 @@
 #include "GS/Renderers/Common/GSDevice.h"
 #include "GS/Renderers/Common/GSRenderer.h"
 #include "common/AlignedMalloc.h"
+#include "common/Console.h"
 
 GSClut::GSClut(GSLocalMemory* mem)
 	: m_mem(mem)
@@ -384,7 +385,13 @@ void GSClut::Read32(const GIFRegTEX0& TEX0, const GIFRegTEXA& TEXA)
 				case PSMT4HH:
 					clut += (TEX0.CSA & 15) << 4;
 					// TODO: merge these functions
-					ReadCLUT_T32_I4(clut, m_buff32);
+
+					// This is for a situation with Breath of Fire Dragon Quarter where it reinterprets the buffer under CSM2 after reading as CSM1.
+					if (TEX0.CSM == 1 && m_write.TEX0.CSM == 0)
+						ReadCLUT_T32_I4_Swizzled(clut, m_buff32);
+					else
+						ReadCLUT_T32_I4(clut, m_buff32);
+
 					ExpandCLUT64_T32_I8(m_buff32, (u64*)m_buff64); // sw renderer does not need m_buff64 anymore
 					break;
 			}
@@ -409,7 +416,6 @@ void GSClut::Read32(const GIFRegTEX0& TEX0, const GIFRegTEXA& TEXA)
 			}
 		}
 
-		m_current_gpu_clut = nullptr;
 		if (GSConfig.UserHacks_GPUTargetCLUTMode != GSGPUTargetCLUTMode::Disabled)
 		{
 			const bool is_4bit = (TEX0.PSM == PSMT4 || TEX0.PSM == PSMT4HL || TEX0.PSM == PSMT4HH);
@@ -440,21 +446,36 @@ void GSClut::Read32(const GIFRegTEX0& TEX0, const GIFRegTEXA& TEXA)
 				GSTexture* dst = is_4bit ? m_gpu_clut4 : m_gpu_clut8;
 				const u32 dst_size = is_4bit ? 16 : 256;
 				const u32 dOffset = (TEX0.CSA & ((TEX0.CPSM == PSMCT16 || TEX0.CPSM == PSMCT16S) ? 15u : 31u)) << 4;
+
+				if (src != m_current_gpu_clut && (src != m_last_gpu_clut || m_gpu_clut_last_offset != offset))
+					m_gpu_clut_dirty = true;
+
 				if (!dst)
 				{
 					// allocate texture lazily
-					dst = g_gs_device->CreateRenderTarget(dst_size, 1, GSTexture::Format::Color, false);
+					dst = g_gs_device->CreateFeedbackTarget(dst_size, 1, GSTexture::Format::Color, false);
 					is_4bit ? (m_gpu_clut4 = dst) : (m_gpu_clut8 = dst);
+					m_gpu_clut_dirty = true;
 				}
 				if (dst)
 				{
 					GL_PUSH("Update GPU CLUT [CBP=%04X, CPSM=%s, CBW=%u, CSA=%u, Offset=(%d,%d)]",
 						TEX0.CBP, GSUtil::GetPSMName(TEX0.CPSM), CBW, TEX0.CSA, offset.x, offset.y);
-					g_gs_device->UpdateCLUTTexture(src, scale, offset.x, offset.y, dst, dOffset, dst_size);
+
+					if (m_gpu_clut_dirty)
+					{
+						m_last_gpu_clut = src;
+						g_gs_device->UpdateCLUTTexture(src, scale, offset.x, offset.y, dst, dOffset, dst_size);
+					}
+
+					m_gpu_clut_dirty = false;
 					m_current_gpu_clut = dst;
+					m_gpu_clut_last_offset = offset;
 				}
+				return;
 			}
 		}
+		m_current_gpu_clut = nullptr;
 	}
 }
 
@@ -615,6 +636,27 @@ __forceinline void GSClut::WriteCLUT_T16_I4_CSM1(const u16* RESTRICT src, u16* R
 	{
 		clut[i] = src[clutTableT16I4[i]];
 	}
+}
+
+// These functions are only used if the CLUT is in 32bit mode and it swaps to CSM2, a very obscure setup used by Breath of Fire Dragon Quarter.
+// This doesn't handle offsetting the CLUT or anything crazy, that would be a lot more work
+void GSClut::ReadCLUT_T32_I4_Swizzled(const u16* RESTRICT clut, u32* RESTRICT dst)
+{
+	// Point to the base of the palette block
+	GSVector4i* s = (GSVector4i*)clut;
+	GSVector4i* d = (GSVector4i*)dst;
+
+	GSVector4i v0 = s[0];
+	GSVector4i v1 = s[2];
+	GSVector4i v2 = s[32];
+	GSVector4i v3 = s[34];
+
+	GSVector4i::sw16(v0, v2, v1, v3);
+
+	d[0] = v0;
+	d[1] = v1;
+	d[2] = v2;
+	d[3] = v3;
 }
 
 void GSClut::ReadCLUT_T32_I8(const u16* RESTRICT clut, u32* RESTRICT dst, int offset)

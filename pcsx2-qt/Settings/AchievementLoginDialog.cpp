@@ -52,12 +52,14 @@ void AchievementLoginDialog::loginClicked()
 		const bool result = Achievements::Login(username.c_str(), password.c_str(), &error);
 		const QString message = QString::fromStdString(error.GetDescription());
 
-		QtHost::RunOnUIThread([dialog, result, message = std::move(message)]() {
-			if (!dialog)
-				return;
+		QMetaObject::invokeMethod(
+			qApp, [dialog, result, message = std::move(message)]() {
+				if (!dialog)
+					return;
 
-			dialog->processLoginResult(result, message);
-		});
+				dialog->processLoginResult(result, message);
+			},
+			Qt::QueuedConnection);
 	});
 }
 
@@ -133,19 +135,19 @@ void AchievementLoginDialog::processLoginResult(bool result, const QString& mess
 	QMessageBox::information(
 		this, tr("Login Successful"),
 		tr("Successfully logged in to RetroAchievements as %1.").arg(QString::fromStdString(username)));
-	
+
 	m_ui.status->setText(tr("Successfully logged in as %1.").arg(QString::fromStdString(username)));
 	m_ui.status->setStyleSheet("color: green; font-weight: bold;");
-	
+
 	disconnect(m_ui.buttonBox, &QDialogButtonBox::accepted, this, &AchievementLoginDialog::loginClicked);
-	
+
 	m_login->setVisible(false);
 	QPushButton* dismissButton = m_ui.buttonBox->addButton(tr("&Dismiss"), QDialogButtonBox::AcceptRole);
 	dismissButton->setDefault(true);
 	dismissButton->setFocus();
-	
+
 	connect(dismissButton, &QPushButton::clicked, this, [this]() { done(0); });
-	
+
 	enableUI(false);
 }
 
@@ -171,3 +173,5 @@ bool AchievementLoginDialog::canEnableLoginButton() const
 {
 	return !m_ui.userName->text().isEmpty() && !m_ui.password->text().isEmpty();
 }
+
+#include "moc_AchievementLoginDialog.cpp"

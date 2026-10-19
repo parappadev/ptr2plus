@@ -3,6 +3,7 @@
 
 #include "DockManager.h"
 
+#include "AsyncDialogs.h"
 #include "Debugger/DebuggerView.h"
 #include "Debugger/DebuggerWindow.h"
 #include "Debugger/Docking/DockTables.h"
@@ -24,7 +25,6 @@
 
 #include <QtCore/QTimer>
 #include <QtCore/QtTranslation>
-#include <QtWidgets/QMessageBox>
 #include <QtWidgets/QProxyStyle>
 #include <QtWidgets/QStyleFactory>
 
@@ -339,15 +339,28 @@ void DockManager::createToolsMenu(QMenu* menu)
 	if (m_current_layout == DockLayout::INVALID_INDEX || !g_debugger_window)
 		return;
 
-	for (QToolBar* widget : g_debugger_window->findChildren<QToolBar*>())
+	std::vector<QToolBar*> toolbars;
+	for (QToolBar* toolbar : g_debugger_window->findChildren<QToolBar*>())
+		toolbars.emplace_back(toolbar);
+
+	std::sort(toolbars.begin(), toolbars.end(), [](QToolBar* lhs, QToolBar* rhs) {
+		return QtHost::LocaleSensitiveCompare(lhs->windowTitle(), rhs->windowTitle()) < 0;
+	});
+
+	for (QToolBar* toolbar : toolbars)
 	{
-		QAction* action = menu->addAction(widget->windowTitle());
-		action->setText(widget->windowTitle());
+		QAction* action = menu->addAction(toolbar->windowTitle());
+		action->setText(toolbar->windowTitle());
 		action->setCheckable(true);
-		action->setChecked(widget->isVisible());
-		connect(action, &QAction::triggered, this, [widget]() {
-			widget->setVisible(!widget->isVisible());
+		action->setChecked(toolbar->isVisible());
+
+		connect(action, &QAction::triggered, this, [toolbar = QPointer<QToolBar>(toolbar)]() {
+			if (!toolbar)
+				return;
+
+			toolbar->setVisible(!toolbar->isVisible());
 		});
+
 		menu->addAction(action);
 	}
 }
@@ -383,7 +396,7 @@ void DockManager::createWindowsMenu(QMenu* menu)
 			if (lhs->displayNameWithoutSuffix() == rhs->displayNameWithoutSuffix())
 				return lhs->displayNameSuffixNumber() < rhs->displayNameSuffixNumber();
 
-			return lhs->displayNameWithoutSuffix() < rhs->displayNameWithoutSuffix();
+			return QtHost::LocaleSensitiveCompare(lhs->displayNameWithoutSuffix(), rhs->displayNameWithoutSuffix()) < 0;
 		});
 
 	for (DebuggerView* widget : add_another_widgets)
@@ -472,7 +485,7 @@ void DockManager::createWindowsMenu(QMenu* menu)
 			if (lhs.display_name == rhs.display_name)
 				return lhs.suffix_number < rhs.suffix_number;
 
-			return lhs.display_name < rhs.display_name;
+			return QtHost::LocaleSensitiveCompare(lhs.display_name, rhs.display_name) < 0;
 		});
 
 	for (const DebuggerViewToggle& toggle : toggles)
@@ -518,17 +531,19 @@ void DockManager::newLayoutClicked()
 	if (m_menu_bar)
 		m_menu_bar->onCurrentLayoutChanged(m_current_layout);
 
-	auto name_validator = [this](const QString& name) {
+	const auto name_validator = [this](const QString& name) {
 		return !hasNameConflict(name, DockLayout::INVALID_INDEX);
 	};
 
-	bool can_clone_current_layout = m_current_layout != DockLayout::INVALID_INDEX;
+	const bool can_clone_current_layout = m_current_layout != DockLayout::INVALID_INDEX;
 
-	QPointer<LayoutEditorDialog> dialog = new LayoutEditorDialog(
-		name_validator, can_clone_current_layout, g_debugger_window);
+	LayoutEditorDialog* dialog = new LayoutEditorDialog(name_validator, can_clone_current_layout, g_debugger_window);
+	dialog->setAttribute(Qt::WA_DeleteOnClose);
 
-	if (dialog->exec() == QDialog::Accepted && name_validator(dialog->name()))
-	{
+	connect(dialog, &QDialog::accepted, this, [this, dialog, name_validator]() {
+		if (!name_validator(dialog->name()))
+			return;
+
 		DockLayout::Index new_layout = DockLayout::INVALID_INDEX;
 
 		const auto [mode, index] = dialog->initialState();
@@ -565,9 +580,9 @@ void DockManager::newLayoutClicked()
 			updateLayoutSwitcher();
 			switchToLayout(new_layout);
 		}
-	}
+	});
 
-	delete dialog.get();
+	dialog->open();
 }
 
 void DockManager::openLayoutSwitcherContextMenu(const QPoint& pos, QTabBar* layout_switcher)
@@ -605,26 +620,33 @@ void DockManager::editLayoutClicked(DockLayout::Index layout_index)
 	if (layout_index >= m_layouts.size())
 		return;
 
-	DockLayout& layout = m_layouts[layout_index];
+	const DockLayout& layout = m_layouts[layout_index];
 
-	auto name_validator = [this, layout_index](const QString& name) {
+	const auto name_validator = [this, layout_index](const QString& name) {
 		return !hasNameConflict(name, layout_index);
 	};
 
-	QPointer<LayoutEditorDialog> dialog = new LayoutEditorDialog(
-		layout.name(), layout.cpu(), name_validator, g_debugger_window);
+	LayoutEditorDialog* dialog = new LayoutEditorDialog(layout.name(), layout.cpu(), name_validator, g_debugger_window);
+	dialog->setAttribute(Qt::WA_DeleteOnClose);
 
-	if (dialog->exec() != QDialog::Accepted || !name_validator(dialog->name()))
-		return;
+	connect(dialog, &QDialog::accepted, this, [this, layout_index, dialog, name_validator]() {
+		if (layout_index >= m_layouts.size())
+			return;
 
-	layout.setName(dialog->name());
-	layout.setCpu(dialog->cpu());
+		DockLayout& layout = m_layouts[layout_index];
 
-	layout.save(layout_index);
+		if (!name_validator(dialog->name()))
+			return;
 
-	delete dialog.get();
+		layout.setName(dialog->name());
+		layout.setCpu(dialog->cpu());
 
-	updateLayoutSwitcher();
+		layout.save(layout_index);
+
+		updateLayoutSwitcher();
+	});
+
+	dialog->open();
 }
 
 void DockManager::resetLayoutClicked(DockLayout::Index layout_index)
@@ -636,20 +658,28 @@ void DockManager::resetLayoutClicked(DockLayout::Index layout_index)
 	if (!layout.canReset())
 		return;
 
-	QString text = tr("Are you sure you want to reset layout '%1'?").arg(layout.name());
-	if (QMessageBox::question(g_debugger_window, tr("Confirmation"), text) != QMessageBox::Yes)
-		return;
+	const QString title = tr("Confirmation");
+	const QString text = tr("Are you sure you want to reset layout '%1'?").arg(layout.name());
 
-	bool current_layout = layout_index == m_current_layout;
+	AsyncDialogs::question(g_debugger_window, title, text, [this, layout_index]() {
+		if (layout_index >= m_layouts.size())
+			return;
 
-	if (current_layout)
-		switchToLayout(DockLayout::INVALID_INDEX);
+		DockLayout& layout = m_layouts[layout_index];
+		if (!layout.canReset())
+			return;
 
-	layout.reset();
-	layout.save(layout_index);
+		bool current_layout = layout_index == m_current_layout;
 
-	if (current_layout)
-		switchToLayout(layout_index);
+		if (current_layout)
+			switchToLayout(DockLayout::INVALID_INDEX);
+
+		layout.reset();
+		layout.save(layout_index);
+
+		if (current_layout)
+			switchToLayout(layout_index);
+	});
 }
 
 void DockManager::deleteLayoutClicked(DockLayout::Index layout_index)
@@ -659,12 +689,16 @@ void DockManager::deleteLayoutClicked(DockLayout::Index layout_index)
 
 	DockLayout& layout = m_layouts[layout_index];
 
-	QString text = tr("Are you sure you want to delete layout '%1'?").arg(layout.name());
-	if (QMessageBox::question(g_debugger_window, tr("Confirmation"), text) != QMessageBox::Yes)
-		return;
+	const QString title = tr("Confirmation");
+	const QString text = tr("Are you sure you want to delete layout '%1'?").arg(layout.name());
 
-	deleteLayout(layout_index);
-	updateLayoutSwitcher();
+	AsyncDialogs::question(g_debugger_window, title, text, [this, layout_index]() {
+		if (layout_index >= m_layouts.size())
+			return;
+
+		deleteLayout(layout_index);
+		updateLayoutSwitcher();
+	});
 }
 
 void DockManager::layoutSwitcherTabMoved(DockLayout::Index from_index, DockLayout::Index to_index)
@@ -841,6 +875,24 @@ std::optional<BreakPointCpu> DockManager::cpu()
 	return m_layouts.at(m_current_layout).cpu();
 }
 
+DebuggerView* DockManager::focusedViewForNavigation()
+{
+	if (!m_focused_view_for_navigation)
+		return nullptr;
+
+	return m_focused_view_for_navigation;
+}
+
+void DockManager::onFocusedDockWidgetChanged(KDDockWidgets::QtWidgets::DockWidget* widget)
+{
+	DebuggerView* view = qobject_cast<DebuggerView*>(widget->widget());
+	if (view && view->supportsNavigation() && view != m_focused_view_for_navigation)
+	{
+		m_focused_view_for_navigation = view;
+		emit focusedViewForNavigationChanged();
+	}
+}
+
 KDDockWidgets::Core::DockWidget* DockManager::dockWidgetFactory(const QString& name)
 {
 	if (!g_debugger_window)
@@ -873,3 +925,5 @@ bool DockManager::dragAboutToStart(KDDockWidgets::Core::Draggable* draggable)
 
 	return !locked;
 }
+
+#include "moc_DockManager.cpp"

@@ -3,6 +3,7 @@
 
 #include "DebuggerWindow.h"
 
+#include "AsyncDialogs.h"
 #include "Debugger/DebuggerView.h"
 #include "Debugger/Docking/DockManager.h"
 
@@ -14,8 +15,6 @@
 #include "QtHost.h"
 #include "MainWindow.h"
 #include "AnalysisOptionsDialog.h"
-
-#include <QtWidgets/QMessageBox>
 
 DebuggerWindow* g_debugger_window = nullptr;
 
@@ -70,19 +69,21 @@ DebuggerWindow::DebuggerWindow(QWidget* parent)
 	});
 
 	connect(m_ui.actionResetAllLayouts, &QAction::triggered, this, [this]() {
-		QString text = tr("Are you sure you want to reset all layouts?");
-		if (QMessageBox::question(g_debugger_window, tr("Confirmation"), text) != QMessageBox::Yes)
-			return;
+		const QString title = tr("Confirmation");
+		const QString text = tr("Are you sure you want to reset all layouts?");
 
-		m_dock_manager->resetAllLayouts();
+		AsyncDialogs::question(this, title, text, [this]() {
+			m_dock_manager->resetAllLayouts();
+		});
 	});
 
 	connect(m_ui.actionResetDefaultLayouts, &QAction::triggered, this, [this]() {
-		QString text = tr("Are you sure you want to reset the default layouts?");
-		if (QMessageBox::question(g_debugger_window, tr("Confirmation"), text) != QMessageBox::Yes)
-			return;
+		const QString title = tr("Confirmation");
+		const QString text = tr("Are you sure you want to reset the default layouts?");
 
-		m_dock_manager->resetDefaultLayouts();
+		AsyncDialogs::question(this, title, text, [this]() {
+			m_dock_manager->resetDefaultLayouts();
+		});
 	});
 
 	connect(g_emu_thread, &EmuThread::onVMPaused, this, []() {
@@ -113,6 +114,28 @@ DebuggerWindow::DebuggerWindow(QWidget* parent)
 	QMenuBar* menu_bar = menuBar();
 
 	setMenuWidget(m_dock_manager->createMenuBar(menu_bar));
+
+	connect(m_dock_manager, &DockManager::focusedViewForNavigationChanged,
+		this, &DebuggerWindow::updateNavigationButtons);
+
+	m_ui.actionNavigateBack->setEnabled(false);
+	m_ui.actionNavigateForward->setEnabled(false);
+
+	connect(m_ui.actionNavigateBack, &QAction::triggered, this, [this]() {
+		DebuggerView* view = m_dock_manager->focusedViewForNavigation();
+		if (!view)
+			return;
+
+		view->navigateBack();
+	});
+
+	connect(m_ui.actionNavigateForward, &QAction::triggered, this, [this]() {
+		DebuggerView* view = m_dock_manager->focusedViewForNavigation();
+		if (!view)
+			return;
+
+		view->navigateForward();
+	});
 
 	updateTheme();
 
@@ -306,6 +329,21 @@ void DebuggerWindow::updateFromSettings()
 	}
 }
 
+void DebuggerWindow::updateNavigationButtons()
+{
+	DebuggerView* view = m_dock_manager->focusedViewForNavigation();
+	if (view)
+	{
+		m_ui.actionNavigateBack->setEnabled(view->canNavigateBack());
+		m_ui.actionNavigateForward->setEnabled(view->canNavigateForward());
+	}
+	else
+	{
+		m_ui.actionNavigateBack->setEnabled(false);
+		m_ui.actionNavigateForward->setEnabled(false);
+	}
+}
+
 void DebuggerWindow::onVMStarting()
 {
 	m_ui.actionRun->setEnabled(true);
@@ -449,7 +487,7 @@ void DebuggerWindow::onStepInto()
 		cpu->resumeCpu();
 	});
 
-	repaint();
+	update();
 }
 
 void DebuggerWindow::onStepOver()
@@ -499,7 +537,7 @@ void DebuggerWindow::onStepOver()
 		cpu->resumeCpu();
 	});
 
-	this->repaint();
+	update();
 }
 
 void DebuggerWindow::onStepOut()
@@ -524,8 +562,7 @@ void DebuggerWindow::onStepOut()
 				cpu->getPC(),
 				cpu->getRegister(0, 31),
 				cpu->getRegister(0, 29),
-				thread->EntryPoint(),
-				thread->StackTop());
+				thread->EntryPoint());
 			break;
 		}
 	}
@@ -540,7 +577,7 @@ void DebuggerWindow::onStepOut()
 		cpu->resumeCpu();
 	});
 
-	this->repaint();
+	update();
 }
 
 void DebuggerWindow::changeEvent(QEvent* event)
@@ -572,3 +609,5 @@ DebugInterface* DebuggerWindow::currentCPU()
 
 	return &DebugInterface::get(*maybe_cpu);
 }
+
+#include "moc_DebuggerWindow.cpp"

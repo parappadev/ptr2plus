@@ -9,6 +9,8 @@
 #include "common/Timer.h"
 #include "Input/InputManager.h"
 
+#include <thread>
+
 #define TR_CONTEXT "FullscreenUI"
 
 template <size_t L>
@@ -77,6 +79,9 @@ using ImGuiFullscreen::GetCachedSvgTexture;
 using ImGuiFullscreen::GetCachedSvgTextureAsync;
 using ImGuiFullscreen::GetCachedTexture;
 using ImGuiFullscreen::GetCachedTextureAsync;
+using ImGuiFullscreen::GamepadGlyphs;
+using ImGuiFullscreen::GetGamepadGlyphs;
+using ImGuiFullscreen::GetLineHeight;
 using ImGuiFullscreen::GetPlaceholderTexture;
 using ImGuiFullscreen::GetQueuedFocusResetType;
 using ImGuiFullscreen::HorizontalMenuItem;
@@ -183,6 +188,7 @@ namespace FullscreenUI
 		BIOS,
 		Emulation,
 		Graphics,
+		OSD,
 		Audio,
 		MemoryCard,
 		NetworkHDD,
@@ -231,6 +237,10 @@ namespace FullscreenUI
 	void CopyTextToClipboard(std::string title, const std::string_view text);
 	void DrawAboutWindow();
 	void OpenAboutWindow();
+	void DrawCoverDownloaderWindow();
+	void OpenCoverDownloaderWindow();
+	void CloseCoverDownloaderWindow();
+	void CoverDownloaderThreadFunc(const std::vector<std::string>& urls);
 	void GetStandardSelectionFooterText(SmallStringBase& dest, bool back_instead_of_cancel);
 	void ApplyLayoutSettings(const SettingsInterface* bsi = nullptr);
 
@@ -278,9 +288,22 @@ namespace FullscreenUI
 	// achievements login dialog state
 	inline bool s_achievements_login_open = false;
 	inline bool s_achievements_login_logging_in = false;
+	inline bool s_achievements_login_show_dismiss = false;
 	inline char s_achievements_login_username[256] = {};
 	inline char s_achievements_login_password[256] = {};
 	inline Achievements::LoginRequestReason s_achievements_login_reason = Achievements::LoginRequestReason::UserInitiated;
+
+	// cover downloader dialog state
+	inline bool s_cover_downloader_open = false;
+	inline std::array<char, 4096> s_cover_downloader_urls_buffer = {};
+	inline bool s_cover_downloader_use_title_filenames = false;
+	inline bool s_cover_downloader_downloading = false;
+	inline std::unique_ptr<std::thread> s_cover_downloader_thread;
+	inline std::mutex s_cover_downloader_mutex;
+	inline std::string s_cover_downloader_status;
+	inline bool s_cover_downloader_has_error = false;
+	inline s32 s_cover_downloader_progress_max = 0;
+	inline s32 s_cover_downloader_progress_value = 0;
 
 	// local copies of the currently-running game
 	inline std::string s_current_game_title;
@@ -394,10 +417,17 @@ namespace FullscreenUI
 	void DrawFallbackCover(const ImVec2& size);
 	void DrawFallbackCover(ImDrawList* draw_list, const ImVec2& min, const ImVec2& max);
 
+	// Trim a string to fit in the given space
+	std::string_view TrimString(const std::pair<ImFont*, float>& font, std::string_view str, float available_space);
+	static constexpr const char* g_ellipsis = "\xe2\x80\xa6";
+
 	// Lazily populated cover images.
 	inline std::unordered_map<std::string, std::string> s_cover_image_map;
 	inline std::vector<const GameList::Entry*> s_game_list_sorted_entries;
 	inline GameListView s_game_list_view = GameListView::Grid;
+
+	// Cached list of unsorted game list entries; used to detect changes and re-sort when needed
+	inline std::vector<const GameList::Entry*> s_last_unsorted_entries;
 
 	//////////////////////////////////////////////////////////////////////////
 	// Background
@@ -446,11 +476,12 @@ namespace FullscreenUI
 	void DrawBIOSSettingsPage();
 	void DrawEmulationSettingsPage();
 	void DrawGraphicsSettingsPage(SettingsInterface* bsi, bool show_advanced_settings);
+	void DrawOSDSettingsPage();
 	void DrawAudioSettingsPage();
 	void DrawMemoryCardSettingsPage();
 	void DrawNetworkHDDSettingsPage();
 	void DrawFoldersSettingsPage();
-	void DrawAchievementsSettingsPage(std::unique_lock<std::mutex>& settings_lock);
+	void DrawAchievementsSettingsPage();
 	void DrawControllerSettingsPage();
 	void DrawHotkeySettingsPage();
 	void DrawAdvancedSettingsPage();
@@ -578,5 +609,6 @@ namespace FullscreenUI
 	inline std::vector<InputBindingKey> s_input_binding_new_bindings;
 	inline std::vector<std::pair<InputBindingKey, std::pair<float, float>>> s_input_binding_value_ranges;
 	inline Common::Timer s_input_binding_timer;
+	inline bool s_prefer_english_titles;
 
 } // namespace FullscreenUI

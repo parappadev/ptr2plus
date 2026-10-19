@@ -65,6 +65,7 @@
 #include <atomic>
 #include <mutex>
 #include <sstream>
+#include <common/RedtapeWilCom.h>
 
 #ifdef _WIN32
 #include "common/RedtapeWindows.h"
@@ -132,6 +133,8 @@ namespace VMManager
 	static void LoadCoreSettings(SettingsInterface& si);
 	static void ApplyCoreSettings();
 	static void LoadInputBindings(SettingsInterface& si, std::unique_lock<std::mutex>& lock);
+	static bool HasAnyBindingsForPad(const SettingsInterface& si, u32 port);
+	static void WarnAboutUnconfiguredController();
 	static void UpdateInhibitScreensaver(bool allow);
 	static void AccumulateSessionPlaytime();
 	static void ResetResumeTimestamp();
@@ -202,6 +205,9 @@ static bool s_screensaver_inhibited = false;
 
 static bool s_discord_presence_active = false;
 static time_t s_discord_presence_time_epoch;
+static const char* s_discord_presence_app_id = "1458595419499139094";
+static const char* s_discord_presence_large_image_key = "4k-pcsx2";
+static const char* s_discord_presence_large_image_text = "PCSX2 PS2 Emulator";
 
 // Making GSDumpReplayer.h dependent on R5900.h is a no-no, since the GS uses it.
 extern R5900cpu GSDumpReplayerCpu;
@@ -210,7 +216,7 @@ bool VMManager::PerformEarlyHardwareChecks(const char** error)
 {
 #define COMMON_DOWNLOAD_MESSAGE "PCSX2 builds can be downloaded from https://pcsx2.net/downloads/"
 
-#if defined(_M_X86)
+#if defined(ARCH_X86)
 	// On Windows, this gets called as a global object constructor, before any of our objects are constructed.
 	// So, we have to put it on the stack instead.
 	cpuinfo_initialize();
@@ -234,7 +240,7 @@ bool VMManager::PerformEarlyHardwareChecks(const char** error)
 		return false;
 	}
 #endif
-#elif defined(_M_ARM64)
+#elif defined(ARCH_ARM64)
 	// Check page size. If it doesn't match, it is a fatal error.
 	const size_t runtime_host_page_size = HostSys::GetRuntimePageSize();
 	if (__pagesize != runtime_host_page_size)
@@ -299,6 +305,7 @@ void VMManager::SetState(VMState state)
 		}
 		else
 		{
+			FullscreenUI::OnVMResumed();
 			Host::OnVMResumed();
 			ResetResumeTimestamp();
 		}
@@ -344,7 +351,7 @@ std::string VMManager::GetTitle(bool prefer_en)
 {
 	std::unique_lock lock(s_info_mutex);
 	std::string out = s_title;
-	if (!s_title_en_search.empty())
+	if (prefer_en && !s_title_en_search.empty())
 	{
 		size_t pos = out.find(s_title_en_search);
 		if (pos != out.npos)
@@ -688,6 +695,36 @@ void VMManager::LoadInputBindings(SettingsInterface& si, std::unique_lock<std::m
 	{
 		InputManager::ReloadBindings(si, si, si, false, false);
 	}
+}
+
+bool VMManager::HasAnyBindingsForPad(const SettingsInterface& si, u32 port)
+{
+	if (port >= Pad::NUM_CONTROLLER_PORTS)
+		return false;
+
+	const std::string section = Pad::GetConfigSection(port);
+	const Pad::ControllerInfo* info = Pad::GetConfigControllerType(si, section.c_str(), port);
+	if (!info || info->type == Pad::ControllerType::NotConnected)
+		return false;
+
+	for (const InputBindingInfo& binding : info->bindings)
+	{
+		if (!si.GetStringList(section.c_str(), binding.name).empty())
+			return true;
+	}
+
+	return false;
+}
+
+void VMManager::WarnAboutUnconfiguredController()
+{
+	std::unique_lock<std::mutex> lock = Host::GetSettingsLock();
+	SettingsInterface* si = Host::GetSettingsInterface();
+	if (!si || HasAnyBindingsForPad(*si, 0))
+		return;
+
+	Host::AddIconOSDMessage("ControllerNotConfigured", ICON_FA_GAMEPAD,
+		TRANSLATE_STR("VMManager", "Controller 1 has no input bindings configured."), Host::OSD_WARNING_DURATION);
 }
 
 void VMManager::ApplyGameFixes()
@@ -1208,8 +1245,10 @@ void VMManager::ReportGameChangeToHost()
 {
 	const std::string& disc_path = CDVDsys_GetFile(CDVDsys_GetSourceType());
 	const u32 crc_to_report = HasBootedELF() ? s_current_crc : 0;
-	FullscreenUI::GameChanged(disc_path, s_disc_serial, GetTitle(true), s_disc_crc, crc_to_report);
-	Host::OnGameChanged(s_title, s_elf_override, disc_path, s_disc_serial, s_disc_crc, crc_to_report);
+	const bool prefer_english = Host::GetBaseBoolSettingValue("UI", "PreferEnglishGameList", false);
+	const std::string game_title = GetTitle(prefer_english);
+	FullscreenUI::GameChanged(disc_path, s_disc_serial, game_title, s_disc_crc, crc_to_report);
+	Host::OnGameChanged(game_title, s_elf_override, disc_path, s_disc_serial, s_disc_crc, crc_to_report);
 }
 
 bool VMManager::HasBootedELF()
@@ -1487,7 +1526,13 @@ VMBootResult VMManager::Initialize(const VMBootParameters& boot_params, Error* e
 	if (Achievements::IsHardcoreModeActive() && (!state_to_load.empty() || DebugInterface::getPauseOnEntry()))
 		return VMBootResult::PromptDisableHardcoreMode;
 
-	s_limiter_mode = LimiterModeType::Nominal;
+	if (boot_params.start_unlimited.value_or(false))
+		s_limiter_mode = LimiterModeType::Unlimited;
+	else if (boot_params.start_turbo.value_or(false))
+		s_limiter_mode = LimiterModeType::Turbo;
+	else
+		s_limiter_mode = LimiterModeType::Nominal;
+
 	s_target_speed = GetTargetSpeedForLimiterMode(s_limiter_mode);
 	s_use_vsync_for_timing = false;
 
@@ -1530,6 +1575,7 @@ VMBootResult VMManager::Initialize(const VMBootParameters& boot_params, Error* e
 		Error::SetString(error, TRANSLATE_STR("VMManager", "Failed to initialize PAD."));
 		return VMBootResult::StartupFailure;
 	}
+	WarnAboutUnconfiguredController();
 	ScopedGuard close_pad = &Pad::Shutdown;
 
 	Console.WriteLn("Initializing SIO2...");
@@ -1716,6 +1762,22 @@ void VMManager::Shutdown(bool save_resume_state)
 
 	// clear out any potentially-incorrect settings from the last game
 	LoadSettings();
+}
+
+bool VMManager::RequestReset()
+{
+	if (MemcardBusy::IsBusy())
+	{
+		Host::AddIconOSDMessage("RequestReset", ICON_FA_TRIANGLE_EXCLAMATION,
+			TRANSLATE_STR("VMManager",
+				"The memory card is busy, so the reset operation has been cancelled to prevent data loss."),
+			Host::OSD_WARNING_DURATION);
+		return false;
+	}
+
+	VMManager::Reset();
+
+	return true;
 }
 
 void VMManager::Reset()
@@ -2455,13 +2517,13 @@ void LogGPUCapabilities()
 {
 	Console.WriteLn(Color_StrongBlack, "Graphics Adapters Detected:");
 #if defined(_WIN32)
-	IDXGIFactory1* pFactory = nullptr;
-	if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory1), (void**)&pFactory)))
+	wil::com_ptr_nothrow<IDXGIFactory1> pFactory;
+	if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(pFactory.put()))))
 		return;
 
 	UINT i = 0;
-	IDXGIAdapter* pAdapter = nullptr;
-	while (pFactory->EnumAdapters(i, &pAdapter) != DXGI_ERROR_NOT_FOUND)
+	wil::com_ptr_nothrow<IDXGIAdapter> pAdapter;
+	while (pFactory->EnumAdapters(i, pAdapter.put()) != DXGI_ERROR_NOT_FOUND)
 	{
 		DXGI_ADAPTER_DESC desc;
 		LARGE_INTEGER umdver;
@@ -2477,21 +2539,12 @@ void LogGPUCapabilities()
 				umdver.QuadPart & 0xFFFF);
 
 			i++;
-			pAdapter->Release();
-			pAdapter = nullptr;
 		}
 		else
 		{
-			pAdapter->Release();
-			pAdapter = nullptr;
-
 			break;
 		}
 	}
-
-	if (pAdapter)
-		pAdapter->Release();
-	pFactory->Release();
 #else
 	// Credits to neofetch for the following (modified) script
 	std::string gpu_script = R"gpu_script(
@@ -2591,7 +2644,7 @@ void VMManager::LogCPUCapabilities()
 	LogUserPowerPlan();
 #endif
 
-#ifdef _M_X86
+#ifdef ARCH_X86
 	std::string extensions;
 	if (g_cpu.vectorISA >= ProcessorFeatures::VectorISA::AVX)
 		extensions += "AVX ";
@@ -2599,7 +2652,7 @@ void VMManager::LogCPUCapabilities()
 		extensions += "AVX2 ";
 	if (g_cpu.vectorISA >= ProcessorFeatures::VectorISA::AVX512F)
 		extensions += "AVX512F ";
-#ifdef _M_ARM64
+#ifdef ARCH_ARM64
 	if (cpuinfo_has_arm_neon())
 		extensions += "NEON ";
 #endif
@@ -2611,7 +2664,7 @@ void VMManager::LogCPUCapabilities()
 	Console.WriteLn();
 #endif
 
-#ifdef _M_ARM64
+#ifdef ARCH_ARM64
 	const size_t runtime_cache_line_size = HostSys::GetRuntimeCacheLineSize();
 	if (__cachelinesize != runtime_cache_line_size)
 	{
@@ -3215,7 +3268,7 @@ void VMManager::WarnAboutUnsafeSettings()
 			append(ICON_FA_PAINTBRUSH,
 				TRANSLATE_SV("VMManager", "Blending Accuracy is below Basic, this may break effects in some games."));
 		}
-		if (EmuConfig.GS.HWDownloadMode != GSHardwareDownloadMode::Enabled)
+		if (EmuConfig.GS.HWDownloadMode > GSHardwareDownloadMode::EnabledForceFull)
 		{
 			append(ICON_FA_DOWNLOAD,
 				TRANSLATE_SV("VMManager", "Hardware Download Mode is not set to Accurate, this may break rendering in some games."));
@@ -3235,6 +3288,11 @@ void VMManager::WarnAboutUnsafeSettings()
 			append(ICON_FA_CIRCLE_EXCLAMATION,
 				TRANSLATE_SV("VMManager", "Estimate texture region is enabled, this may reduce performance."));
 		}
+		if (EmuConfig.GS.UserHacks_DrawBuffering)
+		{
+			append(ICON_FA_CIRCLE_EXCLAMATION,
+				TRANSLATE_SV("VMManager", "Draw Buffering is enabled, this may result in graphical errors."));
+		}
 		if (EmuConfig.GS.DumpReplaceableTextures)
 		{
 			append(ICON_FA_CIRCLE_EXCLAMATION,
@@ -3244,6 +3302,21 @@ void VMManager::WarnAboutUnsafeSettings()
 		{
 			append(ICON_FA_IMAGES,
 				TRANSLATE_SV("VMManager", "Mipmapping is disabled. This may break rendering in some games."));
+		}
+		if (EmuConfig.GS.HWAccurateAlphaTest)
+		{
+			append(ICON_FA_IMAGES,
+				TRANSLATE_SV("VMManager", "Accurate Alpha Test is enabled, this may reduce performance."));
+		}
+		if (EmuConfig.GS.HWAA1)
+		{
+			append(ICON_FA_CIRCLE_EXCLAMATION,
+				TRANSLATE_SV("VMManager", "AA1 is enabled, this may severely degrade performance."));
+		}
+		if (EmuConfig.GS.DepthFeedbackMode != GSDepthFeedbackMode::Auto)
+		{
+			append(ICON_FA_IMAGES,
+				TRANSLATE_SV("VMManager", "Overriding default depth feedback mode, this may break rendering in some games."));
 		}
 		if (EmuConfig.GS.UseDebugDevice)
 		{
@@ -3275,12 +3348,17 @@ void VMManager::WarnAboutUnsafeSettings()
 				TRANSLATE_SV("VMManager", "Graphics API is not set to Automatic. This may cause performance problems and graphical issues."));
 		}*/
 	}
-	/* if (EmuConfig.GS.TextureFiltering != BiFiltering::PS2)
+	if (EmuConfig.GS.DumpGSData)
+	{
+		const std::string& dir = is_sw_renderer ? EmuConfig.GS.SWDumpDirectory : EmuConfig.GS.HWDumpDirectory;
+		append(ICON_FA_LAYER_GROUP, fmt::format(TRANSLATE_FS("VMManager", "Dumping draw data to {}."), dir));
+	}
+	/*if (EmuConfig.GS.TextureFiltering != BiFiltering::PS2)
 	{
 		append(ICON_FA_FILTER,
 			TRANSLATE_SV("VMManager",
 				"Texture filtering is not set to Bilinear (PS2). This will break rendering in some games."));
-	}*/
+	}*/ //ptr2plus
 	if (EmuConfig.Cpu.FPUFPCR.GetRoundMode() != FPRoundMode::ChopZero)
 	{
 		append(ICON_PF_MICROCHIP,
@@ -3312,7 +3390,7 @@ void VMManager::WarnAboutUnsafeSettings()
 	if (EmuConfig.Cpu.ExtraMemory)
 	{
 		append(ICON_PF_MICROCHIP,
-			TRANSLATE_SV("VMManager", "128MB RAM is enabled. Compatibility with some games may be affected."));
+			TRANSLATE_SV("VMManager", "Extended RAM is enabled. Compatibility with some games may be affected."));
 	}
 	/* if (!EmuConfig.EnableGameFixes)
 	{
@@ -3711,7 +3789,7 @@ void VMManager::InitializeDiscordPresence()
 		return;
 
 	DiscordEventHandlers handlers = {};
-	Discord_Initialize("1025789002055430154", &handlers, 0, nullptr);
+	Discord_Initialize(s_discord_presence_app_id, &handlers, 0, nullptr);
 	s_discord_presence_active = true;
 
 	UpdateDiscordPresence(true);
@@ -3736,12 +3814,21 @@ void VMManager::UpdateDiscordPresence(bool update_session_time)
 	if (update_session_time)
 		s_discord_presence_time_epoch = std::time(nullptr);
 
+	std::string rp_title;
+	const bool prefer_english = Host::GetBaseBoolSettingValue("UI", "PreferEnglishGameList", false);
+	if (!s_title.empty())
+		rp_title = GetTitle(prefer_english);
+
 	// https://discord.com/developers/docs/rich-presence/how-to#updating-presence-update-presence-payload-fields
 	DiscordRichPresence rp = {};
-	rp.largeImageKey = "4k-pcsx2";
-	rp.largeImageText = "PCSX2 PS2 Emulator";
+	rp.largeImageKey = s_discord_presence_large_image_key;
+	rp.largeImageText = s_discord_presence_large_image_text;
 	rp.startTimestamp = s_discord_presence_time_epoch;
-	rp.details = s_title.empty() ? TRANSLATE("VMManager", "No Game Running") : s_title.c_str();
+
+	if (rp_title.empty())
+		rp.details = TRANSLATE("VMManager", "No Game Running");
+	else
+		rp.details = rp_title.c_str();
 
 	std::string state_string;
 

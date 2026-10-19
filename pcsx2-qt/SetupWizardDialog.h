@@ -50,6 +50,8 @@ private Q_SLOTS:
 	void onInputDevicesEnumerated(const QList<QPair<QString, QString>>& devices);
 	void onInputDeviceConnected(const QString& identifier, const QString& device_name);
 	void onInputDeviceDisconnected(const QString& identifier);
+	void onRetroAchievementsLoginLogoutPressed();
+	void onRetroAchievementsViewProfilePressed();
 
 protected:
 	void resizeEvent(QResizeEvent* event);
@@ -61,6 +63,7 @@ private:
 		Page_BIOS,
 		Page_PTR2,
 		Page_Controller,
+		Page_RetroAchievements,
 		Page_Complete,
 		Page_Count,
 	};
@@ -71,6 +74,9 @@ private:
 	void setupPTR2Page();
 	//void setupGameListPage();
 	void setupControllerPage();
+	void setupRetroAchievementsPage();
+	void setupCompletePage();
+	void refreshRetroAchievementsLoginState();
 
 	void pageChangedTo(int page);
 	void updatePageLabels(int prev_page);

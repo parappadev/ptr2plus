@@ -106,8 +106,8 @@ GSTexture* GSRendererSW::GetOutput(int i, float& scale, int& y_offset)
 	GSVector2i framebufferSize = PCRTCDisplays.GetFramebufferSize(i);
 	GSVector4i framebufferRect = PCRTCDisplays.GetFramebufferRect(i);
 
-	// Try to avoid broken/incomplete setups which are probably ingnored on console, but can cause us problems.
-	if (framebufferRect.rempty() || curFramebuffer.FBW == 0)
+	// Try to avoid broken/incomplete setups which are probably ignored on console, but can cause us problems.
+	if (framebufferRect.rempty() || curFramebuffer.FBW == 0 || framebufferSize.x < 0 || framebufferSize.y < 0)
 		return nullptr;
 
 	const int w = curFramebuffer.FBW * 64;
@@ -181,7 +181,7 @@ GSTexture* GSRendererSW::GetOutput(int i, float& scale, int& y_offset)
 
 		if (GSConfig.SaveFrame && GSConfig.ShouldDump(s_n, g_perfmon.GetFrame()))
 		{
-			m_texture[index]->Save(GetDrawDumpPath("%05d_f%05lld_fr%d_%05x_%s.bmp", s_n, g_perfmon.GetFrame(), i, (int)curFramebuffer.Block(), GSUtil::GetPSMName(curFramebuffer.PSM)));
+			m_texture[index]->Save(GetDrawDumpPath("%05lld_f%05lld_fr%d_%05x_%s.bmp", s_n, g_perfmon.GetFrame(), i, (int)curFramebuffer.Block(), GSUtil::GetPSMName(curFramebuffer.PSM)));
 		}
 	}
 
@@ -320,14 +320,14 @@ void GSRendererSW::RewriteVerticesIfSTOverflow()
 			constexpr int n = GSUtil::GetClassVertexCount(primclass);
 
 			// Make sure the copy buffer is large enough.
-			while (m_vertex.maxcount < m_index.tail)
+			while (m_max_vertex_count < m_index->tail)
 				GrowVertexBuffer();
 
-			GSVertex* RESTRICT vertex = m_vertex.buff;
-			GSVertex* RESTRICT vertex_copy = m_vertex.buff_copy;
-			u16* RESTRICT index = m_index.buff;
+			GSVertex* RESTRICT vertex = m_vertex->buff;
+			GSVertex* RESTRICT vertex_copy = m_vertex->buff_copy;
+			u16* RESTRICT index = m_index->buff;
 
-			for (int i = 0; i < static_cast<int>(m_index.tail); i += n)
+			for (int i = 0; i < static_cast<int>(m_index->tail); i += n)
 			{
 				GSVector4 stcq[n];
 
@@ -381,18 +381,18 @@ void GSRendererSW::RewriteVerticesIfSTOverflow()
 			}
 
 			// Swap the buffers and fix the counts.
-			std::swap(m_vertex.buff, m_vertex.buff_copy);
-			m_vertex.head = m_vertex.next = m_vertex.tail = m_index.tail;
+			std::swap(m_vertex->buff, m_vertex->buff_copy);
+			m_vertex->head = m_vertex->next = m_vertex->tail = m_index->tail;
 			
 			// Recalculate ST min/max/eq in the vertex trace.
 			GSVector4 tmin = GSVector4::cxpr(FLT_MAX);
 			GSVector4 tmax = GSVector4::cxpr(-FLT_MAX);
-			for (int i = 0; i < static_cast<int>(m_index.tail); i += n)
+			for (int i = 0; i < static_cast<int>(m_index->tail); i += n)
 			{
 				for (int j = 0; j < n; j++)
 				{
-					GSVector4 stcq = GSVector4::cast(GSVector4i(m_vertex.buff[i + j].m[0]));
-					const float Q = (primclass == GS_SPRITE_CLASS) ? stcq.w : m_vertex.buff[i + 1].RGBAQ.Q;
+					GSVector4 stcq = GSVector4::cast(GSVector4i(m_vertex->buff[i + j].m[0]));
+					const float Q = (primclass == GS_SPRITE_CLASS) ? stcq.w : m_vertex->buff[i + 1].RGBAQ.Q;
 					stcq = (stcq / Q).xyzw(stcq);
 					
 					tmin = tmin.min(stcq);
@@ -451,11 +451,11 @@ void GSRendererSW::Draw()
 	SharedData* sd = static_cast<SharedData*>(data.get());
 
 	sd->primclass = m_vt.m_primclass;
-	sd->buff = (u8*)m_vertex_heap.alloc(sizeof(GSVertexSW) * ((m_vertex.next + 1) & ~1) + sizeof(u32) * m_index.tail, 64);
+	sd->buff = (u8*)m_vertex_heap.alloc(sizeof(GSVertexSW) * ((m_vertex->next + 1) & ~1) + sizeof(u32) * m_index->tail, 64);
 	sd->vertex = (GSVertexSW*)sd->buff;
-	sd->vertex_count = m_vertex.next;
-	sd->index = (u16*)(sd->buff + sizeof(GSVertexSW) * ((m_vertex.next + 1) & ~1));
-	sd->index_count = m_index.tail;
+	sd->vertex_count = m_vertex->next;
+	sd->index = (u16*)(sd->buff + sizeof(GSVertexSW) * ((m_vertex->next + 1) & ~1));
+	sd->index_count = m_index->tail;
 	sd->scanmsk_value = m_draw_env->SCANMSK.MSK;
 
 	// skip per pixel division if q is constant.
@@ -463,12 +463,30 @@ void GSRendererSW::Draw()
 	// If you have both GS_SPRITE_CLASS && m_vt.m_eq.q, it will depends on the first part of the 'OR'
 	u32 q_div = !IsMipMapActive() && ((m_vt.m_eq.q && m_vt.m_min.t.z != 1.0f) || (!m_vt.m_eq.q && m_vt.m_primclass == GS_SPRITE_CLASS));
 
-	GSVertexSW::s_cvb[m_vt.m_primclass][PRIM->TME][PRIM->FST][q_div](m_context, sd->vertex, m_vertex.buff, m_vertex.next);
+	GSVertexSW::s_cvb[m_vt.m_primclass][PRIM->TME][PRIM->FST][q_div](m_context, sd->vertex, m_vertex->buff, m_vertex->next);
 
-	std::memcpy(sd->index, m_index.buff, sizeof(u16) * m_index.tail);
+	std::memcpy(sd->index, m_index->buff, sizeof(u16) * m_index->tail);
 
 	GSVector4i scissor = context->scissor.in;
-	GSVector4i bbox = GSVector4i(m_vt.m_min.p.floor().upld(m_vt.m_max.p.floor())) + GSVector4i(0, 0, 1, 1); // right/bottom should be exclusive so +1
+	GSVector4i bbox;
+	
+	if (m_vt.m_primclass == GS_LINE_CLASS || m_vt.m_primclass == GS_POINT_CLASS)
+	{
+		// min: round, max: round
+		bbox = GSVector4i((m_vt.m_min.p + GSVector4(0.5f)).floor().upld((m_vt.m_max.p + GSVector4(0.5f)).floor()));
+	}
+	else
+	{
+		// min: ceil, max: floor
+		bbox = GSVector4i(m_vt.m_min.p.ceil().upld(m_vt.m_max.p.floor()));
+	}
+
+	if (PRIM->AA1 && (m_vt.m_primclass == GS_LINE_CLASS || m_vt.m_primclass == GS_TRIANGLE_CLASS))
+	{
+		bbox += GSVector4i(-1, -1, 1, 1); // Expand bbox by 1 on all sides when using antialiasing.
+	}
+
+	bbox += GSVector4i(0, 0, 1, 1); // right/bottom should be exclusive so +1
 
 	GSVector4i r = bbox.rintersect(scissor);
 
@@ -485,12 +503,12 @@ void GSRendererSW::Draw()
 	{
 		int n = GSUtil::GetVertexCount(PRIM->PRIM);
 
-		for (u32 i = 0, j = 0; i < m_index.tail; i += n, j++)
+		for (u32 i = 0, j = 0; i < m_index->tail; i += n, j++)
 		{
 			for (int k = 0; k < n; k++)
 			{
-				GSVertex* v = &m_vertex.buff[m_index.buff[i + k]];
-				GSVertex* vn = &m_vertex.buff[m_index.buff[i + n - 1]];
+				GSVertex* v = &m_vertex->buff[m_index->buff[i + k]];
+				GSVertex* vn = &m_vertex->buff[m_index->buff[i + n - 1]];
 
 				fprintf(s_fp, "%d:%d %f %f %f %f\n",
 					j, k,
@@ -556,11 +574,11 @@ void GSRendererSW::Draw()
 			if (texture_shuffle)
 			{
 				// Dump the RT in 32 bits format. It helps to debug texture shuffle effect
-				s = GetDrawDumpPath("%05d_f%05lld_itexraw_%05x_32bits.bmp", s_n, frame, (int)m_context->TEX0.TBP0);
+				s = GetDrawDumpPath("%05lld_f%05lld_itexraw_%05x_32bits.bmp", s_n, frame, (int)m_context->TEX0.TBP0);
 				m_mem.SaveBMP(s, m_context->TEX0.TBP0, m_context->TEX0.TBW, 0, 1 << m_context->TEX0.TW, 1 << m_context->TEX0.TH);
 			}
 
-			s = GetDrawDumpPath("%05d_f%05lld_itexraw_%05x_%s.bmp", s_n, frame, (int)m_context->TEX0.TBP0, GSUtil::GetPSMName(m_context->TEX0.PSM));
+			s = GetDrawDumpPath("%05lld_f%05lld_itexraw_%05x_%s.bmp", s_n, frame, (int)m_context->TEX0.TBP0, GSUtil::GetPSMName(m_context->TEX0.PSM));
 			m_mem.SaveBMP(s, m_context->TEX0.TBP0, m_context->TEX0.TBW, m_context->TEX0.PSM, 1 << m_context->TEX0.TW, 1 << m_context->TEX0.TH);
 		}
 
@@ -570,17 +588,17 @@ void GSRendererSW::Draw()
 			if (texture_shuffle)
 			{
 				// Dump the RT in 32 bits format. It helps to debug texture shuffle effect
-				s = GetDrawDumpPath("%05d_f%05lld_rt0_%05x_32bits.bmp", s_n, frame, m_context->FRAME.Block());
+				s = GetDrawDumpPath("%05lld_f%05lld_rt0_%05x_32bits.bmp", s_n, frame, m_context->FRAME.Block());
 				m_mem.SaveBMP(s, m_context->FRAME.Block(), m_context->FRAME.FBW, 0, r.z, r.w);
 			}
 
-			s = GetDrawDumpPath("%05d_f%05lld_rt0_%05x_%s.bmp", s_n, frame, m_context->FRAME.Block(), GSUtil::GetPSMName(m_context->FRAME.PSM));
+			s = GetDrawDumpPath("%05lld_f%05lld_rt0_%05x_%s.bmp", s_n, frame, m_context->FRAME.Block(), GSUtil::GetPSMName(m_context->FRAME.PSM));
 			m_mem.SaveBMP(s, m_context->FRAME.Block(), m_context->FRAME.FBW, m_context->FRAME.PSM, r.z, r.w);
 		}
 
 		if (GSConfig.SaveDepth)
 		{
-			s = GetDrawDumpPath("%05d_f%05lld_rz0_%05x_%s.bmp", s_n, frame, m_context->ZBUF.Block(), GSUtil::GetPSMName(m_context->ZBUF.PSM));
+			s = GetDrawDumpPath("%05lld_f%05lld_rz0_%05x_%s.bmp", s_n, frame, m_context->ZBUF.Block(), GSUtil::GetPSMName(m_context->ZBUF.PSM));
 
 			m_mem.SaveBMP(s, m_context->ZBUF.Block(), m_context->FRAME.FBW, m_context->ZBUF.PSM, r.z, r.w);
 		}
@@ -594,17 +612,17 @@ void GSRendererSW::Draw()
 			if (texture_shuffle)
 			{
 				// Dump the RT in 32 bits format. It helps to debug texture shuffle effect
-				s = GetDrawDumpPath("%05d_f%05lld_rt1_%05x_32bits.bmp", s_n, frame, m_context->FRAME.Block());
+				s = GetDrawDumpPath("%05lld_f%05lld_rt1_%05x_32bits.bmp", s_n, frame, m_context->FRAME.Block());
 				m_mem.SaveBMP(s, m_context->FRAME.Block(), m_context->FRAME.FBW, 0, r.z, r.w);
 			}
 
-			s = GetDrawDumpPath("%05d_f%05lld_rt1_%05x_%s.bmp", s_n, frame, m_context->FRAME.Block(), GSUtil::GetPSMName(m_context->FRAME.PSM));
+			s = GetDrawDumpPath("%05lld_f%05lld_rt1_%05x_%s.bmp", s_n, frame, m_context->FRAME.Block(), GSUtil::GetPSMName(m_context->FRAME.PSM));
 			m_mem.SaveBMP(s, m_context->FRAME.Block(), m_context->FRAME.FBW, m_context->FRAME.PSM, r.z, r.w);
 		}
 
 		if (GSConfig.SaveDepth)
 		{
-			s = GetDrawDumpPath("%05d_f%05lld_rz1_%05x_%s.bmp", s_n, frame, m_context->ZBUF.Block(), GSUtil::GetPSMName(m_context->ZBUF.PSM));
+			s = GetDrawDumpPath("%05lld_f%05lld_rz1_%05x_%s.bmp", s_n, frame, m_context->ZBUF.Block(), GSUtil::GetPSMName(m_context->ZBUF.PSM));
 
 			m_mem.SaveBMP(s, m_context->ZBUF.Block(), m_context->FRAME.FBW, m_context->ZBUF.PSM, r.z, r.w);
 		}
@@ -687,14 +705,14 @@ void GSRendererSW::Sync(int reason)
 
 		if (GSConfig.SaveRT)
 		{
-			s = GetDrawDumpPath("%05d_f%05lld_rt1_%05x_%s.bmp", s_n, g_perfmon.GetFrame(), m_context->FRAME.Block(), GSUtil::GetPSMName(m_context->FRAME.PSM));
+			s = GetDrawDumpPath("%05lld_f%05lld_rt1_%05x_%s.bmp", s_n, g_perfmon.GetFrame(), m_context->FRAME.Block(), GSUtil::GetPSMName(m_context->FRAME.PSM));
 
 			m_mem.SaveBMP(s, m_context->FRAME.Block(), m_context->FRAME.FBW, m_context->FRAME.PSM, PCRTCDisplays.GetFramebufferRect(-1).width(), 512);
 		}
 
 		if (GSConfig.SaveDepth)
 		{
-			s = GetDrawDumpPath("%05d_f%05lld_zb1_%05x_%s.bmp", s_n, g_perfmon.GetFrame(), m_context->ZBUF.Block(), GSUtil::GetPSMName(m_context->ZBUF.PSM));
+			s = GetDrawDumpPath("%05lld_f%05lld_zb1_%05x_%s.bmp", s_n, g_perfmon.GetFrame(), m_context->ZBUF.Block(), GSUtil::GetPSMName(m_context->ZBUF.PSM));
 
 			m_mem.SaveBMP(s, m_context->ZBUF.Block(), m_context->FRAME.FBW, m_context->ZBUF.PSM, PCRTCDisplays.GetFramebufferRect(-1).width(), 512);
 		}
@@ -706,7 +724,7 @@ void GSRendererSW::Sync(int reason)
 
 	if constexpr (LOG)
 	{
-		fprintf(s_fp, "sync n=%d r=%d t=%" PRIu64 " p=%d %c\n", s_n, reason, t, pixels, t > 10000000 ? '*' : ' ');
+		fprintf(s_fp, "sync n=%lld r=%d t=%" PRIu64 " p=%d %c\n", s_n, reason, t, pixels, t > 10000000 ? '*' : ' ');
 		fflush(s_fp);
 	}
 
@@ -1393,7 +1411,7 @@ bool GSRendererSW::GetScanlineGlobalData(SharedData* data)
 				gd.sel.pabe = 1;
 			}
 
-			if (PRIM->AA1 && (primclass == GS_LINE_CLASS || primclass == GS_TRIANGLE_CLASS))
+			if (IsCoverageAlpha())
 			{
 				gd.sel.aa1 = 1;
 			}
@@ -1505,12 +1523,12 @@ bool GSRendererSW::GetScanlineGlobalData(SharedData* data)
 
 		u32 ofx = context->XYOFFSET.OFX;
 
-		for (int i = 0, j = m_vertex.tail; i < j; i++)
+		for (int i = 0, j = m_vertex->tail; i < j; i++)
 		{
 #if _M_SSE >= 0x501
-			if ((((m_vertex.buff[i].XYZ.X - ofx) + 15) >> 4) & 7) // aligned to 8
+			if ((((m_vertex->buff[i].XYZ.X - ofx) + 15) >> 4) & 7) // aligned to 8
 #else
-			if ((((m_vertex.buff[i].XYZ.X - ofx) + 15) >> 4) & 3) // aligned to 4
+			if ((((m_vertex->buff[i].XYZ.X - ofx) + 15) >> 4) & 3) // aligned to 4
 #endif
 			{
 				gd.sel.notest = 0;
@@ -1521,6 +1539,11 @@ bool GSRendererSW::GetScanlineGlobalData(SharedData* data)
 	}
 
 	return true;
+}
+
+bool GSRendererSW::IsCoverageAlphaSupported()
+{
+	return IsCoverageAlpha();
 }
 
 GSRendererSW::SharedData::SharedData()
@@ -1656,14 +1679,14 @@ void GSRendererSW::SharedData::UpdateSource()
 		{
 			const GIFRegTEX0& TEX0 = g_gs_renderer->GetTex0Layer(i);
 
-			s = GetDrawDumpPath("%05d_f%05lld_itex%d_%05x_%s.bmp", g_gs_renderer->s_n, frame, i, TEX0.TBP0, GSUtil::GetPSMName(TEX0.PSM));
+			s = GetDrawDumpPath("%05lld_f%05lld_itex%d_%05x_%s.bmp", g_gs_renderer->s_n, frame, i, TEX0.TBP0, GSUtil::GetPSMName(TEX0.PSM));
 
 			m_tex[i].t->Save(s);
 		}
 
 		if (global.clut)
 		{
-			s = GetDrawDumpPath("%05d_f%05lld_itexp_%05x_%s.bmp", g_gs_renderer->s_n, frame, (int)g_gs_renderer->m_context->TEX0.CBP, GSUtil::GetPSMName(g_gs_renderer->m_context->TEX0.CPSM));
+			s = GetDrawDumpPath("%05lld_f%05lld_itexp_%05x_%s.bmp", g_gs_renderer->s_n, frame, (int)g_gs_renderer->m_context->TEX0.CBP, GSUtil::GetPSMName(g_gs_renderer->m_context->TEX0.CPSM));
 			GSPng::Save((IsDevBuild || GSConfig.SaveAlpha) ? GSPng::RGB_A_PNG : GSPng::RGB_PNG, s, reinterpret_cast<const u8*>(global.clut), 256, 1, sizeof(u32) * 256, GSConfig.PNGCompressionLevel, false);
 		}
 	}

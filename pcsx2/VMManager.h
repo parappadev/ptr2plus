@@ -37,6 +37,8 @@ struct VMBootParameters
 
 	std::optional<bool> fast_boot;
 	std::optional<bool> fullscreen;
+	std::optional<bool> start_turbo;
+	std::optional<bool> start_unlimited;
 	bool disable_achievements_hardcore_mode = false;
 };
 
@@ -121,6 +123,9 @@ namespace VMManager
 
 	/// Destroys all system components.
 	void Shutdown(bool save_resume_state);
+
+	/// Resets all subsystems to a cold boot if it's safe to do so.
+	bool RequestReset();
 
 	/// Resets all subsystems to a cold boot.
 	void Reset();

@@ -8,7 +8,6 @@
 #include "Settings/GameCheatSettingsWidget.h"
 #include "Settings/SettingsWindow.h"
 
-#include "pcsx2/GameList.h"
 #include "pcsx2/Patch.h"
 
 #include "common/HeterogeneousContainers.h"
@@ -118,9 +117,8 @@ void GameCheatSettingsWidget::onCheatListItemHovered(const QModelIndex& index)
 	const QModelIndex source_index = m_model_proxy->mapToSource(index);
 	const QModelIndex sibling_index = source_index.siblingAtColumn(0);
 	QStandardItem* item = m_model->itemFromIndex(sibling_index);
-	if (!item)
+	if (!item || !item->isCheckable())
 	{
-		// No item is selected.
 		m_ui.appliedLabel->clear();
 		return;
 	}
@@ -347,3 +345,5 @@ QList<QStandardItem*> GameCheatSettingsWidget::populateTreeViewRow(const Patch::
 	items.push_back(descriptionItem);
 	return items;
 }
+
+#include "moc_GameCheatSettingsWidget.cpp"

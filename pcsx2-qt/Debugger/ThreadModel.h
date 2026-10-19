@@ -24,15 +24,16 @@ public:
 		PRIORITY,
 		STATE,
 		WAIT_TYPE,
+		WAIT_ID,
 		COLUMN_COUNT
 	};
 
-	static constexpr QHeaderView::ResizeMode HeaderResizeModes[ThreadColumns::COLUMN_COUNT] =
-	{
+	static constexpr QHeaderView::ResizeMode HeaderResizeModes[ThreadColumns::COLUMN_COUNT] = {
 		QHeaderView::ResizeMode::ResizeToContents,
 		QHeaderView::ResizeMode::ResizeToContents,
 		QHeaderView::ResizeMode::ResizeToContents,
 		QHeaderView::ResizeMode::ResizeToContents,
+		QHeaderView::ResizeMode::Stretch,
 		QHeaderView::ResizeMode::Stretch,
 		QHeaderView::ResizeMode::Stretch,
 	};
@@ -69,8 +70,6 @@ private:
 		//ADDING I18N comments here because the context string added by QtLinguist does not mention that these are thread wait states.
 		//: Refers to a Thread Wait State in the Debugger.
 		{WaitState::NONE, tr("NONE")},
-		//: Refers to a Thread Wait State in the Debugger.
-		{WaitState::WAKEUP_REQ, tr("WAKEUP REQUEST")},
 		//: Refers to a Thread Wait State in the Debugger.
 		{WaitState::SEMA, tr("SEMAPHORE")},
 		//: Refers to a Thread Wait State in the Debugger.

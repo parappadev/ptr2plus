@@ -9,6 +9,8 @@
 #include "IopHw.h"
 #include "Config.h"
 
+static constexpr int CYCLES_PER_WORD = 24;
+
 #ifdef PCSX2_DEVBUILD
 
 #define safe_fclose(ptr) \
@@ -163,7 +165,7 @@ void V_Core::StartADMAWrite(u16* pMem, u32 sz)
 	if ((AutoDMACtrl & (Index + 1)) == 0)
 	{
 		ActiveTSA = 0x2000 + (Index << 10);
-		DMAICounter = size * 4;
+		DMAICounter = size * CYCLES_PER_WORD;
 		LastClock = psxRegs.cycle;
 	}
 	else if (size >= 256)
@@ -191,7 +193,7 @@ void V_Core::StartADMAWrite(u16* pMem, u32 sz)
 		if (SPU2::MsgToConsole())
 			SPU2::ConLog("ADMA%c Error Size of %x too small\n", GetDmaIndexChar(), size);
 		InputDataLeft = 0;
-		DMAICounter = size * 4;
+		DMAICounter = size * CYCLES_PER_WORD;
 		LastClock = psxRegs.cycle;
 	}
 }
@@ -248,7 +250,7 @@ void V_Core::FinishDMAwrite()
 		DMA7LogWrite(DMAPtr, ReadSize << 1);
 #endif
 
-	u32 buff1end = ActiveTSA + std::min(ReadSize, (u32)0x100 + std::abs(DMAICounter / 4));
+	u32 buff1end = ActiveTSA + std::min(ReadSize, (u32)0x100 + std::abs(DMAICounter / CYCLES_PER_WORD));
 	u32 buff2end = 0;
 	if (buff1end > 0x100000)
 	{
@@ -343,7 +345,7 @@ void V_Core::FinishDMAwrite()
 	DMAPtr += TDA - ActiveTSA;
 	ReadSize -= TDA - ActiveTSA;
 
-	DMAICounter = (DMAICounter - ReadSize) * 4;
+	DMAICounter = (DMAICounter - ReadSize) * CYCLES_PER_WORD;
 
 	CounterUpdate(DMAICounter);
 
@@ -354,7 +356,7 @@ void V_Core::FinishDMAwrite()
 
 void V_Core::FinishDMAread()
 {
-	u32 buff1end = ActiveTSA + std::min(ReadSize, (u32)0x100 + std::abs(DMAICounter / 4));
+	u32 buff1end = ActiveTSA + std::min(ReadSize, (u32)0x100 + std::abs(DMAICounter / CYCLES_PER_WORD));
 	u32 buff2end = 0;
 
 	if (buff1end > 0x100000)
@@ -426,9 +428,9 @@ void V_Core::FinishDMAread()
 
 	// DMA Reads are done AFTER the delay, so to get the timing right we need to scheule one last DMA to catch IRQ's
 	if (ReadSize)
-		DMAICounter = std::min(ReadSize, (u32)0x100) * 4;
+		DMAICounter = std::min(ReadSize, (u32)0x100) * CYCLES_PER_WORD;
 	else
-		DMAICounter = 4;
+		DMAICounter = CYCLES_PER_WORD;
 
 	CounterUpdate(DMAICounter);
 
@@ -446,7 +448,7 @@ void V_Core::DoDMAread(u16* pMem, u32 size)
 	ReadSize = size;
 	IsDMARead = true;
 	LastClock = psxRegs.cycle;
-	DMAICounter = std::min(ReadSize, (u32)0x100) * 4;
+	DMAICounter = (std::min(ReadSize, (u32)0x100) * CYCLES_PER_WORD);
 	Regs.STATX &= ~0x80;
 	Regs.STATX |= 0x400;
 	//Regs.ATTR |= 0x30;
@@ -470,7 +472,7 @@ void V_Core::DoDMAwrite(u16* pMem, u32 size)
 	{
 		Regs.STATX &= ~0x80;
 		//Regs.ATTR |= 0x30;
-		DMAICounter = 1 * 4;
+		DMAICounter = 1 * CYCLES_PER_WORD;
 		LastClock = psxRegs.cycle;
 		return;
 	}
