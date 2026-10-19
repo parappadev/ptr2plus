@@ -2691,7 +2691,7 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 		dl->AddRect(GameBounds(tab_pos + ImVec2(bevel_thickness / 2, bevel_thickness /2)),
 			GameBounds(tab_pos + tab_size - ImVec2(bevel_thickness / 2, bevel_thickness / 2)),
 			IM_COL32(UIPrimaryColor.x * 255, UIPrimaryColor.y * 255, UIPrimaryColor.z * 255, 255),
-			LayoutScale(22.0f), ImDrawFlags_None, bevel_thickness);
+			LayoutScale(22.0f), bevel_thickness, ImDrawFlags_None);
 		int vert_end_idx = dl->VtxBuffer.Size;
 
 		//bevel gradient
@@ -2721,7 +2721,7 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 		dl->AddRect(GameBounds(rect_pos + ImVec2(bevel_thickness / 2, bevel_thickness / 2)),
 			GameBounds(rect_pos + rect_size - ImVec2(bevel_thickness / 2, bevel_thickness / 2)),
 			IM_COL32(UIPrimaryColor.x * 255, UIPrimaryColor.y * 255, UIPrimaryColor.z * 255, 255),
-			LayoutScale(22.0f), ImDrawFlags_None, bevel_thickness);
+			LayoutScale(22.0f), bevel_thickness, ImDrawFlags_None);
 		vert_end_idx = dl->VtxBuffer.Size;
 
 		//bevel gradient
@@ -2752,7 +2752,7 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 		dl->AddRect(GameBounds(rect_pos + ImVec2(bevel_thickness / 6, 0.0f)),
 			GameBounds(rect_pos + rect_size - ImVec2(bevel_thickness * 1/6, 0.0f)),
 			IM_COL32(UIPrimaryColor.x * 255, UIPrimaryColor.y * 255, UIPrimaryColor.z * 255, 255),
-			LayoutScale(22.0f), ImDrawFlags_None, bevel_thickness);
+			LayoutScale(22.0f), bevel_thickness, ImDrawFlags_None);
 		vert_end_idx = dl->VtxBuffer.Size;
 
 		//bevel gradient

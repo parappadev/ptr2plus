@@ -2736,7 +2736,7 @@ void ImGuiFullscreen::DrawPTR2PopupModalBG(ImVec2 win_pos, ImVec2 win_size, cons
 			pos = ImVec2(win_pos.x, win_pos.y);
 
 			int vert_start_idx = dl->VtxBuffer.Size;
-			dl->AddRect(GameBounds(pos + offset), GameBounds(pos + ImVec2(win_size.x, win_size.y) - offset), IM_COL32(40, 30, 0, transparency), thickness * 0.98, 0, depth);
+			dl->AddRect(GameBounds(pos + offset), GameBounds(pos + ImVec2(win_size.x, win_size.y) - offset), IM_COL32(40, 30, 0, transparency), thickness * 0.98, depth, 0);
 			int vert_end_idx = dl->VtxBuffer.Size;
 			ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
 				GameBounds(win_pos + ImVec2(0.0f, title_bar_size * 2)),
@@ -2751,7 +2751,7 @@ void ImGuiFullscreen::DrawPTR2PopupModalBG(ImVec2 win_pos, ImVec2 win_size, cons
 			offset = depth_offset; // -ImVec2(oldLayoutScale(0.3f), oldLayoutScale(0.3f));
 
 			//vert_start_idx = dl->VtxBuffer.Size;
-			dl->AddRect(GameBounds(pos - offset), GameBounds(pos + ImVec2(inner_win_size.x, inner_win_size.y) + offset), IM_COL32(40, 30, 0, transparency * 1.2), thickness * 0.8, 0, depth);
+			dl->AddRect(GameBounds(pos - offset), GameBounds(pos + ImVec2(inner_win_size.x, inner_win_size.y) + offset), IM_COL32(40, 30, 0, transparency * 1.2), thickness * 0.8, depth, 0);
 			//vert_end_idx = dl->VtxBuffer.Size;
 			/* ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
 				GameBounds(outer_win_pos + ImVec2(0.0f, outer_win_size.y - bottom_bar_size * 3)),
@@ -2764,7 +2764,7 @@ void ImGuiFullscreen::DrawPTR2PopupModalBG(ImVec2 win_pos, ImVec2 win_size, cons
 			transparency = 200 / s_shadow_detail * (float)i / s_shadow_detail;
 			pos = ImVec2(pos.x, pos.y - title_bar_size + shading_depth * 1);
 			vert_start_idx = dl->VtxBuffer.Size;
-			dl->AddRect(GameBounds(pos), GameBounds(ImVec2(pos.x + inner_win_size.x, pos.y + inner_win_size.y + bottom_bar_size + shadow_depth)), IM_COL32(255, 255, 255, transparency), thickness * 0.8, 0, depth);
+			dl->AddRect(GameBounds(pos), GameBounds(ImVec2(pos.x + inner_win_size.x, pos.y + inner_win_size.y + bottom_bar_size + shadow_depth)), IM_COL32(255, 255, 255, transparency), thickness * 0.8, depth, 0);
 			vert_end_idx = dl->VtxBuffer.Size;
 			ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
 				GameBounds(win_pos + ImVec2(0.0f, 0.0f)),
@@ -2776,7 +2776,7 @@ void ImGuiFullscreen::DrawPTR2PopupModalBG(ImVec2 win_pos, ImVec2 win_size, cons
 			transparency = 180 / s_shadow_detail * (float)i / s_shadow_detail;
 			pos = ImVec2(inner_win_pos.x, inner_win_pos.y);
 			//vert_start_idx = dl->VtxBuffer.Size;
-			dl->AddRect(GameBounds(pos), GameBounds(ImVec2(pos.x + inner_win_size.x, pos.y + inner_win_size.y + bottom_bar_size * 0.3)), IM_COL32(255, 255, 255, transparency), outer_rounding * 0.60, 0, depth);
+			dl->AddRect(GameBounds(pos), GameBounds(ImVec2(pos.x + inner_win_size.x, pos.y + inner_win_size.y + bottom_bar_size * 0.3)), IM_COL32(255, 255, 255, transparency), outer_rounding * 0.60, depth, 0);
 			//vert_end_idx = dl->VtxBuffer.Size;
 			/* ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
 				GameBounds(inner_win_pos + ImVec2(0.0f, 0.0f)),
@@ -2800,7 +2800,7 @@ void ImGuiFullscreen::DrawPTR2PopupModalBG(ImVec2 win_pos, ImVec2 win_size, cons
 			ImVec2 offset = depth_offset - ImVec2(oldLayoutScale(0.3f), oldLayoutScale(0.3f));
 
 			int vert_start_idx = dl->VtxBuffer.Size;
-			dl->AddRect(GameBounds(pos + offset), GameBounds(pos + ImVec2(inner_win_size.x, inner_win_size.y) - offset), IM_COL32(40, 30, 0, transparency), rounding * 0.925, 0, depth);
+			dl->AddRect(GameBounds(pos + offset), GameBounds(pos + ImVec2(inner_win_size.x, inner_win_size.y) - offset), IM_COL32(40, 30, 0, transparency), rounding * 0.925, depth, 0);
 			int vert_end_idx = dl->VtxBuffer.Size;
 			ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
 				GameBounds(pos + ImVec2(0.0f, title_bar_size * 0.6)),
@@ -2873,7 +2873,6 @@ void ImGuiFullscreen::DrawFileSelector()
 	// ImGui::PushStyleColor(ImGuiCol_TitleBg, UIPrimaryDarkColor);
 	// ImGui::PushStyleColor(ImGuiCol_TitleBgActive, UIPrimaryColor);
 
-	bool is_open = !WantsToCloseMenu();
 	bool directory_selected = false;
 	bool parent_wanted = false;
 
