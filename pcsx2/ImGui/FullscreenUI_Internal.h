@@ -425,6 +425,7 @@ namespace FullscreenUI
 	inline std::unordered_map<std::string, std::string> s_cover_image_map;
 	inline std::vector<const GameList::Entry*> s_game_list_sorted_entries;
 	inline GameListView s_game_list_view = GameListView::Grid;
+	inline bool s_game_list_needs_sort = true;
 
 	// Cached list of unsorted game list entries; used to detect changes and re-sort when needed
 	inline std::vector<const GameList::Entry*> s_last_unsorted_entries;
@@ -495,6 +496,7 @@ namespace FullscreenUI
 	void SetSettingsChanged(SettingsInterface* bsi);
 	bool GetEffectiveBoolSetting(SettingsInterface* bsi, const char* section, const char* key, bool default_value);
 	s32 GetEffectiveIntSetting(SettingsInterface* bsi, const char* section, const char* key, s32 default_value);
+	std::string GetEffectiveStringSetting(SettingsInterface* bsi, const char* section, const char* key, const char* default_value);
 	void DoCopyGameSettings();
 	void DoClearGameSettings();
 	void ResetControllerSettings();
@@ -549,6 +551,10 @@ namespace FullscreenUI
 		std::pair<ImFont*, float> summary_font = g_medium_font, const char* translation_ctx = "FullscreenUI", bool preset_list = false, bool preset_setting = false); //ptr2plus
 	void DrawStringListSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section, const char* key,
 		const char* default_value, SettingInfo::GetOptionsCallback options_callback, bool enabled = true,
+		float height = ImGuiFullscreen::LAYOUT_MENU_BUTTON_HEIGHT, std::pair<ImFont*, float> font = g_large_font, std::pair<ImFont*, float> summary_font = g_medium_font);
+	void DrawStringListSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section, const char* key,
+		const char* default_value, const std::vector<std::pair<std::string, std::string>>& items, bool enabled = true,
+		std::vector<std::string> dependent_keys = {},
 		float height = ImGuiFullscreen::LAYOUT_MENU_BUTTON_HEIGHT, std::pair<ImFont*, float> font = g_large_font, std::pair<ImFont*, float> summary_font = g_medium_font);
 	void DrawIPAddressSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section, const char* key,
 		const char* default_value, bool enabled = true, float height = ImGuiFullscreen::LAYOUT_MENU_BUTTON_HEIGHT,

@@ -725,6 +725,7 @@ Pcsx2Config::GSOptions::GSOptions()
 	DisableFramebufferFetch = false;
 	DisableVertexShaderExpand = false;
 	SkipDuplicateFrames = true;
+	AdvancedFrameDisplay = false;
 	OsdMessagesPos = OsdOverlayPos::TopLeft;
 	OsdPerformancePos = OsdOverlayPos::TopRight;
 	OsdShowSpeed = false;
@@ -862,6 +863,9 @@ bool Pcsx2Config::GSOptions::OptionsAreEqual(const GSOptions& right) const
 		OpEqu(UserHacks_TextureInsideRt) &&
 		OpEqu(UserHacks_Limit24BitDepth) &&
 		OpEqu(UserHacks_BilinearHack) &&
+		OpEqu(UserHacks_DrawBuffering) &&
+		OpEqu(UserHacks_RewriteLargeSTCoords) &&
+		OpEqu(UserHacks_TargetPageRearranging) &&
 		OpEqu(OverrideTextureBarriers) &&
 		OpEqu(DepthFeedbackMode) &&
 
@@ -877,6 +881,10 @@ bool Pcsx2Config::GSOptions::OptionsAreEqual(const GSOptions& right) const
 		OpEqu(SaveFrameStart) &&
 		OpEqu(SaveFrameCount) &&
 		OpEqu(SaveFrameBy) &&
+		OpEqu(DumpReplayLoopCount) &&
+		OpEqu(DumpReplayFrameStart) &&
+		OpEqu(DumpReplayFrameEnd) &&
+		OpEqu(SavedMetricsCaptureSeconds) &&
 
 		OpEqu(ExclusiveFullscreenControl) &&
 		OpEqu(ScreenshotSize) &&
@@ -963,6 +971,7 @@ void Pcsx2Config::GSOptions::LoadSave(SettingsWrapper& wrap)
 	SettingsWrapBitBool(DisableFramebufferFetch);
 	SettingsWrapBitBool(DisableVertexShaderExpand);
 	SettingsWrapBitBool(SkipDuplicateFrames);
+	SettingsWrapBitBool(AdvancedFrameDisplay);
 	SettingsWrapBitBool(OsdShowSpeed);
 	SettingsWrapBitBool(OsdShowFPS);
 	SettingsWrapBitBool(OsdShowVPS);
@@ -1007,6 +1016,8 @@ void Pcsx2Config::GSOptions::LoadSave(SettingsWrapper& wrap)
 	SettingsWrapIntEnumEx(UserHacks_Limit24BitDepth, "UserHacks_Limit24BitDepth");
 	SettingsWrapBitBoolEx(UserHacks_EstimateTextureRegion, "UserHacks_EstimateTextureRegion");
 	SettingsWrapBitBoolEx(UserHacks_DrawBuffering, "UserHacks_DrawBuffering");
+	SettingsWrapBitBoolEx(UserHacks_RewriteLargeSTCoords, "UserHacks_RewriteLargeSTCoords");
+	SettingsWrapBitBoolEx(UserHacks_TargetPageRearranging, "UserHacks_TargetPageRearranging");
 	SettingsWrapBitBoolEx(FXAA, "fxaa");
 	SettingsWrapBitBool(ShadeBoost);
 	SettingsWrapBitBoolEx(DumpGSData, "DumpGSData");
@@ -1020,6 +1031,7 @@ void Pcsx2Config::GSOptions::LoadSave(SettingsWrapper& wrap)
 	SettingsWrapBitBoolEx(SaveDrawStats, "SaveDrawStats");
 	SettingsWrapBitBoolEx(SaveFrameStats, "SaveFrameStats");
 	SettingsWrapBitBoolEx(SaveHWConfig, "SaveHWConfig");
+	SettingsWrapBitBoolEx(DumpReplayUseFrameRange, "DumpReplayUseFrameRange");
 	SettingsWrapBitBool(DumpReplaceableTextures);
 	SettingsWrapBitBool(DumpReplaceableMipmaps);
 	SettingsWrapBitBool(DumpTexturesWithFMVActive);
@@ -1094,6 +1106,10 @@ void Pcsx2Config::GSOptions::LoadSave(SettingsWrapper& wrap)
 	SettingsWrapBitfieldEx(SaveFrameStart, "SaveFrameStart");
 	SettingsWrapBitfieldEx(SaveFrameCount, "SaveFrameCount");
 	SettingsWrapBitfieldEx(SaveFrameBy, "SaveFrameBy");
+	SettingsWrapBitfieldEx(DumpReplayLoopCount, "DumpReplayLoopCount");
+	SettingsWrapBitfieldEx(DumpReplayFrameStart, "DumpReplayFrameStart");
+	SettingsWrapBitfieldEx(DumpReplayFrameEnd, "DumpReplayFrameEnd");
+	SettingsWrapBitfieldEx(SavedMetricsCaptureSeconds, "SavedMetricsCaptureSeconds");
 
 	SettingsWrapEntryEx(CaptureContainer, "CaptureContainer");
 	SettingsWrapEntryEx(VideoCaptureCodec, "VideoCaptureCodec");
@@ -1147,6 +1163,8 @@ void Pcsx2Config::GSOptions::MaskUserHacks()
 	UserHacks_Limit24BitDepth = GSLimit24BitDepth::Disabled;
 	UserHacks_EstimateTextureRegion = false;
 	UserHacks_DrawBuffering = false;
+	UserHacks_RewriteLargeSTCoords = false;
+	UserHacks_TargetPageRearranging = false;
 	UserHacks_TCOffsetX = 0;
 	UserHacks_TCOffsetY = 0;
 	UserHacks_CPUSpriteRenderBW = 0;

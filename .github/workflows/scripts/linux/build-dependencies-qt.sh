@@ -18,22 +18,22 @@ if [ "${INSTALLDIR:0:1}" != "/" ]; then
 	INSTALLDIR="$PWD/$INSTALLDIR"
 fi
 
-QT=6.11.1
+QT=6.12.0
 QTAPNG=1.3.0
 
-FFMPEG=8.1
+FFMPEG=9.0.1
 LIBBACKTRACE=ad106d5fdd5d960bd33fae1c48a351af567fd075
 LIBJPEGTURBO=3.2.0
 LIBPNG=1.6.58
 LIBWEBP=1.6.0
 NVENC=13.0.19.0
-SDL=SDL3-3.4.12
+SDL=SDL3-3.4.18
 LZ4=1.10.0
 VULKAN=1.4.328.1
 ZSTD=1.5.7
 KDDOCKWIDGETS=2.4.1
-PLUTOVG=1.3.2
-PLUTOSVG=0.0.7
+PLUTOVG=1.3.3
+PLUTOSVG=0.0.8
 RAPIDYAML=0.12.1
 
 SHADERC=2026.2
@@ -47,28 +47,28 @@ cd deps-build
 export PKG_CONFIG_PATH="$INSTALLDIR/lib/pkgconfig:$PKG_CONFIG_PATH"
 
 grep . > SHASUMS <<EOF
-d9594a31228aa23ad6b531719a29b45f0f3989fe6c136d45767ea179f233c1ac  qtbase-everywhere-src-$QT.tar.xz
-b2bf6c6845ac175ed7f819145483ba4676f617aaa6a5012c8efee63c8bbac413  qtimageformats-everywhere-src-$QT.tar.xz
-7f3cf02f4824bf03c2c5859ea6db173bf1482a1daf24e6cdf7bc78cfa26a8a94  qtsvg-everywhere-src-$QT.tar.xz
-8e61835a679c93fa9c6065b142353c2071ba68e297898937c32a03777fcaf50d  qttools-everywhere-src-$QT.tar.xz
-37c02c81206594c7bb4edca85ac93e8e55a9836b70c960fde6cb0f8623ec5677  qttranslations-everywhere-src-$QT.tar.xz
-95788aa502f75441d4edf65932b235f76523084e13dbbb7b9ee2d207b32bd9b3  qtwayland-everywhere-src-$QT.tar.xz
+a951bd163c7b80fc6b8c88d7668fb56abf91c152373e13c10666763238131307  qtbase-everywhere-src-$QT.tar.xz
+0943132b5db8de6b6a7f1d162682173e8763c7ed94e80fd39113292845f67762  qtimageformats-everywhere-src-$QT.tar.xz
+e4ab39534ec97987b1b9b60ef7f4d3253d5912a69f8c713a01753174a4029331  qtsvg-everywhere-src-$QT.tar.xz
+8dab8f3611496486a470ad5f115ceea584f36bc22a2b8b6f6ebdbafbb8160693  qttools-everywhere-src-$QT.tar.xz
+85929c0c30d6f273f23bd879bb69803ea17b010ab73cab2f8abf95357f6f6bbb  qttranslations-everywhere-src-$QT.tar.xz
+ae14d9bcf1bb3c300a3ab2e6a53f50284e5c6c966a4ac4cc5aedcb1bc74e4d02  qtwayland-everywhere-src-$QT.tar.xz
 f1d3be3489f758efe1a8f12118a212febbe611aa670af32e0159fa3c1feab2a6  QtApng-$QTAPNG.tar.gz
 
-b072aed6871998cce9b36e7774033105ca29e33632be5b6347f3206898e0756a  ffmpeg-$FFMPEG.tar.xz
+cf38e0e28c7e5605942c4a77755349b0145804a397af37eb1fb4c77cb237f635  ffmpeg-$FFMPEG.tar.xz
 96e5c2d7f2c482a60d5804da48a2eb9a0db0719b2c65dcc169fbfdcf37f3a45d  libbacktrace-$LIBBACKTRACE.tar.gz
 6f30092cef9fb839779646608f4ee14ae3cbac989c47fa05e841b0841f09878e  libjpeg-turbo-$LIBJPEGTURBO.tar.gz
 28eb403f51f0f7405249132cecfe82ea5c0ef97f1b32c5a65828814ae0d34775  libpng-$LIBPNG.tar.xz
 e4ab7009bf0629fd11982d4c2aa83964cf244cffba7347ecd39019a9e38c4564  libwebp-$LIBWEBP.tar.gz
-f07b958a9ac5020fb7a44cadb957f658b2149c3c8abb4f63145fac9303249db7  $SDL.tar.gz
+9c75cf16330322c217dedd2e0609f1124f1b54b8633e763467b4684d0f4334a3  $SDL.tar.gz
 eee7dea22ed502868017971c86c63c4ed1e6085de0baebfdcc3d3322f00f3eb0  libpng-$LIBPNG-apng.patch.gz
 537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b  lz4-$LZ4.tar.gz
 13da39edb3a40ed9713ae390ca89faa2f1202c9dda869ef306a8d4383e242bee  nv-codec-headers-$NVENC.tar.gz
 c465aa56757e7746ac707f582b6e2d51546569a4a2488c1172fb543aa5fdfc2c  vulkan-sdk-$VULKAN.tar.gz
 eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3  zstd-$ZSTD.tar.gz
 5cd9495d9316cf6cc937bb328a7fd491c3248ef2469cfa42511f1039f6148aca  KDDockWidgets-$KDDOCKWIDGETS.tar.gz
-7bd4e79ce18b1d47517e7e91fbb7cf19d4f01942804a519bc7c0bf32b6325dd5  plutovg-$PLUTOVG.tar.gz
-78561b571ac224030cdc450ca2986b4de915c2ba7616004a6d71a379bffd15f3  plutosvg-$PLUTOSVG.tar.gz
+2b0d17a6e016f47b86f9c00e2cb82600041b1ea1f7d2a00c2d46ae542cbfed3c  plutovg-$PLUTOVG.tar.gz
+49d5cfe772d3aa10cd4879f2f6e189f5083c08e4c8ea01bf3d5b87c97dfca7d2  plutosvg-$PLUTOSVG.tar.gz
 e9efcdd17f86287748793cf21d106e461fcad8d103a3e5a23632afe93828660d  rapidyaml-$RAPIDYAML-src.tgz
 
 f924178e75e3293082481b25ed64d5e48a795b479dac3bd3c83d23070855df42  shaderc-$SHADERC.tar.gz

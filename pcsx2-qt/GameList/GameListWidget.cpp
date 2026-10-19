@@ -35,6 +35,7 @@
 #include <QtWidgets/QMenu>
 #include <QtWidgets/QScrollBar>
 #include <QtWidgets/QStyledItemDelegate>
+#include <QtWidgets/QToolButton>
 #include <QShortcut>
 
 static const char* SUPPORTED_FORMATS_STRING = QT_TRANSLATE_NOOP(GameListWidget,
@@ -94,15 +95,26 @@ public:
 		m_filter_name = name;
 		endFilterChange(Direction::Rows);
 	}
+	void setFilterFavoritesOnly(bool enabled)
+	{
+		beginFilterChange();
+		m_filter_favorites_only = enabled;
+		endFilterChange(Direction::Rows);
+	}
 
 	bool filterAcceptsRow(int source_row, const QModelIndex& source_parent) const override
 	{
 		if (m_filter_type != GameList::EntryType::Count ||
 			m_filter_region != GameList::Region::Count ||
-			!m_filter_name.isEmpty())
+			!m_filter_name.isEmpty() ||
+			m_filter_favorites_only)
 		{
 			const auto lock = GameList::GetLock();
 			const GameList::Entry* entry = GameList::GetEntryByIndex(source_row);
+			if (!entry)
+				return false;
+			if (m_filter_favorites_only && !entry->is_favorite)
+				return false;
 			if (m_filter_type != GameList::EntryType::Count && entry->type != m_filter_type)
 				return false;
 			if (m_filter_region != GameList::Region::Count && entry->region != m_filter_region)
@@ -120,6 +132,11 @@ public:
 
 	bool lessThan(const QModelIndex& source_left, const QModelIndex& source_right) const override
 	{
+		const bool left_favorite = source_left.data(GameListModel::FavoriteRole).toBool();
+		const bool right_favorite = source_right.data(GameListModel::FavoriteRole).toBool();
+		if (left_favorite != right_favorite)
+			return (sortOrder() == Qt::AscendingOrder) ? left_favorite : !left_favorite;
+
 		return m_model->lessThan(source_left, source_right, source_left.column());
 	}
 
@@ -128,6 +145,7 @@ private:
 	GameList::EntryType m_filter_type = GameList::EntryType::Count;
 	GameList::Region m_filter_region = GameList::Region::Count;
 	QString m_filter_name;
+	bool m_filter_favorites_only = false;
 };
 
 namespace
@@ -226,6 +244,38 @@ namespace
 			painter->restore();
 		}
 	};
+
+	class FavoriteCoverDelegate final : public QStyledItemDelegate
+	{
+	public:
+		using QStyledItemDelegate::QStyledItemDelegate;
+
+		void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override
+		{
+			QStyledItemDelegate::paint(painter, option, index);
+			if (!index.data(GameListModel::FavoriteRole).toBool())
+				return;
+
+			QStyleOptionViewItem view_option(option);
+			initStyleOption(&view_option, index);
+			const QStyle* style = option.widget ? option.widget->style() : QApplication::style();
+			const QRect decoration_rect = style->subElementRect(QStyle::SE_ItemViewItemDecoration, &view_option, option.widget);
+			const QPixmap cover = qvariant_cast<QPixmap>(index.data(Qt::DecorationRole));
+			if (cover.isNull() || decoration_rect.isEmpty())
+				return;
+
+			const QRect cover_rect = QStyle::alignedRect(option.direction, option.decorationAlignment,
+				cover.deviceIndependentSize().toSize(), decoration_rect);
+			const int star_size = std::clamp(qRound(static_cast<qreal>(cover_rect.width()) * 0.12), 9, 42);
+			const int margin = std::max(3, star_size / 3);
+			painter->save();
+			const QRect star_rect(cover_rect.right() - star_size - margin, cover_rect.top() + margin, star_size, star_size);
+			static const QIcon star_icon(QStringLiteral("%1/icons/star.svg").arg(QtHost::GetResourcesBasePath()));
+			const QPixmap star_pixmap = star_icon.pixmap(QSize(star_size, star_size), option.widget ? option.widget->devicePixelRatio() : 1.0);
+			painter->drawPixmap(star_rect.topLeft(), star_pixmap);
+			painter->restore();
+		}
+	};
 } // namespace
 
 GameListWidget::GameListWidget(QWidget* parent /* = nullptr */)
@@ -280,6 +330,22 @@ void GameListWidget::initialize()
 		m_sort_model->setFilterName(text);
 	});
 
+	const bool favorites_only = Host::GetBaseBoolSettingValue("GameList", "FavoritesOnly", false);
+	QToolButton* filter_favorites = new QToolButton(this);
+	filter_favorites->setCheckable(true);
+	filter_favorites->setAutoRaise(true);
+	filter_favorites->setToolTip(tr("Show Favorites Only"));
+	filter_favorites->setIcon(QIcon(QStringLiteral("%1/icons/star.svg").arg(QtHost::GetResourcesBasePath())));
+	filter_favorites->setChecked(favorites_only);
+	m_sort_model->setFilterFavoritesOnly(favorites_only);
+	m_ui.horizontalLayout_2->insertWidget(0, filter_favorites);
+
+	connect(filter_favorites, &QToolButton::toggled, this, [this](bool checked) {
+		m_sort_model->setFilterFavoritesOnly(checked);
+		Host::SetBaseBoolSettingValue("GameList", "FavoritesOnly", checked);
+		Host::CommitBaseSettingChanges();
+	});
+
 	connect(new QShortcut(QKeySequence::Find, this), &QShortcut::activated, [this]() {
 		m_ui.searchText->setFocus();
 	});
@@ -328,19 +394,22 @@ void GameListWidget::initialize()
 		applyTableHeaderDefaults();
 	}
 
+	// Set after the header state is loaded, because restoreState() carries the resize modes with it.
+	m_table_view->horizontalHeader()->setSectionResizeMode(GameListModel::Column_Title, QHeaderView::Stretch);
+	m_table_view->horizontalHeader()->setSectionResizeMode(GameListModel::Column_FileTitle, QHeaderView::Stretch);
+
 	// After header state load to account for user-specified sort.
 	m_table_view->setSortingEnabled(true);
 
-	// Safety Fallback: Ensure the header is actually visible and
-	// force it to stretch correctly on the first launch. This is an edgecase in case it already broke for some people or broke on older versions
+	// Safety Fallback: Ensure the header is actually visible. This is an edgecase in case it already broke for some people or broke on older versions
 	m_table_view->horizontalHeader()->show();
-	resizeTableViewColumnsToFit();
 
 	m_ui.stack->insertWidget(0, m_table_view);
 
 	m_list_view = new GameListGridListView(m_ui.stack);
 	m_list_view->setModel(m_sort_model);
 	m_list_view->setModelColumn(GameListModel::Column_Cover);
+	m_list_view->setItemDelegate(new FavoriteCoverDelegate(m_list_view));
 	m_list_view->setSelectionMode(QAbstractItemView::SingleSelection);
 	m_list_view->setViewMode(QListView::IconMode);
 	m_list_view->setResizeMode(QListView::Adjust);
@@ -379,7 +448,6 @@ void GameListWidget::initialize()
 	setFocusProxy(m_ui.stack->currentWidget());
 
 	updateToolbar();
-	resizeTableViewColumnsToFit();
 	setCustomBackground();
 }
 
@@ -752,7 +820,6 @@ void GameListWidget::showGameList()
 
 	m_ui.stack->setCurrentIndex(0);
 	setFocusProxy(m_ui.stack->currentWidget());
-	resizeTableViewColumnsToFit();
 	updateToolbar();
 	emit layoutChange();
 }
@@ -849,7 +916,6 @@ void GameListWidget::hideEvent(QHideEvent* event)
 void GameListWidget::resizeEvent(QResizeEvent* event)
 {
 	QWidget::resizeEvent(event);
-	resizeTableViewColumnsToFit();
 	m_model->updateCacheSize(width(), height());
 	processBackgroundFrames();
 }
@@ -881,22 +947,6 @@ bool GameListWidget::eventFilter(QObject* watched, QEvent* event)
 	}
 
 	return QWidget::eventFilter(watched, event);
-}
-
-void GameListWidget::resizeTableViewColumnsToFit()
-{
-	QtUtils::ResizeColumnsForTableView(m_table_view, {
-														 DEFAULT_COLUMN_WIDTHS[GameListModel::Column_Type],
-														 DEFAULT_COLUMN_WIDTHS[GameListModel::Column_Serial],
-														 DEFAULT_COLUMN_WIDTHS[GameListModel::Column_Title],
-														 DEFAULT_COLUMN_WIDTHS[GameListModel::Column_FileTitle],
-														 DEFAULT_COLUMN_WIDTHS[GameListModel::Column_CRC],
-														 DEFAULT_COLUMN_WIDTHS[GameListModel::Column_TimePlayed],
-														 DEFAULT_COLUMN_WIDTHS[GameListModel::Column_LastPlayed],
-														 DEFAULT_COLUMN_WIDTHS[GameListModel::Column_Size],
-														 DEFAULT_COLUMN_WIDTHS[GameListModel::Column_Region],
-														 DEFAULT_COLUMN_WIDTHS[GameListModel::Column_Compatibility],
-													 });
 }
 
 void GameListWidget::loadTableHeaderState()
@@ -1014,9 +1064,6 @@ void GameListWidget::resetTableHeaderToDefault()
 
 	Host::SetBaseStringSettingValue("GameListTableView", "HeaderState", header->saveState().toBase64());
 	Host::CommitBaseSettingChanges();
-
-	// This makes the columns expand to fill the window right now.
-	resizeTableViewColumnsToFit();
 }
 
 void GameListWidget::saveSortSettings(const int column, const Qt::SortOrder sort_order)

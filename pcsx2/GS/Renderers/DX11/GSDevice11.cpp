@@ -249,6 +249,8 @@ bool GSDevice11::Create(GSVSyncMode vsync_mode, bool allow_present_throttle)
 
 		ShaderMacro sm_ps;
 		sm_ps.AddMacro("PIXEL_SHADER", 1);
+		sm_ps.AddMacro("PRIMID_MAX", GSShader::PRIMID_MAX);
+		sm_ps.AddMacro("PRIMID_MIN", GSShader::PRIMID_MIN);
 		sm_ps.AddMacro("HAS_BILN", static_cast<int>(shader.Biln()));
 		sm_ps.AddMacro("HAS_STENCIL_OUTPUT", static_cast<int>(shader.StencilOutput()));
 		sm_ps.AddMacro("HAS_INTEGER_OUTPUT", static_cast<int>(shader.IntegerOutputBpp() != 0));
@@ -582,13 +584,15 @@ bool GSDevice11::Create(GSVSyncMode vsync_mode, bool allow_present_throttle)
 		const std::string entry_point_macro = WrapEntryPointMacro(entry_point);
 		ShaderMacro sm_ps;
 		sm_ps.AddMacro("PIXEL_SHADER", 1);
+		sm_ps.AddMacro("PRIMID_MAX", GSShader::PRIMID_MAX);
+		sm_ps.AddMacro("PRIMID_MIN", GSShader::PRIMID_MIN);
 		sm_ps.AddMacro(entry_point_macro.c_str(), 1);
 		m_date.primid_init_ps[i] = m_shader_cache.GetPixelShader(m_dev.get(), *convert_hlsl, sm_ps.GetPtr(), entry_point.c_str());
 		if (!m_date.primid_init_ps[i])
 			return false;
 	}
 
-	if (m_features.cas_sharpening && !CreateCASShaders())
+	if (!CreateCASShaders())
 		return false;
 
 	if (!CreateImGuiResources())
@@ -614,6 +618,7 @@ bool GSDevice11::Create(GSVSyncMode vsync_mode, bool allow_present_throttle)
 void GSDevice11::Destroy()
 {
 	delete m_null_texture;
+	m_null_texture = nullptr;
 	
 	GSDevice::Destroy();
 	DestroySwapChain();
@@ -711,7 +716,6 @@ void GSDevice11::SetFeatures(IDXGIAdapter1* adapter)
 	                          SupportsTextureFormat(m_dev.get(), DXGI_FORMAT_BC3_UNORM);
 
 	m_features.bptc_textures = SupportsTextureFormat(m_dev.get(), DXGI_FORMAT_BC7_UNORM);
-	m_features.cas_sharpening = (m_feature_level >= D3D_FEATURE_LEVEL_11_0);
 	m_features.test_and_sample_depth = (m_feature_level >= D3D_FEATURE_LEVEL_11_0);
 	m_features.depth_feedback = m_features.multidraw_fb_copy && GSConfig.DepthFeedbackMode == GSDepthFeedbackMode::Depth;
 	m_features.aa1 = GSConfig.HWAA1 && m_features.vs_expand && m_features.feedback_loops();
@@ -727,7 +731,7 @@ void GSDevice11::SetFeatures(IDXGIAdapter1* adapter)
 
 	D3D11_FEATURE_DATA_D3D11_OPTIONS2 options2{};
 	m_dev->CheckFeatureSupport(D3D11_FEATURE_D3D11_OPTIONS2, &options2, sizeof(options2));
-	m_features.rov = m_uav_texture && options2.ROVsSupported;
+	m_features.rov = m_uav_texture && options2.TypedUAVLoadAdditionalFormats && options2.ROVsSupported;
 	for (u32 fmt = static_cast<u32>(GSTexture::Format::Color); fmt <= static_cast<u32>(GSTexture::Format::PrimID); fmt++)
 	{
 		if (GSTexture::IsShaderWriteFormat(static_cast<GSTexture::Format>(fmt)))
@@ -853,9 +857,11 @@ bool GSDevice11::CreateSwapChain()
 			m_dev.get(), window_hwnd, &fs_sd_desc, &fs_desc, fullscreen_output.get(), m_swap_chain.put());
 		if (FAILED(hr))
 		{
-			Console.Warning("D3D11: Failed to create fullscreen swap chain, trying windowed.");
+			Console.Warning("D3D11: Failed to create fullscreen swap chain: 0x%08X, trying windowed.", hr);
 			m_is_exclusive_fullscreen = false;
 			m_using_allow_tearing = m_allow_tearing_supported && m_using_flip_model_swap_chain;
+			if (m_using_allow_tearing)
+				swap_chain_desc.Flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
 		}
 	}
 
@@ -1540,6 +1546,9 @@ void GSDevice11::CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r,
 		GL_INS("D3D11: CopyRect rect empty.");
 		return;
 	}
+
+	if (dTex->IsDepthStencil())
+		InvalidateDSAsRT(dTex);
 
 	const GSVector4i src_rect(0, 0, sTex->GetWidth(), sTex->GetHeight());
 	const GSVector4i dst_rect(0, 0, dTex->GetWidth(), dTex->GetHeight());
@@ -2269,7 +2278,7 @@ void GSDevice11::SetupOM(OMDepthStencilSelector dssel, OMBlendSelector bsel, u8 
 bool GSDevice11::CreateCASShaders()
 {
 	CD3D11_BUFFER_DESC desc(NUM_CAS_CONSTANTS * sizeof(u32), D3D11_BIND_CONSTANT_BUFFER, D3D11_USAGE_DEFAULT);
-	HRESULT hr = m_dev->CreateBuffer(&desc, nullptr, m_cas.cb.put());
+	const HRESULT hr = m_dev->CreateBuffer(&desc, nullptr, m_cas.cb.put());
 	if (FAILED(hr))
 		return false;
 
@@ -2277,15 +2286,13 @@ bool GSDevice11::CreateCASShaders()
 	if (!cas_source.has_value() || !GetCASShaderSource(&cas_source.value()))
 		return false;
 
-	static constexpr D3D_SHADER_MACRO sharpen_only_macros[] = {
-		{"CAS_SHARPEN_ONLY", "1"},
-		{nullptr, nullptr}};
+	static constexpr D3D_SHADER_MACRO sharpen_macros[] = {{"CAS_SHARPEN_ONLY", "1"}, {nullptr, nullptr}};
 
-	m_cas.cs_sharpen = m_shader_cache.GetComputeShader(m_dev.get(), cas_source.value(), sharpen_only_macros, "main");
-	m_cas.cs_upscale = m_shader_cache.GetComputeShader(m_dev.get(), cas_source.value(), nullptr, "main");
-	if (!m_cas.cs_sharpen || !m_cas.cs_upscale)
+	m_cas.ps_sharpen = m_shader_cache.GetPixelShader(m_dev.get(), cas_source.value(), sharpen_macros, "ps_main");
+	m_cas.ps_upscale = m_shader_cache.GetPixelShader(m_dev.get(), cas_source.value(), nullptr, "ps_main");
+	if (!m_cas.ps_sharpen || !m_cas.ps_upscale)
 	{
-		Console.Error("D3D11: Failed to create CAS compute shaders.");
+		Console.Error("D3D11: Failed to create CAS pixel shaders.");
 		return false;
 	}
 
@@ -2294,27 +2301,14 @@ bool GSDevice11::CreateCASShaders()
 
 bool GSDevice11::DoCAS(GSTexture* sTex, GSTexture* dTex, bool sharpen_only, const std::array<u32, NUM_CAS_CONSTANTS>& constants)
 {
-	g_perfmon.Put(GSPerfMon::TextureCopies, 1);
+	const GSVector2i s = dTex->GetSize();
 
-	static constexpr int threadGroupWorkRegionDim = 16;
-	const int dispatchX = (dTex->GetWidth() + (threadGroupWorkRegionDim - 1)) / threadGroupWorkRegionDim;
-	const int dispatchY = (dTex->GetHeight() + (threadGroupWorkRegionDim - 1)) / threadGroupWorkRegionDim;
+	const GSVector4 sRect(0, 0, 1, 1);
+	const GSVector4 dRect(0, 0, s.x, s.y);
 
-	ID3D11ShaderResourceView* srvs[1] = {*static_cast<GSTexture11*>(sTex)};
-	ID3D11UnorderedAccessView* uavs[1] = {*static_cast<GSTexture11*>(dTex)};
-	OMSetRenderTargets(nullptr, nullptr, nullptr);
 	m_ctx->UpdateSubresource(m_cas.cb.get(), 0, nullptr, constants.data(), 0, 0);
-	m_ctx->CSSetConstantBuffers(0, 1, m_cas.cb.addressof());
-	m_ctx->CSSetShader(sharpen_only ? m_cas.cs_sharpen.get() : m_cas.cs_upscale.get(), nullptr, 0);
-	m_ctx->CSSetShaderResources(0, std::size(srvs), srvs);
-	m_ctx->CSSetUnorderedAccessViews(0, std::size(uavs), uavs, nullptr);
-	m_ctx->Dispatch(dispatchX, dispatchY, 1);
 
-	// clear bindings out to prevent hazards
-	uavs[0] = nullptr;
-	srvs[0] = nullptr;
-	m_ctx->CSSetShaderResources(0, std::size(srvs), srvs);
-	m_ctx->CSSetUnorderedAccessViews(0, std::size(uavs), uavs, nullptr);
+	DoStretchRect(sTex, sRect, dTex, dRect, sharpen_only ? m_cas.ps_sharpen.get() : m_cas.ps_upscale.get(), m_cas.cb.get(), Nearest);
 
 	return true;
 }
@@ -2381,7 +2375,7 @@ void GSDevice11::RenderImGui()
 {
 	ImGui::Render();
 	const ImDrawData* draw_data = ImGui::GetDrawData();
-	if (draw_data->CmdListsCount == 0)
+	if (draw_data->CmdLists.Size == 0)
 		return;
 
 	UpdateImGuiTextures();
@@ -2415,7 +2409,7 @@ void GSDevice11::RenderImGui()
 	PSSetSamplerState(m_convert.ln.get());
 
 	// Render command lists
-	for (int n = 0; n < draw_data->CmdListsCount; n++)
+	for (int n = 0; n < draw_data->CmdLists.Size; n++)
 	{
 		const ImDrawList* cmd_list = draw_data->CmdLists[n];
 
@@ -2915,6 +2909,13 @@ void GSDevice11::OMSetRenderTargets(GSTexture* rt, GSTexture* ds_as_rt, GSTextur
 	{
 		CommitClear(ds);
 		dsv = read_only_dsv ? read_only_dsv : *static_cast<GSTexture11*>(ds);
+
+		// Invalidate DS as RT if we're updating DS alone.
+		if (!ds_as_rt)
+			InvalidateDSAsRT(ds);
+
+		// Make sure something didn't go wrong with DS as RT caching.
+		pxAssert(!ds_as_rt || m_ds_as_rt_orig == ds);
 	}
 	if (rt_uav_tex)
 	{
@@ -3073,7 +3074,7 @@ void GSDevice11::RenderHW(GSHWDrawConfig& config)
 	const GSVector2i rtsize = (config.rt ? config.rt : config.ds)->GetSize();
 	GSTexture* colclip_rt = g_gs_device->GetColorClipTexture();
 	GSTexture* draw_rt = config.ps.HasColorROV() ? nullptr : config.rt;
-	GSTexture* draw_ds_as_rt = m_ds_as_rt;
+	GSTexture* draw_ds_as_rt = config.ps.IsFeedbackLoopDepth() ? m_ds_as_rt : nullptr;
 	GSTexture* draw_ds = config.ps.HasDepthROV() ? nullptr : config.ds;
 	GSTexture* draw_rt_rov = config.ps.HasColorROV() ? config.rt : nullptr;
 	GSTexture* draw_ds_rov = config.ps.HasDepthROV() ? config.ds : nullptr;

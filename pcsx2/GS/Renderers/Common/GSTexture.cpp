@@ -14,7 +14,11 @@
 
 GSTexture::GSTexture() = default;
 
-GSTexture::~GSTexture() = default;
+GSTexture::~GSTexture()
+{
+	if (IsDepthStencil())
+		g_gs_device->InvalidateDSAsRT(this);
+}
 
 bool GSTexture::ValidateUsageAndFormat(Usage usage, Format format)
 {
@@ -44,7 +48,7 @@ bool GSTexture::Save(const std::string& fn)
 {
 	// Depth textures need special treatment - we have a stencil component.
 	// Just re-use the existing conversion shader instead.
-	if (m_format == Format::DepthStencil || m_format == Format::DepthColor)
+	if (m_format == Format::DepthStencil || m_format == Format::DepthColor || m_format == Format::PrimID)
 	{
 		GSTexture* temp = g_gs_device->CreateRenderTarget(GetWidth(), GetHeight(), Format::Color, false);
 		if (!temp)
@@ -200,7 +204,7 @@ u32 GSTexture::CalcUploadSize(Format format, u32 height, u32 pitch)
 
 bool GSTexture::IsFeedbackFormat(Format format)
 {
-	return format == Format::Color || format == Format::ColorClip ||
+	return format == Format::Color || format == Format::ColorClip || format == Format::ColorHDR ||
 		format == Format::DepthColor || format == Format::DepthStencil;
 }
 

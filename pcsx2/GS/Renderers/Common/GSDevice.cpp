@@ -49,6 +49,7 @@ const char* ShaderEntryPoint(ShaderConvert value)
 		case ShaderConvert::RGB5A1_TO_DEPTH16:      return "ps_convert_rgb5a1_depth16";
 		case ShaderConvert::DEPTH32_TO_DEPTH24:     return "ps_convert_depth32_depth24";
 		case ShaderConvert::DEPTH_COPY:             return "ps_depth_copy";
+		case ShaderConvert::PRIMID_TO_RGBA8:        return "ps_convert_primid_rgba8";
 		case ShaderConvert::DOWNSAMPLE_COPY:        return "ps_downsample_copy";
 		case ShaderConvert::RGBA_TO_8I:             return "ps_convert_rgba_8i";
 		case ShaderConvert::RGB5A1_TO_8I:           return "ps_convert_rgb5a1_8i";
@@ -109,6 +110,7 @@ const char* ShaderConvertName(ShaderConvert shader)
 		ENTRY(RGBA8_TO_DEPTH16);
 		ENTRY(RGB5A1_TO_DEPTH16);
 		ENTRY(DEPTH32_TO_DEPTH24);
+		ENTRY(PRIMID_TO_RGBA8);
 		ENTRY(DOWNSAMPLE_COPY);
 		ENTRY(RGBA_TO_8I);
 		ENTRY(RGB5A1_TO_8I);
@@ -366,8 +368,80 @@ GSVector4i GSDevice::ProcessCopyArea(const GSVector4i& rtsize, const GSVector4i&
 	return snapped_drawarea;
 }
 
+#ifdef BAKE_SHADERS_IN_CPP
+#include "common_fxaa.cpp"
+#include "common_ffx_a.cpp"
+#include "common_ffx_cas.cpp"
+#include "vulkan_cas.cpp"
+#include "vulkan_convert.cpp"
+#include "vulkan_imgui.cpp"
+#include "vulkan_interlace.cpp"
+#include "vulkan_merge.cpp"
+#include "vulkan_present.cpp"
+#include "vulkan_shadeboost.cpp"
+#include "vulkan_tfx.cpp"
+#include "opengl_cas.cpp"
+#include "opengl_convert.cpp"
+#include "opengl_imgui.cpp"
+#include "opengl_interlace.cpp"
+#include "opengl_merge.cpp"
+#include "opengl_present.cpp"
+#include "opengl_shadeboost.cpp"
+#include "opengl_tfx_fs.cpp"
+#include "opengl_tfx_vgs.cpp"
+#ifdef _WIN32
+#include "dx11_cas.cpp"
+#include "dx11_convert.cpp"
+#include "dx11_imgui.cpp"
+#include "dx11_interlace.cpp"
+#include "dx11_merge.cpp"
+#include "dx11_present.cpp"
+#include "dx11_shadeboost.cpp"
+#include "dx11_tfx.cpp"
+#endif
+
+static const std::map<std::string, const unsigned char*> s_baked_shaders = {
+	{ "shaders/common/fxaa.fx"         , common_fxaa},
+	{ "shaders/common/fxaa.fx"         , common_fxaa },
+	{ "shaders/common/ffx_a.h"         , common_ffx_a },
+	{ "shaders/common/ffx_cas.h"       , common_ffx_cas },
+	{ "shaders/vulkan/cas.glsl"        , vulkan_cas },
+	{ "shaders/vulkan/convert.glsl"    , vulkan_convert},
+	{ "shaders/vulkan/imgui.glsl"      , vulkan_imgui},
+	{ "shaders/vulkan/interlace.glsl"  , vulkan_interlace},
+	{ "shaders/vulkan/merge.glsl"      , vulkan_merge },
+	{ "shaders/vulkan/present.glsl"    , vulkan_present },
+	{ "shaders/vulkan/shadeboost.glsl" , vulkan_shadeboost },
+	{ "shaders/vulkan/tfx.glsl"        , vulkan_tfx },
+	{ "shaders/opengl/cas.glsl"        , opengl_cas },
+	{ "shaders/opengl/convert.glsl"    , opengl_convert },
+	{ "shaders/opengl/imgui.glsl"      , opengl_imgui },
+	{ "shaders/opengl/interlace.glsl"  , opengl_interlace },
+	{ "shaders/opengl/merge.glsl"      , opengl_merge },
+	{ "shaders/opengl/present.glsl"    , opengl_present },
+	{ "shaders/opengl/shadeboost.glsl" , opengl_shadeboost },
+	{ "shaders/opengl/tfx_fs.glsl"     , opengl_tfx_fs },
+	{ "shaders/opengl/tfx_vgs.glsl"    , opengl_tfx_vgs },
+#ifdef _WIN32
+	{ "shaders/dx11/cas.hlsl"          , dx11_cas },
+	{ "shaders/dx11/convert.fx"        , dx11_convert },
+	{ "shaders/dx11/imgui.fx"          , dx11_imgui },
+	{ "shaders/dx11/interlace.fx"      , dx11_interlace },
+	{ "shaders/dx11/merge.fx"          , dx11_merge },
+	{ "shaders/dx11/present.fx"        , dx11_present },
+	{ "shaders/dx11/shadeboost.fx"     , dx11_shadeboost },
+	{ "shaders/dx11/tfx.fx"            , dx11_tfx },
+#endif
+};
+#endif
+
 std::optional<std::string> GSDevice::ReadShaderSource(const char* filename)
 {
+#ifdef BAKE_SHADERS_IN_CPP
+	const auto it = s_baked_shaders.find(filename);
+	if (it != s_baked_shaders.end())
+		return reinterpret_cast<const char*>(it->second);
+#endif
 	return FileSystem::ReadFileToString(Path::Combine(EmuFolders::Resources, filename).c_str());
 }
 
@@ -699,6 +773,9 @@ void GSDevice::Recycle(GSTexture* t)
 #ifdef PCSX2_DEVBUILD
 	t->SetDebugName("");
 #endif
+
+	if (t->IsDepthStencil())
+		InvalidateDSAsRT(t);
 
 	FastList<GSTexture*>& pool = m_pool[!t->IsTexture()];
 	pool.push_front(t);
@@ -1110,16 +1187,125 @@ bool GSDevice::ResizeRenderTarget(GSTexture** t, int w, int h, bool preserve_con
 	return true;
 }
 
-void GSDevice::BeginDSAsRT(GSTexture* ds, const GSVector4i& drawarea)
+static GSVector4i GetExpandRectRegions(GSVector4i old, GSVector4i new_, GSVector4i* regions, u32* n_regions)
 {
-	// Create a temporary RT and copy the area needed for the draw.
+	*n_regions = 0;
+
+	if (old.rcontains(new_))
+		return old;
+
+	new_ = new_.runion(old);
+
+	// Left region
+	if (new_.left < old.left)
+	{
+		regions[(*n_regions)++] = GSVector4i(new_.left, new_.top, old.left, old.bottom);
+	}
+
+	// Top region
+	if (new_.top < old.top)
+	{
+		regions[(*n_regions)++] = GSVector4i(old.left, new_.top, new_.right, old.top);
+	}
+
+	// Right region
+	if (new_.right > old.right)
+	{
+		regions[(*n_regions)++] = GSVector4i(old.right, old.top, new_.right, new_.bottom);
+	}
+
+	// Bottom region
+	if (new_.bottom > old.bottom)
+	{
+		regions[(*n_regions)++] = GSVector4i(new_.left, old.bottom, old.right, new_.bottom);
+	}
+
+	// Debugging
+	[[maybe_unused]] u32 total_area = old.rarea();
+	for (u32 i = 0; i < *n_regions; i++)
+	{
+		total_area += regions[i].rarea();
+	}
+	pxAssert(total_area == new_.rarea()); // Make sure no overlap or holes.
+
+	return new_;
+}
+
+void GSDevice::BeginDSAsRT(GSTexture* ds, const GSVector4i& drawarea_in)
+{
+	if (m_ds_as_rt_orig && m_ds_as_rt_orig != ds)
+		EndDSAsRT();
+
+	if (!m_ds_as_rt)
+	{
+		GL_INS("HW: Create new DS as RT");
+		m_ds_as_rt = g_gs_device->CreateFeedbackTarget(ds->GetSize(), GSTexture::Format::DepthColor, false, true);
+		m_ds_as_rt_orig = ds;
+		m_ds_as_rt_valid = GSVector4i::zero();
+	}
+
+	if (!m_ds_as_rt)
+	{
+		Console.Error("HW: Failed to create DS as RT texture");
+		return;
+	}
+
+	// Align to 64x64 tiles to reduce number of copies
+	const GSVector4i drawarea = drawarea_in.ralign<Align_Outside>(GSVector2i(64, 64));
+
+	pxAssert(m_ds_as_rt && m_ds_as_rt_orig == ds);
+
+	if (ds->GetState() == GSTexture::State::Cleared)
+	{
+		GL_INS("HW: DS is cleared, transfer to cached DS as RT");
+		m_ds_as_rt->SetClearDepth(ds->GetClearDepth());
+		m_ds_as_rt_valid = ds->GetRect();
+		return;
+	}
+
+	std::array<GSVector4i, 4> regions;
+	u32 n_regions;
+	if (m_ds_as_rt_valid.rempty())
+	{
+		// Valid area is empty, so just copy the new draw area.
+		GL_INS("HW: Initialize new DS as RT.");
+		n_regions = 1;
+		m_ds_as_rt_valid = regions[0] = drawarea;
+	}
+	else
+	{
+		// Expand valid area to encompass the new draw area.
+		GL_INS("HW: Update cached DS as RT.");
+		m_ds_as_rt_valid = GetExpandRectRegions(m_ds_as_rt_valid, drawarea, regions.data(), &n_regions);
+		if (n_regions == 0)
+		{
+			GL_INS("HW: Draw area is already contained in valid area.");
+			return;
+		}
+	}
+
+	std::array<MultiStretchRect, 4> rects;
 	const int w = ds->GetWidth();
 	const int h = ds->GetHeight();
-	if ((m_ds_as_rt = g_gs_device->CreateFeedbackTarget(w, h, GSTexture::Format::DepthColor, false, true)))
+	for (u32 i = 0; i < n_regions; i++)
 	{
-		const GSVector4 dRect(drawarea);
+		const GSVector4 dRect(regions[i]);
 		const GSVector4 sRect(dRect.x / w, dRect.y / h, dRect.z / w, dRect.w / h);
-		StretchRectAuto(ds, sRect, m_ds_as_rt, dRect, Nearest);
+		rects[i].src_rect = sRect;
+		rects[i].dst_rect = dRect;
+		rects[i].src = ds;
+		rects[i].filter = Nearest;
+		rects[i].wmask = 0xF;
+	}
+	DrawMultiStretchRects(rects.data(), n_regions, m_ds_as_rt, ShaderConvert::DEPTH_COPY);
+}
+
+void GSDevice::InvalidateDSAsRT(GSTexture* ds)
+{
+	if (m_ds_as_rt_orig == ds)
+	{
+		GL_INS("HW: Invalidate current DS as RT.");
+		EndDSAsRT();
 	}
 }
 
@@ -1127,6 +1313,8 @@ void GSDevice::EndDSAsRT()
 {
 	Recycle(m_ds_as_rt);
 	m_ds_as_rt = nullptr;
+	m_ds_as_rt_orig = nullptr;
+	m_ds_as_rt_valid = GSVector4i::zero();
 }
 
 #if defined(__clang__)
@@ -1173,10 +1361,10 @@ void GSDevice::CAS(GSTexture*& tex, GSVector4i& src_rect, GSVector4& src_uv, con
 	if (!m_cas || m_cas->GetWidth() != dst_width || m_cas->GetHeight() != dst_height)
 	{
 		delete m_cas;
-		m_cas = CreateSurface(GSTexture::ShaderWriteTexture, dst_width, dst_height, 1, GSTexture::Format::Color);
+		m_cas = CreateSurface(GSTexture::RenderTarget, dst_width, dst_height, 1, GSTexture::Format::Color);
 		if (!m_cas)
 		{
-			Console.Error("Failed to allocate CAS RW texture.");
+			Console.Error("GS: Failed to allocate CAS texture.");
 			return;
 		}
 	}
@@ -1191,7 +1379,7 @@ void GSDevice::CAS(GSTexture*& tex, GSVector4i& src_rect, GSVector4& src_uv, con
 	if (!DoCAS(src_tex, m_cas, sharpen_only, consts))
 	{
 		// leave textures intact if we failed
-		Console.Warning("Applying CAS failed.");
+		Console.Warning("GS: Applying CAS failed.");
 		return;
 	}
 
@@ -1668,7 +1856,7 @@ static void DumpAlphaPass(DrawConfigWriter& out, const GSHWDrawConfig::AlphaPass
 	out.WriteLn("enable: {}", ap.enable);
 	out.WriteLn("require_one_barrier: {}", ap.require_one_barrier);
 	out.WriteLn("require_full_barrier: {}", ap.require_full_barrier);
-	out.WriteLn("colormask: {:x}", ap.colormask.wrgba);
+	out.WriteLn("colormask: 0x{:x}", ap.colormask.wrgba);
 	out.WriteLn("ps_aref: {}", ap.ps_aref);
 
 	out.WriteLn("ps:");
@@ -1689,7 +1877,7 @@ static void DumpBlendMultipass(DrawConfigWriter& out, const GSHWDrawConfig::Blen
 	DumpBlendState(out.WithIndent(), bmp.blend);
 }
 
-template<typename T, typename U = int>
+template<typename T>
 static void DumpVector4(DrawConfigWriter& out, const char* name, const T& val)
 {
 	out.WriteLn("{}: [{}, {}, {}, {}]", name, val.x, val.y, val.z, val.w);
@@ -1747,7 +1935,13 @@ static void DumpConfig(DrawConfigWriter& out, const GSHWDrawConfig& conf,
 	out.WriteLn("destination_alpha: {} ({})", GetDestinationAlphaModeName(conf.destination_alpha), static_cast<u32>(conf.destination_alpha));
 	out.WriteLn("datm: {} ({})", GetSetDATMName(conf.datm), static_cast<u32>(conf.datm));
 	out.WriteLn("line_expand: {}", conf.line_expand);
-	out.WriteLn("colormask: {:x}", conf.colormask.wrgba);
+	out.WriteLn("colormask: 0x{:x}", conf.colormask.wrgba);
+
+	out.WriteLn("colclip_mode: {}", GetColClipModeName(conf.colclip_mode));
+	out.WriteLn("colclip_frame: {{ FBP: 0x{:04x}, FBW: {}, PSM: {}, FBMSK: 0x{:08x} }}",
+		conf.colclip_frame.FBP, conf.colclip_frame.FBW, GSUtil::GetPSMName(conf.colclip_frame.PSM),
+		conf.colclip_frame.FBMSK);
+	DumpVector4(out, "colclip_update_area", conf.colclip_update_area);
 
 	if (ps)
 	{

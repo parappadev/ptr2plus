@@ -103,6 +103,21 @@ jobs:
       stableBuild: ${{ github.event_name == 'workflow_dispatch' && inputs.is_prerelease == 'false' }}
     secrets: inherit
 
+  build_linux_debug:
+    if: github.repository == 'PCSX2/pcsx2'
+    needs:
+      - cut-release
+    name: "Linux"
+    uses: ./.github/workflows/linux_build_qt.yml
+    with:
+      jobName: "Generate debug build caches"
+      artifactPrefixName: "PCSX2-linux-Qt-x64-debug"
+      compiler: clang
+      cmakeflags: ""
+      buildAppImage: false
+      cmakeBuildType: Debug
+    secrets: inherit
+
   build_linux_flatpak:
     if: github.repository == 'PCSX2/pcsx2'
     needs:
@@ -120,10 +135,16 @@ jobs:
     secrets: inherit
 
   # Windows
+  build_windows_deps:
+    if: github.repository == 'PCSX2/pcsx2'
+    name: "Windows Dependencies"
+    uses: ./.github/workflows/windows_deps_build.yml
+
   build_windows_qt:
     if: github.repository == 'PCSX2/pcsx2'
     needs:
       - cut-release
+      - build_windows_deps
     name: "Windows"
     uses: ./.github/workflows/windows_build_qt.yml
     with:

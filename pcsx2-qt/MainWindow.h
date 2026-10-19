@@ -83,11 +83,15 @@ public:
 	/// Default filter for opening a disc image.
 	static const char* DISC_IMAGE_FILTER;
 
+	/// Default layout for the toolbar.
+	static const char* DEFAULT_TOOLBAR_LAYOUT;
+
 public:
 	MainWindow();
 	~MainWindow();
 
 	void initialize();
+	void rebuildToolbar();
 	void connectVMThreadSignals(EmuThread* thread);
 	void startupUpdateCheck();
 	void resetSettings(bool ui);
@@ -108,6 +112,9 @@ public:
 
 	/// Rescans a single file. NOTE: Happens on UI thread.
 	void rescanFile(const std::string& path);
+
+	/// Updates a favorite in the game list. NOTE: Happens on UI thread.
+	void refreshGameListFavorite(const std::string& path);
 
 	/// Start a file from a user action (e.g. dragging a file onto the main window or with macOS open with)
 	bool startFile(const QString& path);
@@ -175,6 +182,8 @@ private Q_SLOTS:
 	void onFullscreenUIStateChange(bool running);
 	void onViewToolbarActionToggled(bool checked);
 	void onViewLockToolbarActionToggled(bool checked);
+	void onCustomizeToolbarTriggered();
+	void onToolbarContextMenuRequested(const QPoint& pos);
 	void onViewStatusBarActionToggled(bool checked);
 	void onViewGameListActionTriggered();
 	void onViewGameGridActionTriggered();
@@ -188,6 +197,7 @@ private Q_SLOTS:
 	void onAboutActionTriggered();
 	void onToolsOpenDataDirectoryTriggered();
 	void onToolsCoverDownloaderTriggered();
+	void onToolsControllerTesterTriggered();
 #if !defined(__APPLE__)
 	void onCreateGameShortcutTriggered();
 #endif

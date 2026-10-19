@@ -27,34 +27,17 @@ static std::string getSlotFilenameKey(u32 slot)
 	return StringUtil::StdStringFromFormat("Slot%u_Filename", slot + 1);
 }
 
-namespace
+bool MemoryCardListWidget::MemoryCardListItem::operator<(const QTreeWidgetItem& other) const
 {
-	enum MemoryCardListColumn : int
+	const QTreeWidget* tree = treeWidget();
+	const int column = tree ? tree->sortColumn() : 0;
+	if (column == MemoryCardListColumn::LastModified)
 	{
-		Name,
-		Type,
-		Formatted,
-		LastModified,
-	};
-
-	class MemoryCardListItem : public QTreeWidgetItem
-	{
-	public:
-		using QTreeWidgetItem::QTreeWidgetItem;
-
-		bool operator<(const QTreeWidgetItem& other) const override
-		{
-			const QTreeWidget* tree = treeWidget();
-			const int column = tree ? tree->sortColumn() : 0;
-			if (column == MemoryCardListColumn::LastModified)
-			{
-				return data(MemoryCardListColumn::LastModified, Qt::UserRole).toLongLong() <
-				       other.data(MemoryCardListColumn::LastModified, Qt::UserRole).toLongLong();
-			}
-			return text(column).localeAwareCompare(other.text(column)) < 0;
-		}
-	};
-} // namespace
+		return data(MemoryCardListColumn::LastModified, Qt::UserRole).toLongLong() <
+				other.data(MemoryCardListColumn::LastModified, Qt::UserRole).toLongLong();
+	}
+	return text(column).localeAwareCompare(other.text(column)) < 0;
+}
 
 MemoryCardSettingsWidget::MemoryCardSettingsWidget(SettingsWindow* settings_dialog, QWidget* parent)
 	: SettingsWidget(settings_dialog, parent)
@@ -266,10 +249,12 @@ void MemoryCardSettingsWidget::renameCard()
 	if (newName.isEmpty() || newName == selectedCard)
 		return;
 
-	if (!newName.endsWith(QStringLiteral(".ps2")) || newName.length() <= 4)
+	const qsizetype extensionPos = selectedCard.lastIndexOf('.');
+	const QString extension(extensionPos >= 0 ? selectedCard.mid(extensionPos) : QString());
+	if (!newName.endsWith(extension, Qt::CaseInsensitive) || newName.length() <= extension.length())
 	{
-		QMessageBox::critical(
-			QtUtils::GetRootWidget(this), tr("Rename Memory Card"), tr("New name is invalid, it must end with .ps2"));
+		QMessageBox::critical(QtUtils::GetRootWidget(this), tr("Rename Memory Card"),
+			tr("New name is invalid, it must end with %1").arg(extension));
 		return;
 	}
 
@@ -325,7 +310,10 @@ void MemoryCardSettingsWidget::listContextMenuRequested(const QPoint& pos)
 		menu.addSeparator();
 
 		connect(menu.addAction(tr("Rename")), &QAction::triggered, this, &MemoryCardSettingsWidget::renameCard);
-		connect(menu.addAction(tr("Convert")), &QAction::triggered, this, &MemoryCardSettingsWidget::convertCard);
+
+		QAction* convertAction = menu.addAction(tr("Convert"));
+		convertAction->setEnabled(m_ui.convertCard->isEnabled());
+		connect(convertAction, &QAction::triggered, this, &MemoryCardSettingsWidget::convertCard);
 		connect(menu.addAction(tr("Delete")), &QAction::triggered, this, &MemoryCardSettingsWidget::deleteCard);
 		menu.addSeparator();
 	}
@@ -386,8 +374,8 @@ void MemoryCardSettingsWidget::saveCardListSortState()
 void MemoryCardSettingsWidget::loadCardListSortState()
 {
 	int sort_column = Host::GetBaseIntSettingValue("MemoryCardListView", "SortColumn", 0);
-	if (sort_column < 0 || sort_column > MemoryCardListColumn::LastModified)
-		sort_column = MemoryCardListColumn::Name;
+	if (sort_column < 0 || sort_column > MemoryCardListWidget::MemoryCardListColumn::LastModified)
+		sort_column = MemoryCardListWidget::MemoryCardListColumn::Name;
 	const bool sort_descending = Host::GetBaseBoolSettingValue("MemoryCardListView", "SortDescending", false);
 	m_ui.cardList->sortByColumn(sort_column, sort_descending ? Qt::DescendingOrder : Qt::AscendingOrder);
 }
