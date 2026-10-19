@@ -23,7 +23,6 @@
 #include "USB/USB.h"
 #include "VMManager.h"
 #include "ps2/BiosTools.h"
-#include "mods/P2mTools.h" //ptr2plus
 #include "DEV9/ATA/HddCreate.h"
 #include "DEV9/pcap_io.h"
 #include "DEV9/sockets.h"
@@ -64,9 +63,7 @@
 #include <thread>
 #include <utility>
 #include <vector>
-#include <pcsx2/mods/EmuPatches.h>
-#include <pcsx2/mods/ActiveMods.h>
-#include <pcsx2/mods/PriorityList.h>
+
 
 using ImGuiManager::s_need_layout_update;
 

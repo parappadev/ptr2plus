@@ -45,6 +45,12 @@
 
 #include <set>
 
+//ptr2plus
+#include <pcsx2/mods/EmuPatches.h>
+#include <pcsx2/mods/ActiveMods.h>
+#include <pcsx2/mods/PriorityList.h>
+#include "mods/P2mTools.h"
+
 namespace FullscreenUI
 {
 	class HddCreateInProgress : public HddCreate
@@ -301,10 +307,16 @@ void FullscreenUI::DrawInputBindingButton(
 		const float text_end = bb.Max.x - value_size.x;
 		const ImRect title_bb(bb.Min, ImVec2(text_end, midpoint));
 
+		//ptr2plus
+		ImGuiFullscreen::DrawSettingsTextOutline(title_bb, g_large_font, show_type ? title.c_str() : display_name, 2.5f, true, ImVec2(0.0f, 0.0f));
+		const float midpoint = bb.Min.y + g_large_font.second + LayoutScale(4.0f);
+
 		ImGui::RenderTextClipped(title_bb.Min, title_bb.Max, show_type ? title.c_str() : display_name, nullptr, nullptr,
 			ImVec2(0.0f, 0.0f), &title_bb);
+		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetColorU32(ImGuiCol_Tab)); //ptr2plus
 		ImGui::RenderTextClipped(bb.Min, bb.Max, value.empty() ? FSUI_CSTR("-") : value.c_str(), nullptr, &value_size,
 			ImVec2(1.0f, 0.5f), &bb);
+		ImGui::PopStyleColor(); //ptr2plus
 		ImGui::PopFont();
 	}
 	else
@@ -312,14 +324,20 @@ void FullscreenUI::DrawInputBindingButton(
 		const ImRect title_bb(bb.Min, ImVec2(bb.Max.x, midpoint));
 		const ImRect summary_bb(ImVec2(bb.Min.x, midpoint), bb.Max);
 
+		//ptr2plus
+		ImGuiFullscreen::DrawSettingsTextOutline(title_bb, g_large_font, show_type ? title.c_str() : display_name, 2.5f, true, ImVec2(0.0f, 0.0f));
+		const float midpoint = bb.Min.y + g_large_font.second + LayoutScale(4.0f);
+
 		ImGui::PushFont(g_large_font.first, g_large_font.second);
 		ImGui::RenderTextClipped(title_bb.Min, title_bb.Max, show_type ? title.c_str() : display_name, nullptr, nullptr,
 			ImVec2(0.0f, 0.0f), &title_bb);
 		ImGui::PopFont();
 
 		ImGui::PushFont(g_medium_font.first, g_medium_font.second);
+		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetColorU32(ImGuiCol_Tab)); //ptr2plus
 		ImGui::RenderTextClipped(summary_bb.Min, summary_bb.Max, value.empty() ? FSUI_CSTR("No Binding") : value.c_str(),
 			nullptr, nullptr, ImVec2(0.0f, 0.0f), &summary_bb);
+		ImGui::PopStyleColor(); //ptr2plus
 		ImGui::PopFont();
 	}
 
@@ -513,7 +531,7 @@ bool FullscreenUI::DrawToggleSetting(SettingsInterface* bsi, const char* title, 
 
 void FullscreenUI::DrawIntListSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section, const char* key,
 	int default_value, const char* const* options, size_t option_count, bool translate_options, int option_offset, bool enabled,
-	float height, std::pair<ImFont*, float> font, std::pair<ImFont*, float> summary_font)
+	float height, std::pair<ImFont*, float> font, std::pair<ImFont*, float> summary_font, bool preset_setting) //ptr2plus
 {
 	if (options && option_count == 0)
 	{
@@ -543,11 +561,17 @@ void FullscreenUI::DrawIntListSetting(SettingsInterface* bsi, const char* title,
 				(i == static_cast<size_t>(index)));
 		}
 		OpenChoiceDialog(title, false, std::move(cd_options),
-			[game_settings, section, key, option_offset](s32 index, const std::string& title, bool checked) {
+			[game_settings, section, key, option_offset, preset_setting](s32 index, const std::string& title, bool checked) { //ptr2plus
 				if (index >= 0)
 				{
 					auto lock = Host::GetSettingsLock();
 					SettingsInterface* bsi = GetEditingSettingsInterface(game_settings);
+					//ptr2plus
+					if (preset_setting && ( bsi->GetIntValue(section, key) != index + option_offset) )
+					{
+						SetPresetToCustom(bsi);
+					}
+
 					if (game_settings)
 					{
 						if (index == 0)
@@ -567,6 +591,15 @@ void FullscreenUI::DrawIntListSetting(SettingsInterface* bsi, const char* title,
 			});
 	}
 }
+//ptr2plus
+void FullscreenUI::DrawIntListPresetSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section, const char* key,
+	int default_value, const char* const* options, size_t option_count, bool translate_options, int option_offset, bool enabled, float height, std::pair<ImFont*, float> font,
+	std::pair<ImFont*, float> summary_font)
+{
+	FullscreenUI::DrawIntListSetting(bsi, title, summary, section, key,
+		default_value, options, option_count, translate_options, option_offset, enabled, height, font,
+		summary_font, true);
+}
 
 void FullscreenUI::DrawIntRangeSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section, const char* key,
 	int default_value, int min_value, int max_value, const char* format, bool enabled, float height, std::pair<ImFont*, float> font, std::pair<ImFont*, float> summary_font)
@@ -580,6 +613,7 @@ void FullscreenUI::DrawIntRangeSetting(SettingsInterface* bsi, const char* title
 	if (MenuButtonWithValue(title, summary, value_text.c_str(), enabled, height, font, summary_font))
 		ImGui::OpenPopup(title);
 
+	/* ptr2plus
 	ImGui::SetNextWindowSize(LayoutScale(500.0f, 192.0f));
 	ImGui::SetNextWindowPos(ImGui::GetIO().DisplaySize * 0.5f, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 
@@ -589,10 +623,23 @@ void FullscreenUI::DrawIntRangeSetting(SettingsInterface* bsi, const char* title
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
 		LayoutScale(ImGuiFullscreen::LAYOUT_MENU_BUTTON_X_PADDING, ImGuiFullscreen::LAYOUT_MENU_BUTTON_Y_PADDING));
-
+	*/
 	bool is_open = true;
-	if (ImGui::BeginPopupModal(title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar))
+	//ptr2plus
+	ImVec2 win_size = ImVec2(LayoutScale(500.0f, 212.0f));
+	ImVec2 win_pos = s_game_size / 2 - win_size / 2;
+	//from BeginPopupModal
+	ImGuiContext& g = *GImGui;
+	ImGuiWindow* window = g.CurrentWindow;
+	const ImGuiID id = window->GetID(title);
+	if (!ImGui::IsPopupOpen(id, ImGuiPopupFlags_None))
+		return;
+	
+	//ptr2plus
+	//if (ImGui::BeginPopupModal(title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar))
+	if (ImGuiFullscreen::BeginPTR2PopupModal(win_pos, win_size, title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
 	{
+		ImGui::PushStyleColor(ImGuiCol_Text, HEX_TO_IMVEC4(0x9e001f, 0xff)); //ptr2plus
 		BeginMenuButtons();
 
 		const float end = ImGui::GetCurrentWindow()->WorkRect.GetWidth();
@@ -629,12 +676,13 @@ void FullscreenUI::DrawIntRangeSetting(SettingsInterface* bsi, const char* title
 			ImGui::CloseCurrentPopup();
 		}
 		EndMenuButtons();
-
+		ImGui::PopStyleColor(); //ptr2plus
 		ImGui::EndPopup();
 	}
-
-	ImGui::PopStyleVar(4);
-	ImGui::PopFont();
+	//ptr2plus
+	ImGuiFullscreen::EndPTR2PopupModal(); 
+	//ImGui::PopStyleVar(4);
+	//ImGui::PopFont();
 }
 
 void FullscreenUI::DrawIntSpinBoxSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section,
@@ -655,6 +703,7 @@ void FullscreenUI::DrawIntSpinBoxSetting(SettingsInterface* bsi, const char* tit
 		manual_input = false;
 	}
 
+	/* ptr2plus
 	ImGui::SetNextWindowSize(LayoutScale(500.0f, 192.0f));
 	ImGui::SetNextWindowPos(ImGui::GetIO().DisplaySize * 0.5f, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 
@@ -664,10 +713,22 @@ void FullscreenUI::DrawIntSpinBoxSetting(SettingsInterface* bsi, const char* tit
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
 		LayoutScale(ImGuiFullscreen::LAYOUT_MENU_BUTTON_X_PADDING, ImGuiFullscreen::LAYOUT_MENU_BUTTON_Y_PADDING));
+	*/
 
 	bool is_open = true;
-	if (ImGui::BeginPopupModal(title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar))
+	//ptr2plus
+	ImVec2 win_size = ImVec2(LayoutScale(500.0f, 212.0f));
+	ImVec2 win_pos = s_game_size / 2 - win_size / 2;
+	//from BeginPopupModal
+	ImGuiContext& g = *GImGui;
+	ImGuiWindow* window = g.CurrentWindow;
+	const ImGuiID id = window->GetID(title);
+	if (!ImGui::IsPopupOpen(id, ImGuiPopupFlags_None))
+		return;
+	//if (ImGui::BeginPopupModal(title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar))
+	if (ImGuiFullscreen::BeginPTR2PopupModal(win_pos, win_size, title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
 	{
+		ImGui::PushStyleColor(ImGuiCol_Text, HEX_TO_IMVEC4(0x9e001f, 0xff)); //ptr2plus
 		BeginMenuButtons();
 
 		s32 dlg_value = static_cast<s32>(value.value_or(default_value));
@@ -760,12 +821,14 @@ void FullscreenUI::DrawIntSpinBoxSetting(SettingsInterface* bsi, const char* tit
 			ImGui::CloseCurrentPopup();
 		}
 		EndMenuButtons();
-
+		ImGui::PopStyleColor(); //ptr2plus
 		ImGui::EndPopup();
 	}
 
-	ImGui::PopStyleVar(4);
-	ImGui::PopFont();
+	//ptr2plus
+	//ImGui::PopStyleVar(4);
+	//ImGui::PopFont();
+	ImGuiFullscreen::EndPTR2PopupModal();
 }
 
 void FullscreenUI::DrawFloatRangeSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section,
@@ -857,7 +920,7 @@ void FullscreenUI::DrawFloatSpinBoxSetting(SettingsInterface* bsi, const char* t
 		ImGui::OpenPopup(title);
 		manual_input = false;
 	}
-
+	/*
 	ImGui::SetNextWindowSize(LayoutScale(500.0f, 192.0f));
 	ImGui::SetNextWindowPos(ImGui::GetIO().DisplaySize * 0.5f, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 
@@ -867,10 +930,21 @@ void FullscreenUI::DrawFloatSpinBoxSetting(SettingsInterface* bsi, const char* t
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
 		LayoutScale(ImGuiFullscreen::LAYOUT_MENU_BUTTON_X_PADDING, ImGuiFullscreen::LAYOUT_MENU_BUTTON_Y_PADDING));
-
+	*/
 	bool is_open = true;
-	if (ImGui::BeginPopupModal(title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
+	//ptr2plus
+	ImVec2 win_size = ImVec2(LayoutScale(500.0f, 212.0f));
+	ImVec2 win_pos = s_game_size / 2 - win_size / 2;
+	//from BeginPopupModal
+	ImGuiContext& g = *GImGui;
+	ImGuiWindow* window = g.CurrentWindow;
+	const ImGuiID id = window->GetID(title);
+	if (!ImGui::IsPopupOpen(id, ImGuiPopupFlags_None))
+		return;
+	//if (ImGui::BeginPopupModal(title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
+	if (ImGuiFullscreen::BeginPTR2PopupModal(win_pos, win_size, title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
 	{
+		ImGui::PushStyleColor(ImGuiCol_Text, HEX_TO_IMVEC4(0x9e001f, 0xff)); //ptr2plus
 		BeginMenuButtons();
 
 		float dlg_value = value.value_or(default_value) * multiplier;
@@ -968,12 +1042,14 @@ void FullscreenUI::DrawFloatSpinBoxSetting(SettingsInterface* bsi, const char* t
 			ImGui::CloseCurrentPopup();
 		}
 		EndMenuButtons();
-
+		ImGui::PopStyleColor(); //ptr2plus
 		ImGui::EndPopup();
 	}
 
-	ImGui::PopStyleVar(4);
-	ImGui::PopFont();
+	//ptr2plus
+	//ImGui::PopStyleVar(4);
+	//ImGui::PopFont();
+	ImGuiFullscreen::EndPTR2PopupModal();
 }
 
 void FullscreenUI::DrawIntRectSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section,
@@ -1004,6 +1080,7 @@ void FullscreenUI::DrawIntRectSetting(SettingsInterface* bsi, const char* title,
 		manual_input = false;
 	}
 
+	/*
 	ImGui::SetNextWindowSize(LayoutScale(550.0f, 370.0f));
 	ImGui::SetNextWindowPos(ImGui::GetIO().DisplaySize * 0.5f, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 
@@ -1013,10 +1090,21 @@ void FullscreenUI::DrawIntRectSetting(SettingsInterface* bsi, const char* title,
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
 		LayoutScale(ImGuiFullscreen::LAYOUT_MENU_BUTTON_X_PADDING, ImGuiFullscreen::LAYOUT_MENU_BUTTON_Y_PADDING));
-
+	*/
 	bool is_open = true;
-	if (ImGui::BeginPopupModal(title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar))
+	//ptr2plus
+	ImVec2 win_size = ImVec2(LayoutScale(500.0f, 390.0f));
+	ImVec2 win_pos = s_game_size / 2 - win_size / 2;
+	//from BeginPopupModal
+	ImGuiContext& g = *GImGui;
+	ImGuiWindow* window = g.CurrentWindow;
+	const ImGuiID id = window->GetID(title);
+	if (!ImGui::IsPopupOpen(id, ImGuiPopupFlags_None))
+		return;
+	//if (ImGui::BeginPopupModal(title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar))
+	if (ImGuiFullscreen::BeginPTR2PopupModal(win_pos, win_size, title, &is_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove))
 	{
+		ImGui::PushStyleColor(ImGuiCol_Text, HEX_TO_IMVEC4(0x9e001f, 0xff)); //ptr2plus
 		static constexpr const char* labels[4] = {
 			FSUI_NSTR("Left: "),
 			FSUI_NSTR("Top: "),
@@ -1149,17 +1237,20 @@ void FullscreenUI::DrawIntRectSetting(SettingsInterface* bsi, const char* title,
 			ImGui::CloseCurrentPopup();
 		}
 		EndMenuButtons();
-
+		ImGui::PopStyleColor(); //ptr2plus
 		ImGui::EndPopup();
 	}
 
-	ImGui::PopStyleVar(4);
-	ImGui::PopFont();
+	//ptr2plus
+	//ImGui::PopStyleVar(4);
+	//ImGui::PopFont();
+	ImGuiFullscreen::EndPTR2PopupModal();
 }
 
 void FullscreenUI::DrawStringListSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section,
 	const char* key, const char* default_value, const char* const* options, const char* const* option_values, size_t option_count,
-	bool translate_options, bool enabled, float height, std::pair<ImFont*, float> font, std::pair<ImFont*, float> summary_font, const char* translation_ctx)
+	bool translate_options, bool enabled, float height, std::pair<ImFont*, float> font, std::pair<ImFont*, float> summary_font, 
+	const char* translation_ctx, bool preset_list, bool preset_setting) //ptr2plus
 {
 	const bool game_settings = IsEditingGameSettings(bsi);
 	const std::optional<SmallString> value(
@@ -1202,11 +1293,15 @@ void FullscreenUI::DrawStringListSetting(SettingsInterface* bsi, const char* tit
 				(value.has_value() && i == static_cast<size_t>(index)));
 		}
 		OpenChoiceDialog(title, false, std::move(cd_options),
-			[game_settings, section, key, option_values](s32 index, const std::string& title, bool checked) {
+			[game_settings, section, key, option_values, preset_list, preset_setting](s32 index, const std::string& title, bool checked) { //ptr2plus
 				if (index >= 0)
 				{
 					auto lock = Host::GetSettingsLock();
 					SettingsInterface* bsi = GetEditingSettingsInterface(game_settings);
+					//ptr2plus
+					if (preset_setting && (bsi->GetStringValue(section, key) != option_values[index]))
+						SetPresetToCustom(bsi);
+					
 					if (game_settings)
 					{
 						if (index == 0)
@@ -1218,12 +1313,114 @@ void FullscreenUI::DrawStringListSetting(SettingsInterface* bsi, const char* tit
 					{
 						bsi->SetStringValue(section, key, option_values[index]);
 					}
+					//ptr2plus
+					if (preset_list)
+						SetPresetSettings(bsi, index);
 
 					SetSettingsChanged(bsi);
 				}
 
 				CloseChoiceDialog();
 			});
+	}
+}
+
+//ptr2plus
+void FullscreenUI::DrawPresetListSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section,
+	const char* key, const char* default_value, const char* const* options, const char* const* option_values, size_t option_count,
+	bool translate_options, bool enabled, float height, std::pair<ImFont*, float> font, std::pair<ImFont*, float> summary_font, const char* translation_ctx)
+{
+	FullscreenUI::DrawStringListSetting(bsi, title, summary, section,
+		 key,  default_value,  options,  option_values,  option_count,
+		 translate_options, enabled, height, font, summary_font, translation_ctx, true);
+}
+void FullscreenUI::DrawStringListPresetSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section,
+	const char* key, const char* default_value, const char* const* options, const char* const* option_values, size_t option_count,
+	bool translate_options, bool enabled, float height, std::pair<ImFont*, float> font, std::pair<ImFont*, float> summary_font, const char* translation_ctx)
+{
+	FullscreenUI::DrawStringListSetting(bsi, title, summary, section,
+		key, default_value, options, option_values, option_count,
+		translate_options, enabled, height, font, summary_font, translation_ctx, false, true);
+}
+void FullscreenUI::SetPresetToCustom(SettingsInterface* bsi)
+{
+	bsi->SetStringValue("EmuCore", "performance_preset", "0");
+}
+void FullscreenUI::SetPresetSettings(SettingsInterface* bsi, int index)
+{
+	//could be a switch
+	if (index == 2) // max quality
+	{
+		//affinity disabled
+		bsi->SetIntValue("EmuCore/CPU", "AffinityControlMode", 0);
+		//EE 100%
+		bsi->SetIntValue("EmuCore/Speedhacks", "EECycleRate", 0);
+		//EE Cycle Skipping Disabled
+		bsi->SetIntValue("EmuCore/Speedhacks", "EECycleSkip", 0);
+		//Optimal Frame ON
+		bsi->SetIntValue("EmuCore/GS", "VsyncQueueSize", 0);
+		// Blending Max
+		bsi->SetIntValue("EmuCore/GS", "accurate_blending_unit", 5);
+
+		// ani 16x
+		bsi->SetStringValue("EmuCore/GS", "MaxAnisotropy", "16");
+		// Mip FULL
+		bsi->SetIntValue("EmuCore/GS", "mipmap_hw", 2);
+		//Trilinear Forced
+		bsi->SetIntValue("EmuCore/GS", "TriFilter", 2);
+	}
+	else if (index == 1) // balanced
+	{
+		//affinity disabled
+		bsi->SetIntValue("EmuCore/CPU", "AffinityControlMode", 0);
+		//EE 75% under
+		bsi->SetIntValue("EmuCore/Speedhacks", "EECycleRate", -1);
+		//EE Cycle Skipping Disabled
+		bsi->SetIntValue("EmuCore/Speedhacks", "EECycleSkip", 0);
+		//Optimal Frame Off
+		//if (DEFAULT_FRAME_LATENCY < 2)
+		//{
+			bsi->SetIntValue("EmuCore/GS", "VsyncQueueSize", 2);
+		//}
+	    /* else
+		{
+			bsi->SetIntValue("EmuCore/GS", "VsyncQueueSize", DEFAULT_FRAME_LATENCY);
+		}*/
+		// Blending medium
+		bsi->SetIntValue("EmuCore/GS", "accurate_blending_unit", 2);
+		// ani 8x
+		bsi->SetStringValue("EmuCore/GS", "MaxAnisotropy", "8");
+		// Mip FULL
+		bsi->SetIntValue("EmuCore/GS", "mipmap_hw", 2);
+		//Trilinear Forced
+		bsi->SetIntValue("EmuCore/GS", "TriFilter", 2);
+	}
+	else if (index == 0) // max performance
+	{
+		//affinity VU EE GS
+		bsi->SetIntValue("EmuCore/CPU", "AffinityControlMode", 3);
+		//EE 60% under
+		bsi->SetIntValue("EmuCore/Speedhacks", "EECycleRate", -2);
+		//EE Cycle Skipping Disabled
+		bsi->SetIntValue("EmuCore/Speedhacks", "EECycleSkip", 0);
+		//Optimal Frame Off
+		//if (DEFAULT_FRAME_LATENCY < 2)
+		//{
+			bsi->SetIntValue("EmuCore/GS", "VsyncQueueSize", 2);
+		//}
+		/* else
+		{
+			bsi->SetIntValue("EmuCore/GS", "VsyncQueueSize", DEFAULT_FRAME_LATENCY);
+		}*/
+		// Blending Minimum
+		bsi->SetIntValue("EmuCore/GS", "accurate_blending_unit", 0);
+
+		// ani OFF
+		bsi->SetStringValue("EmuCore/GS", "MaxAnisotropy", "0");
+		// Mip FULL
+		bsi->SetIntValue("EmuCore/GS", "mipmap_hw", 2);
+		//Trilinear Forced
+		bsi->SetIntValue("EmuCore/GS", "TriFilter", 2);
 	}
 }
 
@@ -1636,6 +1833,58 @@ void FullscreenUI::DrawSettingInfoSetting(SettingsInterface* bsi, const char* se
 	}
 }
 
+//ptr2plus
+void FullscreenUI::SwitchToModMenu()
+{
+	s_game_settings_entry.reset();
+	s_game_settings_interface.reset();
+	s_game_patch_list = {};
+	s_enabled_game_patch_cache = {};
+	s_game_cheats_list = {};
+	s_enabled_game_cheat_cache = {};
+	PopulateGraphicsAdapterList();
+
+	s_current_main_window = MainWindowType::ModMenu;
+	s_settings_page = SettingsPage::Mods;
+}
+void FullscreenUI::SwitchToPTR2Settings(const std::string_view& serial, u32 crc)
+{
+	s_game_settings_entry.reset();
+	s_game_settings_interface = std::make_unique<INISettingsInterface>(VMManager::GetGameSettingsPath(serial, crc));
+	s_game_settings_interface->Load();
+	PopulateGraphicsAdapterList();
+	PopulatePatchesAndCheatsList(serial, crc);
+	s_current_main_window = MainWindowType::PTR2Settings;
+	s_settings_page = SettingsPage::Quick;
+}
+void FullscreenUI::SwitchToPTR2Settings()
+{
+	if (s_current_disc_serial.empty() || s_current_disc_crc == 0)
+		return;
+	SwitchToPTR2Settings(s_current_disc_serial, s_current_disc_crc);
+	return;
+	auto lock = GameList::GetLock();
+	const GameList::Entry* entry = GameList::GetEntryForPath(s_current_disc_path.c_str());
+	if (!entry)
+		entry = GameList::GetEntryBySerialAndCRC(/*s_current_disc_serial.c_str()*/ "", s_current_disc_crc);
+
+	if (entry)
+		SwitchToPTR2Settings(entry);
+	
+}
+void FullscreenUI::SwitchToPTR2Settings(const std::string& path)
+{
+	auto lock = GameList::GetLock();
+	const GameList::Entry* entry = GameList::GetEntryForPath(path.c_str());
+	if (entry)
+		SwitchToPTR2Settings(entry);
+}
+void FullscreenUI::SwitchToPTR2Settings(const GameList::Entry* entry)
+{
+	SwitchToPTR2Settings((entry->type != GameList::EntryType::ELF) ? std::string_view(entry->serial) : std::string_view(), entry->crc);
+	s_game_settings_entry = std::make_unique<GameList::Entry>(*entry);
+}
+
 void FullscreenUI::SwitchToSettings()
 {
 	s_game_settings_entry.reset();
@@ -1746,11 +1995,16 @@ void FullscreenUI::DoClearGameSettings()
 		fmt::format(FSUI_FSTR("Game settings have been cleared for '{}'."), Path::GetFileTitle(s_game_settings_interface->GetFileName())));
 }
 
-void FullscreenUI::DrawSettingsWindow()
+//ptr2plus
+void FullscreenUI::DrawModMenuWindow()
 {
+	/* unused, cant remember what this was for
+	const ImVec2 s_display_size(ImVec2(g_gs_device->GetWindowWidth(), g_gs_device->GetWindowHeight()));
+	const ImVec2 s_game_size(s_display_size - ImVec2(g_layout_padding_left * 2.0f, g_layout_padding_top * 2.0f));
+
 	ImGuiIO& io = ImGui::GetIO();
 	const ImVec2 heading_size =
-		ImVec2(io.DisplaySize.x, LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY) +
+		ImVec2(s_game_size.x, LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY) +
 									 (LayoutScale(LAYOUT_MENU_BUTTON_Y_PADDING) * 2.0f) + LayoutScale(2.0f));
 
 	const bool using_custom_bg = !VMManager::HasValidVM() && s_custom_background_enabled && s_custom_background_texture;
@@ -1765,55 +2019,381 @@ void FullscreenUI::DrawSettingsWindow()
 	{
 		static constexpr float ITEM_WIDTH = 25.0f;
 
-		static constexpr const char* global_icons[] = {
+		static constexpr const char* global_icons[] = {ICON_FA_SLIDERS, ICON_FA_SLIDERS, ICON_FA_MAGIC};
+		static constexpr ModMenuPage global_pages[] = {ModMenuPage::Mods, ModMenuPage::Priority, ModMenuPage::TexturePacks};
+
+		static constexpr const char* titles[] = {"Mods", "Mod Priority", "Texture Packs"};
+
+		SettingsInterface* bsi = GetEditingSettingsInterface();
+
+		const u32 count = std::size(global_pages);
+		const char* const* icons = global_icons;
+		const ModMenuPage* pages = global_pages;
+		u32 index = 0;
+		for (u32 i = 0; i < count; i++)
+		{
+			if (pages[i] == s_modmenu_page)
+			{
+				index = i;
+				break;
+			}
+		}
+
+		BeginNavBar();
+
+		if (!ImGui::IsPopupOpen(0u, ImGuiPopupFlags_AnyPopup))
+		{
+			if (ImGui::IsKeyPressed(ImGuiKey_GamepadDpadLeft, true) ||
+				ImGui::IsKeyPressed(ImGuiKey_NavGamepadTweakSlow, true) ||
+				ImGui::IsKeyPressed(ImGuiKey_LeftArrow, true))
+			{
+				index = (index == 0) ? (count - 1) : (index - 1);
+				s_modmenu_page = pages[index];
+				QueueResetFocus(FocusResetType::WindowChanged);
+			}
+			else if (ImGui::IsKeyPressed(ImGuiKey_GamepadDpadRight, true) ||
+					 ImGui::IsKeyPressed(ImGuiKey_NavGamepadTweakFast, true) ||
+					 ImGui::IsKeyPressed(ImGuiKey_RightArrow, true))
+			{
+				index = (index + 1) % count;
+				s_modmenu_page = pages[index];
+				QueueResetFocus(FocusResetType::WindowChanged);
+			}
+		}
+
+		if (NavButton(ICON_FA_BACKWARD, true, true))
+			ReturnToMainWindow();
+
+		NavTitle(titles[static_cast<u32>(pages[index])]);
+
+		RightAlignNavButtons(count, ITEM_WIDTH, LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY);
+
+		for (u32 i = 0; i < count; i++)
+		{
+			if (NavButton(icons[i], i == index, true, ITEM_WIDTH, LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY))
+			{
+				s_modmenu_page = pages[i];
+			}
+		}
+
+		EndNavBar();
+	}
+
+	EndFullscreenWindow();
+
+	if (BeginFullscreenWindow(ImVec2(0.0f, heading_size.y), ImVec2(s_game_size.x, s_game_size.y - heading_size.y), "settings_parent",
+			ImVec4(UIBackgroundColor.x, UIBackgroundColor.y, UIBackgroundColor.z, bg_alpha)))
+	{
+		ResetFocusHere();
+
+		if (WantsToCloseMenu())
+		{
+			if (ImGui::IsWindowFocused())
+				ReturnToMainWindow();
+		}
+
+		switch (s_modmenu_page)
+		{
+			case ModMenuPage::Mods:
+				DrawModsPage();
+				break;
+
+			case ModMenuPage::Priority:
+				DrawModsPriorityPage();
+				break;
+
+			case ModMenuPage::TexturePacks:
+				DrawTexturePacksPage();
+				break;
+
+			default:
+				break;
+		}
+	}
+
+	EndFullscreenWindow();
+	*/
+}
+void FullscreenUI::DrawModsPage()
+{
+	SettingsInterface* bsi = GetEditingSettingsInterface();
+
+	BeginMenuButtons();
+	if (MenuButton(FSUI_ICONSTR(ICON_FA_FOLDER_OPEN, "Install Mod From File"), "IDK"))
+	{
+		auto callback = [](const std::string& file_path) {
+			
+			Host::RunOnCPUThread([file_path = file_path]() { installMod(file_path); });
+			//todo: Loading screen on different thread
+
+			//Host::RunOnCPUThread(&VMManager::Internal::UpdateEmuFolders);
+			//s_cover_image_map.clear();
+
+			CloseFileSelector();
+		};
+
+		OpenFileSelector("Install Mod From File", false, std::move(callback), {"*.p2m"}, EmuFolders::DataRoot);
+	}
+
+	MenuHeading("Installed Mods");
+
+	//ImGuiFullscreen::ChoiceDialogOptions choices;
+	//choices.emplace_back("Automatic", bios_selection.empty());
+
+	std::vector<std::string> values;
+	values.push_back("");
+
+	FileSystem::FindResultsArray results;
+	FileSystem::FindFiles(EmuFolders::PTR2InstalledMods.c_str(), "*", FILESYSTEM_FIND_FILES | FILESYSTEM_FIND_HIDDEN_FILES, &results);
+	for (const FILESYSTEM_FIND_DATA& fd : results)
+	{
+		std::string title, author, description;
+		bool enabled = false;
+		if (!IsP2M(fd.FileName.c_str() , title, author, description, enabled)) //add enabled bool (track active mods in ini file)
+			continue;
+		/* DrawToggleSetting(bsi, (title + " by " + author).c_str(),
+			description.c_str(), "EmuCore", "InhibitScreensaver",
+			enabled);
+
+		//const auto enable_it = std::find(enable_list.begin(), enable_list.end(), pi.name);
+		*/
+		bool state = PriorityList::ContainsMod(Path::GetFileName(fd.FileName).data()); //why arent we using activemods tbh
+		if (g_loading == fd.FileName)
+		{
+			MenuButton((title + " by " + author).c_str(), description.c_str(), true);
+		}
+		else
+		{
+			if (ToggleButton((title + " by " + author).c_str(), description.c_str(), &state, (g_loading == "")))
+			{
+				//Host::RunOnCPUThread(&VMManager::Internal::UpdateEmuFolders);
+				Host::RunOnCPUThread([filename = fd.FileName, state = state]() { toggleMod(filename, state); });
+
+				//SetSettingsChanged(bsi);
+			}
+		}
+		//const std::string_view filename(Path::GetFileName(fd.FileName));
+		//choices.emplace_back(fmt::format("{} ({})", description, filename), bios_selection == filename);
+		//values.emplace_back(filename);
+
+	}
+	/*
+	MenuHeading("Loading Behaviour");
+
+	 DrawToggleSetting(bsi, ICON_FA_ARROW_DOWN " Prority",
+		"Determines Priority Over Other Installed Mods OR Whatever", "EmuCore", "InhibitScreensaver",
+		true);*/
+
+	EndMenuButtons();
+	//DrawBIOSSettingsPage();
+}
+void FullscreenUI::DrawModsPriorityPage()
+{
+	//SettingsInterface* bsi = GetEditingSettingsInterface();
+
+	BeginMenuButtons();
+
+	MenuHeading("Active Mods");
+
+	//ImGuiFullscreen::ChoiceDialogOptions choices;
+	//choices.emplace_back("Automatic", bios_selection.empty());
+
+	//std::vector<std::string> values;
+	//values.push_back("");
+
+	//FileSystem::FindResultsArray results;
+	//FileSystem::FindFiles(EmuFolders::PTR2InstalledMods.c_str(), "*", FILESYSTEM_FIND_FILES | FILESYSTEM_FIND_HIDDEN_FILES, &results);
+	std::vector<std::string> mods = PriorityList::Get();
+	int	mod_count = mods.size();
+	
+	for (int i = 0; i < mod_count; i++)
+	{
+
+		std::string description = "Priority: " + std::to_string(i) + " (0 is highest priority).";
+		//bool state = ContainsMod(Path::GetFileName(fd.FileName).data());
+
+		if (MenuButton((mods[i]).c_str(), description.c_str()))
+		{
+			ImGuiFullscreen::ChoiceDialogOptions options;
+			options.reserve(mod_count);
+			for (int val = 0; val < mod_count; val++)
+			{
+				options.emplace_back(std::pair(std::to_string(val), false));
+			}
+			std::string title = mods[i] + " Priority"; 
+			OpenChoiceDialog(title.c_str(), false, std::move(options),
+				[modname = mods[i], mod_index = i](
+					s32 index, const std::string& title, bool checked) {
+					if (index < 0)
+						return;
+
+					AdjustModPriority(modname, index);
+					
+					CloseChoiceDialog();
+				});
+		}
+
+		/* if (ToggleButton((mods[i]).c_str(), description.c_str(), &state, true))
+		{
+			
+		}*/
+		//const std::string_view filename(Path::GetFileName(fd.FileName));
+		//choices.emplace_back(fmt::format("{} ({})", description, filename), bios_selection == filename);
+		//values.emplace_back(filename);
+	}
+	/*
+	MenuHeading("Loading Behaviour");
+
+	 DrawToggleSetting(bsi, ICON_FA_ARROW_DOWN " Prority",
+		"Determines Priority Over Other Installed Mods OR Whatever", "EmuCore", "InhibitScreensaver",
+		true);*/
+
+	EndMenuButtons();
+	//DrawBIOSSettingsPage();
+}
+void FullscreenUI::DrawTexturePacksPage()
+{
+}
+void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
+{
+	const ImGuiStyle& style = ImGui::GetStyle();
+	ImGuiIO& io = ImGui::GetIO();
+
+	float large_font_height = g_large_font.first->CalcTextSizeA(g_large_font.second, std::numeric_limits<float>::max(), -1.0f, "test").y;
+	const float bg_alpha = VMManager::HasValidVM() ? 0.90f : 1.0f;
+	SettingsInterface* bsi = GetEditingSettingsInterface();
+	const bool show_advanced_settings = ShouldShowAdvancedSettings(bsi);
+
+	float heading_text_scale = 1.2f;
+	float heading_text_height = heading_text_scale * large_font_height;
+	float subtitle_overlap_percent = 0.2f;
+
+	float bevel_thickness = LayoutScale(6.0f);
+
+//Colours
+	ImVec4 bg_col = HEX_TO_IMVEC4(0x0000C8, 0xFF);
+	ImVec4 folder_col = HEX_TO_IMVEC4(0xDA5F0C, 0xFF);
+	ImVec4 folder_shadow_col = HEX_TO_IMVEC4(0x93400B, 0xFF);
+	ImVec4 folder_highlight_col = HEX_TO_IMVEC4(0xFF761C, 0xFF);
+
+	ImVec4 inner_content_col = HEX_TO_IMVEC4(0xFFAF15, 0xFF);
+
+	ImVec4 text_col = HEX_TO_IMVEC4(0xFFFFFF, 0xFF);
+	ImVec4 text_outline_col = HEX_TO_IMVEC4(0xB05C00, 0xFF);
+	ImVec4 text_disabled_col = ImLerp(text_col, inner_content_col, 0.5f);
+	ImVec4 text_outline_disabled_col = ImLerp(text_outline_col, inner_content_col, 0.5f);
+
+	/* not used yet 
+	ImVec4 option_col = HEX_TO_IMVEC4(0xE4B000, 0xFF);
+	ImVec4 option_shadow_col = HEX_TO_IMVEC4(0xCA8E03, 0xFF);
+	ImVec4 option_highlight_col = HEX_TO_IMVEC4(0xE9E90A, 0xFF);
+
+	ImVec4 option_selected_col = ImLerp(option_col, HEX_TO_IMVEC4(0xFFFFFF, 0xFF), 0.2f);
+	ImVec4 option_shadow_selected_col = ImLerp(option_shadow_col, HEX_TO_IMVEC4(0xFFFFFF, 0xFF), 0.2f);
+	ImVec4 option_highlight_selected_col = ImLerp(option_highlight_col, HEX_TO_IMVEC4(0xFFFFFF, 0xFF), 0.2f);
+
+	ImVec4 popup_col = HEX_TO_IMVEC4(0xFFEB99, 0xFF);
+	ImVec4 popup_text_col = HEX_TO_IMVEC4(0xC00042, 0xFF);
+	ImVec4 popup_border_col = HEX_TO_IMVEC4(0x9E011F, 0xFF);
+	*/
+
+
+
+//Positions and Sizes
+	
+	ImVec2 folder_padding(LayoutScale(20.0f), LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY + LAYOUT_MENU_BUTTON_Y_PADDING * 3.0f + 2.0f));
+	float subtitle_padding_x = LayoutScale(40.0f);
+
+	//subtitle = bottom bubble with setting summaries
+	ImVec2 subtitle_size = ImVec2(s_game_size.x - (s_window_padding.x + subtitle_padding_x) * 2, large_font_height * 3.2f );//LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT + LAYOUT_MENU_BUTTON_Y_PADDING * 4.0f + 2.0f));
+	ImVec2 subtitle_pos = ImVec2(s_window_padding.x + subtitle_padding_x, s_game_size.y - s_window_padding.y - subtitle_size.y);
+
+	//heading = title text tab
+	ImVec2 heading_pos(s_window_padding.x, s_window_padding.y);
+	ImVec2 heading_size(s_game_size.x - s_window_padding.x * 2, heading_text_height + style.FramePadding.y * 2);
+		//ImVec2(s_game_size.x, LayoutScale(LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY) + (LayoutScale(LAYOUT_MENU_BUTTON_Y_PADDING) * 4.0f) + LayoutScale(4.0f));
+
+	//navbar = navigation buttons
+	ImVec2 navbar_pos(heading_pos.x, heading_pos.y + heading_size.y);
+	ImVec2 navbar_size(heading_size.x, folder_padding.y);
+
+	//footer = empty navbar at bottom
+	ImVec2 folder_footer_size(navbar_size.x, navbar_size.y);
+	ImVec2 folder_footer_pos(navbar_pos.x, subtitle_pos.y - folder_footer_size.y * (1 - subtitle_overlap_percent));
+	
+	//content = settings page
+	ImVec2 content_pos(navbar_pos.x + folder_padding.x, navbar_pos.y + navbar_size.y);
+	ImVec2 content_size(navbar_size.x - folder_padding.x * 2, s_game_size.y - s_window_padding.y * 2 - heading_size.y - navbar_size.y * 2 - subtitle_size.y * (1 - subtitle_overlap_percent));
+
+	ImVec2 heading_text_size;
+	float heading_text_padding_x;
+
+//draw navbar buttons and tab text
+	if (BeginFullscreenWindow(
+			heading_pos, heading_size + navbar_size, "settings_category", ImVec4(UIPrimaryColor.x, UIPrimaryColor.y, UIPrimaryColor.z, 0.0f), 30.0f))
+	{
+		static constexpr float ITEM_WIDTH = 25.0f;
+
+		static constexpr const char* pcsx2_settings_icons[] = {
 			ICON_FA_TV,
 			ICON_PF_MICROCHIP,
 			ICON_PF_GEARS_OPTIONS_SETTINGS,
 			ICON_PF_PICTURE,
 			ICON_PF_SOUND,
 			ICON_PF_MEMORY_CARD,
-			ICON_FA_NETWORK_WIRED,
-			ICON_FA_FOLDER_OPEN,
-			ICON_FA_TROPHY,
 			ICON_PF_GAMEPAD_ALT,
 			ICON_PF_KEYBOARD_ALT,
-			ICON_FA_TRIANGLE_EXCLAMATION,
+			ICON_FA_TROPHY,
+			ICON_FA_FOLDER_OPEN,
+			ICON_FA_TRIANGLE_EXCLAMATION
 		};
-		static constexpr const char* per_game_icons[] = {
-			ICON_FA_INFO,
-			ICON_PF_GEARS_OPTIONS_SETTINGS,
+		//static constexpr const char* per_game_icons[] = {ICON_FA_PARAGRAPH, ICON_FA_SLIDERS, ICON_FA_MICROCHIP,
+		//	ICON_FA_FROWN, ICON_FA_MAGIC, ICON_FA_HEADPHONES, ICON_FA_SD_CARD, ICON_FA_GAMEPAD, ICON_FA_BAN};
+		static constexpr const char* ptr2_icons[] = {
+			ICON_PF_STAR,
 			ICON_FA_BANDAGE,
-			ICON_PF_INFINITY,
-			ICON_PF_PICTURE,
-			ICON_PF_SOUND,
-			ICON_PF_MEMORY_CARD,
-			ICON_FA_TRIANGLE_EXCLAMATION,
+			ICON_FA_INFINITY,
+			ICON_FA_GAMEPAD
 		};
-		static constexpr SettingsPage global_pages[] = {
+		static constexpr const char* mods_icons[] = {
+			ICON_FA_SLIDERS,
+			ICON_FA_LIST
+		};
+
+		static constexpr SettingsPage pcsx2_settings_pages[] = {
 			SettingsPage::Interface,
 			SettingsPage::BIOS,
 			SettingsPage::Emulation,
 			SettingsPage::Graphics,
 			SettingsPage::Audio,
 			SettingsPage::MemoryCard,
-			SettingsPage::NetworkHDD,
-			SettingsPage::Folders,
-			SettingsPage::Achievements,
 			SettingsPage::Controller,
 			SettingsPage::Hotkey,
-			SettingsPage::Advanced,
+			SettingsPage::Achievements,
+			SettingsPage::Folders,
+			SettingsPage::Advanced
 		};
-		static constexpr SettingsPage per_game_pages[] = {
-			SettingsPage::Summary,
-			SettingsPage::Emulation,
+
+		//static constexpr SettingsPage per_game_pages[] = {SettingsPage::Summary, SettingsPage::Emulation,
+		//	SettingsPage::Patches, SettingsPage::Cheats, SettingsPage::Graphics, SettingsPage::Audio,
+		//	SettingsPage::MemoryCard, SettingsPage::Controller, SettingsPage::GameFixes};
+
+		static constexpr SettingsPage ptr2_pages[] = { 
+			SettingsPage::Quick,
 			SettingsPage::Patches,
 			SettingsPage::Cheats,
-			SettingsPage::Graphics,
-			SettingsPage::Audio,
-			SettingsPage::MemoryCard,
-			SettingsPage::GameFixes,
+			SettingsPage::Controller
 		};
+
+		static constexpr SettingsPage mods_pages[] = {
+			SettingsPage::Mods,
+			SettingsPage::ModPriority
+		};
+
 		static constexpr const char* titles[] = {
+			"Mods",
+			"Mod Priority",
+			"Quick Settings",
 			FSUI_NSTR("Summary"),
 			FSUI_NSTR("Interface Settings"),
 			FSUI_NSTR("BIOS Settings"),
@@ -1821,20 +2401,45 @@ void FullscreenUI::DrawSettingsWindow()
 			FSUI_NSTR("Graphics Settings"),
 			FSUI_NSTR("Audio Settings"),
 			FSUI_NSTR("Memory Card Settings"),
-			FSUI_NSTR("Network & HDD Settings"),
-			FSUI_NSTR("Folder Settings"),
-			FSUI_NSTR("Achievements Settings"),
 			FSUI_NSTR("Controller Settings"),
 			FSUI_NSTR("Hotkey Settings"),
+			FSUI_NSTR("Achievements Settings"),
+			FSUI_NSTR("Folder Settings"),
 			FSUI_NSTR("Advanced Settings"),
 			FSUI_NSTR("Patches"),
 			FSUI_NSTR("Cheats"),
-			FSUI_NSTR("Game Fixes"),
+			FSUI_NSTR("Game Fixes")
 		};
 
-		const u32 count = game_settings ? (show_advanced_settings ? std::size(per_game_pages) : (std::size(per_game_pages) - 1)) : std::size(global_pages);
-		const char* const* icons = game_settings ? per_game_icons : global_icons;
-		const SettingsPage* pages = game_settings ? per_game_pages : global_pages;
+		SettingsInterface* bsi = GetEditingSettingsInterface();
+		const bool game_settings = IsEditingGameSettings(bsi);
+
+		//const u32 count = game_settings ? (ShouldShowAdvancedSettings(bsi) ? std::size(per_game_pages) : (std::size(per_game_pages) - 1)) :
+		//								  std::size(pcsx2_settings_pages);
+		u32 count;
+		const char* const* icons;
+		const SettingsPage* pages;
+		switch (menu_type)
+		{
+			case MainWindowType::PTR2Settings:
+				count = std::size(ptr2_pages);
+				icons = ptr2_icons;
+				pages = ptr2_pages;
+				break;
+			case MainWindowType::Settings:
+				count = std::size(pcsx2_settings_pages);
+				icons = pcsx2_settings_icons;
+				pages = pcsx2_settings_pages;
+				break;
+			case MainWindowType::ModMenu:
+				count = std::size(mods_pages);
+				icons = mods_icons;
+				pages = mods_pages;
+				break;
+		}
+		//const u32 count = PTR2Settings ? std::size(ptr2_pages) : std::size(pcsx2_settings_pages);
+		//const char* const* icons = PTR2Settings ? ptr2_icons : pcsx2_settings_icons;
+		//const SettingsPage* pages = PTR2Settings ? ptr2_pages : pcsx2_settings_pages;
 		u32 index = 0;
 		for (u32 i = 0; i < count; i++)
 		{
@@ -1849,6 +2454,7 @@ void FullscreenUI::DrawSettingsWindow()
 
 		if (!ImGui::IsPopupOpen(0u, ImGuiPopupFlags_AnyPopup))
 		{
+			//if L pressed then switch current page
 			if (ImGui::IsKeyPressed(ImGuiKey_GamepadDpadLeft, true) ||
 				ImGui::IsKeyPressed(ImGuiKey_NavGamepadTweakSlow, true) || ImGui::IsKeyPressed(ImGuiKey_LeftArrow, true))
 			{
@@ -1856,6 +2462,7 @@ void FullscreenUI::DrawSettingsWindow()
 				s_settings_page = pages[index];
 				QueueResetFocus(FocusResetType::WindowChanged);
 			}
+			//if R pressed then switch current page
 			else if (ImGui::IsKeyPressed(ImGuiKey_GamepadDpadRight, true) ||
 					 ImGui::IsKeyPressed(ImGuiKey_NavGamepadTweakFast, true) ||
 					 ImGui::IsKeyPressed(ImGuiKey_RightArrow, true))
@@ -1866,6 +2473,7 @@ void FullscreenUI::DrawSettingsWindow()
 			}
 		}
 
+		/*
 		if (NavButton(ICON_PF_BACKWARD, true, true))
 		{
 			if (VMManager::HasValidVM())
@@ -1879,16 +2487,35 @@ void FullscreenUI::DrawSettingsWindow()
 			NavTitle(SmallString::from_format(
 				"{} ({})", Host::TranslateToCString(TR_CONTEXT, titles[static_cast<u32>(pages[index])]), s_game_settings_entry->GetTitle(true)));
 		}
-		else
-		{
-			NavTitle(Host::TranslateToCString(TR_CONTEXT, titles[static_cast<u32>(pages[index])]));
-		}
+		else */
 
-		RightAlignNavButtons(count, ITEM_WIDTH, LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY);
+		//tab title
+		//g_large_font->Scale = 1.25f;
+		float scale = 1.25f;
+		heading_text_size = ImVec2(scale, scale) * g_large_font.first->CalcTextSizeA(g_large_font.second, std::numeric_limits<float>::max(), -1.0f, titles[static_cast<u32>(pages[index])]);
+		ImVec2 max_text_size = ImVec2(scale, scale) * g_large_font.first->CalcTextSizeA(g_large_font.second, std::numeric_limits<float>::max(), -1.0f, "Achievements Settings");
+		heading_text_padding_x = (max_text_size.x / 6) * (max_text_size.x / heading_text_size.x);
+		float fontsize = g_large_font.second;
+		ImGui::SetCursorPosX(style.FrameBorderSize + style.FramePadding.x + heading_text_padding_x);
+		g_large_font.second *= scale;
+		NavTitle(Host::TranslateToCString(TR_CONTEXT, titles[static_cast<u32>(pages[index])]));
+		//g_large_font->Scale = 1.0f;
+		g_large_font.second = fontsize;
+		ImGui::SetCursorPosY(heading_size.y + bevel_thickness); //navbar_pos.y - heading_pos.y);
+		ImGui::SetCursorPosX(navbar_pos.x + navbar_size.x - folder_padding.x - (style.FramePadding.x * 2.0f + style.FrameBorderSize + style.ItemSpacing.x + LayoutScale(ITEM_WIDTH)) - style.FramePadding.x);
+		//ImGui::SetCursorPosX(s_game_size.x - s_window_padding.x - style.FrameBorderSize - LayoutScale(ITEM_WIDTH));
+		//RightAlignNavButtons(1, ITEM_WIDTH, LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY);
+
+		if (NavButton(ICON_PF_BACKWARD, true, true, ITEM_WIDTH, navbar_size.y - style.FramePadding.y * 2.0f - bevel_thickness * 2.0f)) //LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY))
+			ReturnToPreviousWindow();
+
+		//RightAlignNavButtons(count, ITEM_WIDTH, LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY);
+		ImGui::SetCursorPosX(0.0f + style.FramePadding.x + style.FrameBorderSize);
 
 		for (u32 i = 0; i < count; i++)
 		{
-			if (NavButton(icons[i], i == index, true, ITEM_WIDTH, LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY))
+			ImGui::SetCursorPosY(heading_size.y + bevel_thickness); //(navbar_pos.y - heading_pos.y);
+			if (NavButton(icons[i], i == index, true, ITEM_WIDTH, navbar_size.y - style.FramePadding.y * 2.0f - bevel_thickness * 2.0f )) //LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY))
 			{
 				s_settings_page = pages[i];
 				QueueResetFocus(FocusResetType::WindowChanged);
@@ -1900,6 +2527,18 @@ void FullscreenUI::DrawSettingsWindow()
 
 	EndFullscreenWindow();
 
+	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, LayoutScale(20.0f));
+	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, LayoutScale(30.0f));
+
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, HEX_TO_IMVEC4(0x000000, 0x00));
+	ImGui::PushStyleColor(ImGuiCol_Text, text_col);
+	ImGui::PushStyleColor(ImGuiCol_TextDisabled, text_disabled_col);
+
+	//using tab cols for text outline col as they are unused
+	ImGui::PushStyleColor(ImGuiCol_Tab, text_outline_col);
+	ImGui::PushStyleColor(ImGuiCol_TabSelected, text_disabled_col);
+	ImGui::PushStyleColor(ImGuiCol_TabHovered, text_outline_disabled_col);
+
 	// we have to do this here, because otherwise it uses target, and jumps a frame later.
 	if (IsFocusResetQueued())
 		if (FocusResetType focus_reset = GetQueuedFocusResetType(); focus_reset != FocusResetType::None &&
@@ -1909,12 +2548,14 @@ void FullscreenUI::DrawSettingsWindow()
 			ImGui::SetNextWindowScroll(ImVec2(0.0f, 0.0f));
 		}
 
-	if (BeginFullscreenWindow(
+	/* if (BeginFullscreenWindow(
 			ImVec2(0.0f, heading_size.y),
 			ImVec2(io.DisplaySize.x, io.DisplaySize.y - heading_size.y - LayoutScale(LAYOUT_FOOTER_HEIGHT)),
 			TinyString::from_format("settings_page_{}", static_cast<u32>(s_settings_page)).c_str(),
 			ImVec4(UIBackgroundColor.x, UIBackgroundColor.y, UIBackgroundColor.z, content_bg_alpha), 0.0f,
-			ImVec2(ImGuiFullscreen::LAYOUT_MENU_WINDOW_X_PADDING, 0.0f)))
+			ImVec2(ImGuiFullscreen::LAYOUT_MENU_WINDOW_X_PADDING, 0.0f)))*/
+	if (BeginFullscreenWindow(ImVec2(content_pos.x + folder_padding.x * 0.5f, content_pos.y + 1.0f), ImVec2(content_size.x - folder_padding.x * 1.0f, content_size.y + 1.0f), "settings_parent",
+				ImVec4(UIBackgroundColor.x, UIBackgroundColor.y, UIBackgroundColor.z, 0.0f)))
 	{
 		ResetFocusHere();
 
@@ -1925,6 +2566,17 @@ void FullscreenUI::DrawSettingsWindow()
 
 		switch (s_settings_page)
 		{
+			case SettingsPage::Mods:
+				DrawModsPage();
+				break;
+			case SettingsPage::ModPriority:
+				DrawModsPriorityPage();
+				break;
+
+			case SettingsPage::Quick:
+				DrawQuickSettingsPage();
+				break;
+
 			case SettingsPage::Summary:
 				DrawSummarySettingsPage();
 				break;
@@ -1992,10 +2644,135 @@ void FullscreenUI::DrawSettingsWindow()
 			default:
 				break;
 		}
+
+	}
+	EndFullscreenWindow();
+	ImGui::PopStyleColor(6);
+	ImGui::PopStyleVar(2);
+
+//draw folder graphics
+	if (BeginFullscreenWindow(ImVec2(0.0f, 0.0f), ImVec2(s_game_size.x, s_game_size.y), "folder_graphics",
+			ImVec4(1.0f, 0.686f, 0.082f, 0.0f), 30.0f))
+	{ 
+	
+		ImDrawList* dl = ImGui::GetWindowDrawList();
+		if (WantsToCloseMenu())
+			ReturnToPreviousWindow();
+	//tab
+
+		ImVec2 tab_pos(heading_pos.x, heading_pos.y);
+		ImVec2 tab_size(heading_text_size.x + heading_text_padding_x * 2 + (style.FrameBorderSize + style.FramePadding.x) * 8, heading_size.y + navbar_size.y);
+
+		//filled area is drawn later to overlap folder
+		
+		//bevel
+		int vert_start_idx = dl->VtxBuffer.Size;
+		
+		dl->AddRect(GameBounds(tab_pos + ImVec2(bevel_thickness / 2, bevel_thickness /2)),
+			GameBounds(tab_pos + tab_size - ImVec2(bevel_thickness / 2, bevel_thickness / 2)),
+			IM_COL32(UIPrimaryColor.x * 255, UIPrimaryColor.y * 255, UIPrimaryColor.z * 255, 255),
+			LayoutScale(22.0f), ImDrawFlags_None, bevel_thickness);
+		int vert_end_idx = dl->VtxBuffer.Size;
+
+		//bevel gradient
+		ImVec4 grad = CalcGradientStartEnd(tab_size, LayoutScale(80.0f));
+		ImVec2 grad_start = tab_pos + ImVec2(grad.x, grad.y);
+		ImVec2 grad_end = tab_pos + ImVec2(grad.z, grad.w);
+		
+		ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
+			GameBounds(grad_start),
+			GameBounds(grad_end),
+			IM_COL32(folder_highlight_col.x * 255, folder_highlight_col.y * 255, folder_highlight_col.z * 255, 255),
+			IM_COL32(folder_shadow_col.x * 255, folder_shadow_col.y * 255, folder_shadow_col.z * 255, 255));
+
+	//outer folder area
+		ImVec2 rect_pos(navbar_pos.x, navbar_pos.y);
+		ImVec2 rect_size(navbar_size.x, navbar_size.y * 2 + content_size.y);
+		ImVec4 rect_col(folder_col);
+
+		//filled area
+		dl->AddRectFilled(GameBounds(rect_pos),
+			GameBounds(rect_pos + rect_size),
+			IM_COL32(rect_col.x * 255, rect_col.y * 255, rect_col.z * 255, 255),
+			LayoutScale(30.0f));
+
+		//bevel
+		vert_start_idx = dl->VtxBuffer.Size;
+		dl->AddRect(GameBounds(rect_pos + ImVec2(bevel_thickness / 2, bevel_thickness / 2)),
+			GameBounds(rect_pos + rect_size - ImVec2(bevel_thickness / 2, bevel_thickness / 2)),
+			IM_COL32(UIPrimaryColor.x * 255, UIPrimaryColor.y * 255, UIPrimaryColor.z * 255, 255),
+			LayoutScale(22.0f), ImDrawFlags_None, bevel_thickness);
+		vert_end_idx = dl->VtxBuffer.Size;
+
+		//bevel gradient
+		ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
+			GameBounds(ImVec2(rect_pos.x + rect_size.x * 0.65f, rect_pos.y + rect_size.y * 0.3f)),
+			GameBounds(ImVec2(rect_pos.x + rect_size.x * 0.9f, rect_pos.y + rect_size.y)),
+			IM_COL32(folder_highlight_col.x * 255, folder_highlight_col.y * 255, folder_highlight_col.z * 255, 255),
+			IM_COL32(folder_shadow_col.x * 255, folder_shadow_col.y * 255, folder_shadow_col.z * 255, 255));
+		
+		//tab filled area (drawn now to overlap and look connected to folder)
+		dl->AddRectFilled(GameBounds(tab_pos + ImVec2(bevel_thickness, bevel_thickness)),
+			GameBounds(tab_pos + tab_size - ImVec2(bevel_thickness, bevel_thickness)),
+			IM_COL32(UIPrimaryColor.x * 255, UIPrimaryColor.y * 255, UIPrimaryColor.z * 255, 255),
+			LayoutScale(18.0f));
+		
+
+	//inner content area
+		rect_pos = ImVec2(content_pos.x, content_pos.y);
+		rect_size = ImVec2(content_size.x, content_size.y);
+		rect_col = ImVec4(inner_content_col);
+
+		vert_start_idx = dl->VtxBuffer.Size;
+		//folder_highlight_col = HEX_TO_IMVEC4(0xAB4A0B, 0xFF);
+		//folder_shadow_col = HEX_TO_IMVEC4(0xFF7E10, 0xFF);
+		bevel_thickness = LayoutScale(10.0f);
+
+		//bevel
+		dl->AddRect(GameBounds(rect_pos + ImVec2(bevel_thickness / 6, 0.0f)),
+			GameBounds(rect_pos + rect_size - ImVec2(bevel_thickness * 1/6, 0.0f)),
+			IM_COL32(UIPrimaryColor.x * 255, UIPrimaryColor.y * 255, UIPrimaryColor.z * 255, 255),
+			LayoutScale(22.0f), ImDrawFlags_None, bevel_thickness);
+		vert_end_idx = dl->VtxBuffer.Size;
+
+		//bevel gradient
+	    grad = CalcGradientStartEnd(rect_size, LayoutScale(80.0f));
+		grad_start = rect_pos + ImVec2(grad.x, grad.y);
+		grad_end = rect_pos + ImVec2(grad.z, grad.w);
+
+		ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
+			GameBounds(grad_start),
+			GameBounds(grad_end),
+			IM_COL32(folder_shadow_col.x * 255, folder_shadow_col.y * 255, folder_shadow_col.z * 255, 255),
+			IM_COL32(folder_highlight_col.x * 255, folder_highlight_col.y * 255, folder_highlight_col.z * 255, 255));
+
+		//area
+		dl->AddRectFilled(GameBounds(rect_pos),
+			GameBounds(rect_pos + rect_size),
+			IM_COL32(rect_col.x * 255, rect_col.y * 255, rect_col.z * 255, 255),
+			LayoutScale(30.0f));
+
+
+		/*
+		//inner content area highlight
+		rect_pos = ImVec2(ImVec2(0.0f + s_window_padding.x + folder_border.x + style.FrameBorderSize, heading_size.y + style.FrameBorderSize + style.FramePadding.x));
+		rect_size = ImVec2(s_game_size.x - (s_window_padding.x + folder_border.x) * 2 + style.FrameBorderSize, s_game_size.y - heading_size.y - subtitle_size.y * 0.65 - folder_border.y + style.FrameBorderSize + style.FramePadding.x);
+		rect_col = ImVec4(HEX_TO_IMVEC4(0xFFAF15, 0xff));
+		
+		int vert_start_idx = dl->VtxBuffer.Size;
+		dl->AddRectFilled(GameBounds(rect_pos),
+			GameBounds(rect_pos + rect_size),
+			IM_COL32(rect_col.x * 255, rect_col.y * 255, rect_col.z * 255, 0.5 * 255),
+			LayoutScale(30.0f));
+		int vert_end_idx = dl->VtxBuffer.Size;
+		ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx, ImVec2(rect_pos.x, rect_pos.y), ImVec2(rect_pos.x, rect_pos.y + rect_size.y), IM_COL32(1 * 255, 1 * 255, 1 * 255, 255), IM_COL32(1 * 255, 1 * 255, 1 * 255, 1));
+		*/
+
 	}
 
 	EndFullscreenWindow();
 
+	/*
 	if (IsGamepadInputSource())
 	{
 		const bool circleOK = ImGui::GetIO().ConfigNavSwapGamepadButtons;
@@ -2015,6 +2792,172 @@ void FullscreenUI::DrawSettingsWindow()
 			std::make_pair(ICON_PF_ESC, FSUI_VSTR("Back")),
 		});
 	}
+	*/
+}
+ImVec4 FullscreenUI::CalcGradientStartEnd(ImVec2 rect_size, float gradient_thickness)//, float angle)
+{
+	float rect_center_x = rect_size.x / 2;
+	float rect_center_y = rect_size.y / 2;
+	float rect_hyp = std::sqrt(rect_size.x * rect_size.x + rect_size.y * rect_size.y);
+	//rect_hyp = rect_hyp / 40 * angle;
+	float gradient_dir_x = rect_size.x / rect_hyp;
+	float gradient_dir_y = rect_size.y / rect_hyp;
+
+	return ImVec4(
+		//start point
+		rect_center_x - 0.5 * gradient_thickness * gradient_dir_y,
+		rect_center_y - 0.5 * gradient_thickness * gradient_dir_x,
+
+		//end point
+		rect_center_x + 0.5 * gradient_thickness * gradient_dir_y,
+		rect_center_y + 0.5 * gradient_thickness * gradient_dir_x
+	);
+
+}
+void FullscreenUI::DrawQuickSettingsPage()
+{
+	static constexpr int DEFAULT_FRAME_LATENCY = 2;
+	
+	static const char* s_resolution_options[] = {
+		FSUI_NSTR("Native (PS2)"),
+		FSUI_NSTR("1.25x Native (~450px)"),
+		FSUI_NSTR("1.5x Native (~540px)"),
+		FSUI_NSTR("1.75x Native (~630px)"),
+		FSUI_NSTR("2x Native (~720px/HD)"),
+		FSUI_NSTR("2.5x Native (~900px/HD+)"),
+		FSUI_NSTR("3x Native (~1080px/FHD)"),
+		FSUI_NSTR("3.5x Native (~1260px)"),
+		FSUI_NSTR("4x Native (~1440px/QHD)"),
+		FSUI_NSTR("5x Native (~1800px/QHD+)"),
+		FSUI_NSTR("6x Native (~2160px/4K UHD)"),
+		FSUI_NSTR("7x Native (~2520px)"),
+		FSUI_NSTR("8x Native (~2880px/5K UHD)"),
+		FSUI_NSTR("9x Native (~3240px)"),
+		FSUI_NSTR("10x Native (~3600px/6K UHD)"),
+		FSUI_NSTR("11x Native (~3960px)"),
+		FSUI_NSTR("12x Native (~4320px/8K UHD)"),
+	};
+
+	static const char* s_resolution_values[] = {
+		"1",
+		"1.25",
+		"1.5",
+		"1.75",
+		"2",
+		"2.5",
+		"3",
+		"3.5",
+		"4",
+		"5",
+		"6",
+		"7",
+		"8",
+		"9",
+		"10",
+		"11",
+		"12",
+	};
+
+	static constexpr const char* s_bilinear_present_options[] = {
+		FSUI_NSTR("Off"),
+		FSUI_NSTR("Bilinear (Smooth)"),
+		FSUI_NSTR("Bilinear (Sharp)"),
+	};
+
+	static const char* s_preset_entries[] = {
+		"Max Performance",
+		"Balanced",
+		"Max Quality",
+		"Custom"
+	};
+
+	static const char* s_preset_values[] = {
+		"1",
+		"2",
+		"3",
+		"0"
+	};
+
+	SettingsInterface* bsi = Host::Internal::GetBaseSettingsLayer();
+
+	const GSRendererType renderer =
+		static_cast<GSRendererType>(GetEffectiveIntSetting(bsi, "EmuCore/GS", "Renderer", static_cast<int>(GSRendererType::Auto)));
+	const bool is_hardware = (renderer == GSRendererType::Auto || renderer == GSRendererType::DX11 || renderer == GSRendererType::DX12 ||
+							  renderer == GSRendererType::OGL || renderer == GSRendererType::VK || renderer == GSRendererType::Metal);
+
+	BeginMenuButtons();
+	MenuHeading("Performance");
+	DrawPresetListSetting(bsi, "Performance Preset", "Adjusts multiple settings based on the selected preset.", "EmuCore", "performance_preset",
+		"0", s_preset_entries, s_preset_values, std::size(s_preset_entries), false);
+
+	MenuHeading("Graphics");
+	if (is_hardware)
+	{
+		DrawStringListSetting(bsi, FSUI_CSTR("Internal Resolution"),
+			FSUI_CSTR("Multiplies the render resolution by the specified factor (upscaling)."), "EmuCore/GS", "upscale_multiplier",
+			"1.000000", s_resolution_options, s_resolution_values, std::size(s_resolution_options), true);
+	}
+
+	DrawStringListSetting(bsi, FSUI_CSTR("Aspect Ratio"), FSUI_CSTR("Selects the aspect ratio to display the game content at."),
+		"EmuCore/GS", "AspectRatio", "Auto 4:3/3:2", Pcsx2Config::GSOptions::AspectRatioNames, Pcsx2Config::GSOptions::AspectRatioNames, 0,
+		false);
+
+	bool no_interlacing = bsi->GetBoolValue("EmuCore", "EnableNoInterlacingPatches", true);
+
+	if (ToggleButton(FSUI_CSTR("Disable Interlacing"),
+			FSUI_CSTR("Disables interlacing in PTR2, at the cost of halving the vertical resolution."),
+			&no_interlacing))
+	{
+		if (no_interlacing)
+			DisableInterlacing();
+		else
+			EnableInterlacing();
+
+		bsi->SetBoolValue("EmuCore", "EnableNoInterlacingPatches", no_interlacing);
+		SetSettingsChanged(bsi);
+	}
+
+	DrawIntListSetting(bsi, FSUI_CSTR("Bilinear Upscaling"), FSUI_CSTR("Smooths out the image when upscaling the console to the screen."),
+		"EmuCore/GS", "linear_present_mode", static_cast<int>(GSPostBilinearMode::BilinearSharp), s_bilinear_present_options,
+		std::size(s_bilinear_present_options), true);
+
+	DrawToggleSetting(bsi, FSUI_CSTR("Vertical Sync (VSync)"), FSUI_CSTR("Synchronizes frame presentation with host refresh."),
+		"EmuCore/GS", "VsyncEnable", false);
+	
+	bool optimal_frame_pacing = (bsi->GetIntValue("EmuCore/GS", "VsyncQueueSize", DEFAULT_FRAME_LATENCY) == 0);
+
+	if (ToggleButton(FSUI_CSTR("Optimal Frame Pacing"),
+			FSUI_CSTR("Synchronize EE and GS threads after each frame. Lowest input latency, but increases system requirements."),
+			&optimal_frame_pacing))
+	{
+		bsi->SetIntValue("EmuCore/GS", "VsyncQueueSize", optimal_frame_pacing ? 0 : DEFAULT_FRAME_LATENCY);
+		SetSettingsChanged(bsi);
+	}
+
+	MenuHeading("Audio");
+
+	DrawIntRangeSetting(bsi, FSUI_ICONSTR(ICON_FA_VOLUME_HIGH, "Output Volume"),
+		FSUI_CSTR("Controls the volume of the audio played on the host."), "SPU2/Output", "OutputVolume", 100,
+		0, 100, "%d%%");
+
+	DrawIntRangeSetting(bsi, FSUI_ICONSTR(ICON_FA_RULER, "Buffer Size"),
+		FSUI_CSTR("Determines the amount of audio buffered before being pulled by the host API."),
+		"SPU2/Output", "BufferMS", AudioStreamParameters::DEFAULT_BUFFER_MS, 10, 500, FSUI_CSTR("%d ms"));
+
+	if (!GetEffectiveBoolSetting(bsi, "Audio", "OutputLatencyMinimal", AudioStreamParameters::DEFAULT_OUTPUT_LATENCY_MINIMAL))
+	{
+		DrawIntRangeSetting(
+			bsi, FSUI_ICONSTR(ICON_FA_STOPWATCH_20, "Output Latency"),
+			FSUI_CSTR("Determines how much latency there is between the audio being picked up by the host API, and "
+					  "played through speakers."),
+			"SPU2/Output", "OutputLatencyMS", AudioStreamParameters::DEFAULT_OUTPUT_LATENCY_MS, 1, 500, FSUI_CSTR("%d ms"));
+	}
+
+	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_STOPWATCH, "Minimal Output Latency"),
+		FSUI_CSTR("When enabled, the minimum supported output latency will be used for the host API."),
+		"SPU2/Output", "OutputLatencyMinimal", AudioStreamParameters::DEFAULT_OUTPUT_LATENCY_MINIMAL);
+
+	EndMenuButtons();
 }
 
 void FullscreenUI::DrawSummarySettingsPage()
@@ -2243,15 +3186,15 @@ void FullscreenUI::DrawInterfaceSettingsPage()
 	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_PF_SNOOZE, "Inhibit Screensaver"),
 		FSUI_CSTR("Prevents the screen saver from activating and the host from sleeping while emulation is running."), "EmuCore",
 		"InhibitScreensaver", true);
-	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_PAUSE, "Pause On Start"), FSUI_CSTR("Pauses the emulator when a game is started."), "UI",
-		"StartPaused", false);
+	// DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_PAUSE, "Pause On Start"), FSUI_CSTR("Pauses the emulator when a game is started."), "UI",
+	// 	"StartPaused", false); ptr2plus
 	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_EYE, "Pause On Focus Loss"),
 		FSUI_CSTR("Pauses the emulator when you minimize the window or switch to another application, and unpauses when you switch back."),
 		"UI", "PauseOnFocusLoss", false);
 	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_GAMEPAD, "Pause On Controller Disconnection"),
 		FSUI_CSTR("Pauses the emulator when a controller with bindings is disconnected."), "UI", "PauseOnControllerDisconnection", false);
-	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_RECTANGLE_LIST, "Pause On Menu"),
-		FSUI_CSTR("Pauses the emulator when you open the quick menu, and unpauses when you close it."), "UI", "PauseOnMenu", true);
+	// DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_RECTANGLE_LIST, "Pause On Menu"),
+	// 	FSUI_CSTR("Pauses the emulator when you open the quick menu, and unpauses when you close it."), "UI", "PauseOnMenu", true); ptr2plus
 	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_FLOPPY_DISK, "Prompt On State Load/Save Failure"),
 		FSUI_CSTR("Display a modal dialog when a save state load/save operation fails."), "UI", "PromptOnStateLoadSaveFailure", true);
 	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_POWER_OFF, "Confirm Shutdown"),
@@ -2577,11 +3520,10 @@ void FullscreenUI::DrawEmulationSettingsPage()
 
 	MenuHeading(FSUI_CSTR("System Settings"));
 
-	DrawIntListSetting(bsi, FSUI_ICONSTR(ICON_FA_GAUGE_HIGH, "EE Cycle Rate"), FSUI_CSTR("Underclocks or overclocks the emulated Emotion Engine CPU."),
-		"EmuCore/Speedhacks", "EECycleRate", 0, ee_cycle_rate_settings, std::size(ee_cycle_rate_settings), true, -3);
-	DrawIntListSetting(bsi, FSUI_ICONSTR(ICON_FA_ARROW_TREND_DOWN, "EE Cycle Skipping"),
-		FSUI_CSTR("Makes the emulated Emotion Engine skip cycles. Helps a small subset of games like SOTC. Most of the time it's harmful to performance."), "EmuCore/Speedhacks", "EECycleSkip", 0,
-		ee_cycle_skip_settings, std::size(ee_cycle_skip_settings), true);
+	DrawIntListPresetSetting(bsi, FSUI_ICONSTR(ICON_FA_GAUGE_HIGH, "EE Cycle Rate"), FSUI_CSTR("Underclocks or overclocks the emulated Emotion Engine CPU."), "EmuCore/Speedhacks",
+		"EECycleRate", 0, ee_cycle_rate_settings, std::size(ee_cycle_rate_settings), true, -3); //ptr2plus
+	DrawIntListPresetSetting(bsi, FSUI_ICONSTR(ICON_FA_ARROW_TREND_DOWN, "EE Cycle Skipping"), FSUI_CSTR("Makes the emulated Emotion Engine skip cycles. Helps a small subset of games like SOTC. Most of the time it's harmful to performance."),
+		"EmuCore/Speedhacks", "EECycleSkip", 0, ee_cycle_skip_settings, std::size(ee_cycle_skip_settings), true); //ptr2plus
 	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_USERS, "Enable MTVU (Multi-Threaded VU1)"),
 		FSUI_CSTR("Generally a speedup on CPUs with 4 or more cores. Safe for most games, but a few are incompatible and may hang."), "EmuCore/Speedhacks", "vuThread", false);
 	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_LOCATION_PIN_LOCK, "Thread Pinning"),
@@ -2613,6 +3555,7 @@ void FullscreenUI::DrawEmulationSettingsPage()
 			&optimal_frame_pacing))
 	{
 		bsi->SetIntValue("EmuCore/GS", "VsyncQueueSize", optimal_frame_pacing ? 0 : DEFAULT_FRAME_LATENCY);
+		SetPresetToCustom(bsi); //ptr2plus
 		SetSettingsChanged(bsi);
 	}
 
@@ -2881,6 +3824,7 @@ void FullscreenUI::DrawGraphicsSettingsPage(SettingsInterface* bsi, bool show_ad
 	DrawStringListSetting(bsi, FSUI_ICONSTR(ICON_FA_COMPRESS, "Aspect Ratio"), FSUI_CSTR("Selects the aspect ratio to display the game content at."),
 		"EmuCore/GS", "AspectRatio", "Auto 4:3/3:2", Pcsx2Config::GSOptions::AspectRatioNames, Pcsx2Config::GSOptions::AspectRatioNames, 0,
 		false);
+	//PTR2AspectRatioSet(); ptr2plus unsure why this was here
 	DrawStringListSetting(bsi, FSUI_ICONSTR(ICON_FA_VIDEO, "FMV Aspect Ratio Override"),
 		FSUI_CSTR("Selects the aspect ratio for display when a FMV is detected as playing."), "EmuCore/GS", "FMVAspectRatioSwitch",
 		"Auto 4:3/3:2", Pcsx2Config::GSOptions::FMVAspectRatioSwitchNames, Pcsx2Config::GSOptions::FMVAspectRatioSwitchNames, 0, false);
@@ -2905,8 +3849,21 @@ void FullscreenUI::DrawGraphicsSettingsPage(SettingsInterface* bsi, bool show_ad
 	{
 		DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_TV, "Enable Widescreen Patches"), FSUI_CSTR("Enables loading widescreen patches from pnach files."),
 			"EmuCore", "EnableWideScreenPatches", false);
-		DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_TV, "Enable No-Interlacing Patches"),
-			FSUI_CSTR("Enables loading no-interlacing patches from pnach files."), "EmuCore", "EnableNoInterlacingPatches", false);
+		bool no_interlacing = bsi->GetBoolValue("EmuCore", "EnableNoInterlacingPatches", true);
+
+		//ptr2plus
+		if (ToggleButton(FSUI_ICONSTR(ICON_FA_TV, "Enable No-Interlacing Patches"),
+				FSUI_CSTR("Disables interlacing in PTR2, at the cost of halving the vertical resolution."),
+				&no_interlacing))
+		{
+			if (no_interlacing)
+				DisableInterlacing();
+			else
+				EnableInterlacing();
+
+			bsi->SetBoolValue("EmuCore", "EnableNoInterlacingPatches", no_interlacing);
+			SetSettingsChanged(bsi);
+		}
 	}
 
 	DrawIntListSetting(bsi, FSUI_ICONSTR(ICON_FA_TABLE_CELLS, "Bilinear Upscaling"), FSUI_CSTR("Smooths out the image when upscaling the console to the screen."),
@@ -4833,6 +5790,7 @@ void FullscreenUI::DrawPatchesOrCheatsSettingsPage(bool cheats)
 			false, false, ImGuiFullscreen::LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY);
 	}
 
+	/* ptr2plus
 	if (!patch_list.empty() || (cheats && s_game_cheat_unlabelled_count > 0))
 	{
 		ActiveButton(
@@ -4843,7 +5801,7 @@ void FullscreenUI::DrawPatchesOrCheatsSettingsPage(bool cheats)
 			FSUI_CSTR("Use patches at your own risk, the PCSX2 team will provide no support for users who have enabled game patches."),
 			false, false, ImGuiFullscreen::LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY);
 	}
-
+	*/
 	EndMenuButtons();
 }
 

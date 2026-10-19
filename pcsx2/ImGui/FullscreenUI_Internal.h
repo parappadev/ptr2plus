@@ -41,6 +41,13 @@ public:
 #define FSUI_FSTR(str) fmt::runtime(Host::TranslateToStringView(TR_CONTEXT, str))
 #define FSUI_NSTR(str) str
 
+//ptr2plus
+using ImGuiFullscreen::ActiveButtonCenter;
+using ImGuiFullscreen::GameBounds;
+using ImGuiFullscreen::s_display_size;
+using ImGuiFullscreen::s_game_size;
+using ImGuiFullscreen::s_window_padding;
+
 using ImGuiFullscreen::ActiveButton;
 using ImGuiFullscreen::AddNotification;
 using ImGuiFullscreen::BeginFullscreenColumns;
@@ -147,6 +154,8 @@ namespace FullscreenUI
 		PauseMenu,
 		Achievements,
 		Leaderboards,
+		PTR2Settings, //ptr2plus
+		ModMenu, //ptr2plus
 	};
 
 	enum class PauseSubMenu
@@ -156,8 +165,19 @@ namespace FullscreenUI
 		Achievements,
 	};
 
+	//UNUSED ptr2plus
+	enum class ModMenuPage
+	{
+		Mods,
+		Priority,
+		TexturePacks
+	};
+
 	enum class SettingsPage
 	{
+		Mods, //ptr2plus
+		ModPriority, //ptr2plus
+		Quick, //ptr2plus
 		Summary,
 		Interface,
 		BIOS,
@@ -214,6 +234,34 @@ namespace FullscreenUI
 	void GetStandardSelectionFooterText(SmallStringBase& dest, bool back_instead_of_cancel);
 	void ApplyLayoutSettings(const SettingsInterface* bsi = nullptr);
 
+	//--ptr2plus start
+	void DrawStarBg(); //pt
+	void DrawSubtitleBubble(ImVec2 pos, ImVec2 size, float alpha, std::string text = "");
+	ImVec4 CalcGradientStartEnd(ImVec2 rect_size, float gradient_thickness); //, float angle);
+
+	//star types (different textures for each):
+	//0 spots - small-med, slow rot speed
+	//1 triangles - small-med, slow rot speed
+	//2 small stars - small-med, med-fast rot speed
+	//3 big stars - med-large, med-fast rot speed
+	struct star
+	{
+		bool disabled = true;
+		u16 type;
+		ImVec2 size;
+		ImVec2 pos;
+		ImVec2 direction;
+		float age;
+		float lifetime;
+		float rotation;
+		float rot_speed;
+		int init_alpha;
+	};
+
+	inline star stars[80];
+
+	//--ptr2plus end
+
 	void DrawSvgTexture(GSTexture* padded_texture, ImVec2 unpadded_size);
 	void DrawCachedSvgTexture(const std::string& path, ImVec2 size, SvgScaling mode);
 	void DrawCachedSvgTextureAsync(const std::string& path, ImVec2 size, SvgScaling mode);
@@ -252,6 +300,15 @@ namespace FullscreenUI
 		s_game_compatibility_textures;
 	inline std::shared_ptr<GSTexture> s_banner_texture;
 	inline std::vector<std::unique_ptr<GSTexture>> s_cleanup_textures;
+
+	//ptr2plus
+	inline std::shared_ptr<GSTexture> s_paused_texture;
+	inline std::shared_ptr<GSTexture> s_star_texture;
+	inline std::shared_ptr<GSTexture> s_starsmall_texture;
+	inline std::shared_ptr<GSTexture> s_ast_texture;
+	inline std::shared_ptr<GSTexture> s_circle_texture;
+	inline std::shared_ptr<GSTexture> s_tri_texture;
+	inline std::shared_ptr<GSTexture> s_spark_texture;
 
 	//////////////////////////////////////////////////////////////////////////
 	// Landing
@@ -366,12 +423,24 @@ namespace FullscreenUI
 	static constexpr double INPUT_BINDING_TIMEOUT_SECONDS = 5.0;
 	static constexpr u32 NUM_MEMORY_CARD_PORTS = 2;
 
+	//ptr2plus
+	void SwitchToPTR2Settings();
+	void SwitchToPTR2Settings(const std::string& path);
+	void SwitchToPTR2Settings(const GameList::Entry* entry);
+	void SwitchToPTR2Settings(const std::string_view& serial, u32 crc);
+	void SwitchToModMenu();
+	void DrawModMenuWindow();//UNUSED
+	void DrawModsPage();
+	void DrawModsPriorityPage();
+	void DrawTexturePacksPage();
+	void DrawQuickSettingsPage();
+
 	void SwitchToSettings();
 	void SwitchToGameSettings();
 	void SwitchToGameSettings(const std::string& path);
 	void SwitchToGameSettings(const GameList::Entry* entry);
 	void SwitchToGameSettings(const std::string_view serial, u32 crc);
-	void DrawSettingsWindow();
+	void DrawSettingsWindow(MainWindowType menu_type); //ptr2plus
 	void DrawSummarySettingsPage();
 	void DrawInterfaceSettingsPage();
 	void DrawBIOSSettingsPage();
@@ -403,13 +472,28 @@ namespace FullscreenUI
 	void DoSaveInputProfile(const std::string& name);
 	void DoResetSettings();
 
+	//ptr2plus
+	void DrawIntListPresetSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section, const char* key,
+		int default_value, const char* const* options, size_t option_count, bool translate_options, int option_offset = 0, bool enabled = true,
+		float height = ImGuiFullscreen::LAYOUT_MENU_BUTTON_HEIGHT, std::pair<ImFont*, float> font = g_large_font, std::pair<ImFont*, float> summary_font = g_medium_font);
+	void SetPresetToCustom(SettingsInterface* bsi);
+	void SetPresetSettings(SettingsInterface* bsi, int index);
+	void DrawPresetListSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section, const char* key,
+		const char* default_value, const char* const* options, const char* const* option_values, size_t option_count, bool translate_options,
+		bool enabled = true, float height = ImGuiFullscreen::LAYOUT_MENU_BUTTON_HEIGHT, std::pair<ImFont*, float> font = g_large_font,
+		std::pair<ImFont*, float> summary_font = g_medium_font, const char* translation_ctx = TR_CONTEXT);
+	void DrawStringListPresetSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section, const char* key,
+		const char* default_value, const char* const* options, const char* const* option_values, size_t option_count, bool translate_options,
+		bool enabled = true, float height = ImGuiFullscreen::LAYOUT_MENU_BUTTON_HEIGHT, std::pair<ImFont*, float> font = g_large_font,
+		std::pair<ImFont*, float> summary_font = g_medium_font, const char* translation_ctx = TR_CONTEXT);
+
 	bool DrawToggleSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section, const char* key,
 		bool default_value, bool enabled = true, bool allow_tristate = true, float height = ImGuiFullscreen::LAYOUT_MENU_BUTTON_HEIGHT,
 		std::pair<ImFont*, float> font = g_large_font, std::pair<ImFont*, float> summary_font = g_medium_font);
 	void DrawIntListSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section, const char* key,
 		int default_value, const char* const* options, size_t option_count, bool translate_options, int option_offset = 0,
 		bool enabled = true, float height = ImGuiFullscreen::LAYOUT_MENU_BUTTON_HEIGHT, std::pair<ImFont*, float> font = g_large_font,
-		std::pair<ImFont*, float> summary_font = g_medium_font);
+		std::pair<ImFont*, float> summary_font = g_medium_font, bool preset_setting = false); //ptr2plus
 	void DrawIntRangeSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section, const char* key,
 		int default_value, int min_value, int max_value, const char* format = "%d", bool enabled = true,
 		float height = ImGuiFullscreen::LAYOUT_MENU_BUTTON_HEIGHT, std::pair<ImFont*, float> font = g_large_font, std::pair<ImFont*, float> summary_font = g_medium_font);
@@ -431,7 +515,7 @@ namespace FullscreenUI
 	void DrawStringListSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section, const char* key,
 		const char* default_value, const char* const* options, const char* const* option_values, size_t option_count,
 		bool translate_options, bool enabled = true, float height = ImGuiFullscreen::LAYOUT_MENU_BUTTON_HEIGHT, std::pair<ImFont*, float> font = g_large_font,
-		std::pair<ImFont*, float> summary_font = g_medium_font, const char* translation_ctx = "FullscreenUI");
+		std::pair<ImFont*, float> summary_font = g_medium_font, const char* translation_ctx = "FullscreenUI", bool preset_list = false, bool preset_setting = false); //ptr2plus
 	void DrawStringListSetting(SettingsInterface* bsi, const char* title, const char* summary, const char* section, const char* key,
 		const char* default_value, SettingInfo::GetOptionsCallback options_callback, bool enabled = true,
 		float height = ImGuiFullscreen::LAYOUT_MENU_BUTTON_HEIGHT, std::pair<ImFont*, float> font = g_large_font, std::pair<ImFont*, float> summary_font = g_medium_font);
@@ -471,6 +555,8 @@ namespace FullscreenUI
 		const char* translation_ctx);
 	void OpenMemoryCardCreateDialog();
 	void DoCreateMemoryCard(std::string name, MemoryCardType type, MemoryCardFileType file_type, bool use_ntfs_compression = false);
+
+	inline ModMenuPage s_modmenu_page = ModMenuPage::Mods; //ptr2plus
 
 	inline SettingsPage s_settings_page = SettingsPage::Interface;
 	inline std::unique_ptr<INISettingsInterface> s_game_settings_interface;
