@@ -1251,4 +1251,12 @@ void SetupWizardDialog::onInputDeviceDisconnected(const QString& identifier)
 	}
 }
 
+#undef readsrc
+#undef writedst
+#undef N
+#undef F
+#undef THRESHOLD
+#undef lzss_read
+#undef lzss_write
+
 #include "moc_SetupWizardDialog.cpp"

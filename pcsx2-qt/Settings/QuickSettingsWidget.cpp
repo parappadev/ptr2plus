@@ -388,3 +388,4 @@ void QuickSettingsWidget::presetChanged()
 	}
 
 }
+#include "moc_QuickSettingsWidget.cpp"
