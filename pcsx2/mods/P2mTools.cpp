@@ -180,11 +180,6 @@ bool toggleTexReplacementSetting(bool new_value)
 	
 }
 
-static std::string GetPTR2ModDirectory()
-{
-	return Path::Combine(EmuFolders::PTR2, "/MOD");
-}
-
 static std::string GetTexReplacementDirectory(std::string modname)
 {
 	int priority;
@@ -197,46 +192,7 @@ static std::string GetTexUnloadDirectory(std::string modname)
 	return Path::Combine(Path::Combine(EmuFolders::PTR2InstalledMods, Path::StripExtension(modname)), "/textures/");
 }
 
-bool isIntAssetCheap(std::string path)
-{
-	size_t slash = path.find('\\');
-	if (path.substr(0, slash) == "DATA" || path.substr(0, slash) == "data")
-		return true;
-	return false;
-}
-bool isIntAsset(std::string path)
-{
-	std::string extension = StringUtil::toUpper(Path::GetExtension(path));
-	if (extension != "WP2" && extension != "INT" && extension != "OLM" && extension != "XTR")
-	{
-		return true;
-	}
-	return false;
-}
-
-static std::string GetEnabledModFilePath(std::string path)
-{
-	//remove directory if the file is loaded from ISO, as we have limited space in the ELF path
-	if (!isIntAssetCheap(path))
-	{
-		size_t slash = path.find('\\');
-		path.erase(0, slash);
-	}
-	std::string mod_dir = GetPTR2ModDirectory();
-	std::string mod_file = Path::Combine(mod_dir, path);
-	return mod_file;
-}
-
-static std::string GetDisabledActiveModFilePath(std::string path)
-{
-	std::string mod;
-	ActiveMods::GetMod(path, mod);
-	std::string mod_dir = Path::Combine(EmuFolders::PTR2InstalledMods, mod);
-	std::string mod_file = Path::Combine(Path::StripExtension(mod_dir), path);
-	return mod_file;
-}
-
-static std::string GetDisabledModFilePath(std::string modname, std::string path)
+static std::string GetInstalledModFilePath(std::string modname, std::string path)
 {
 	std::string mod_dir = Path::Combine(EmuFolders::PTR2InstalledMods, modname);
 	std::string mod_file = Path::Combine(Path::StripExtension(mod_dir), path);
@@ -509,14 +465,14 @@ mod_file GetP2MFile(FILE* stream, p2m_header& hd, std::string path)
 	return GetP2MFile(stream, hd, i);
 }
 
-mod_file GetP2MFileByEntry(std::pair<std::string, std::string> entry)
-{
-	std::string filename = GetP2MPathFromModName(entry.second);
-	const auto fp = FileSystem::OpenManagedCFile(filename.c_str(), "rb");
-	p2m_header hd;
-	parseP2MHeader(fp.get(), hd);
-	return GetP2MFile(fp.get(), hd, entry.first);
-}
+// mod_file GetP2MFileByEntry(std::pair<std::string, std::string> entry)
+// {
+// 	std::string filename = GetP2MPathFromModName(entry.second);
+// 	const auto fp = FileSystem::OpenManagedCFile(filename.c_str(), "rb");
+// 	p2m_header hd;
+// 	parseP2MHeader(fp.get(), hd);
+// 	return GetP2MFile(fp.get(), hd, entry.first);
+// }
 
 std::vector<tex_file> GetP2MTexFiles(FILE* stream, p2m_header& hd)
 {
@@ -643,10 +599,8 @@ bool CopyModFileFromP2M(FILE* stream, mod_file file, std::string modname, bool e
 	//if (file.tmp)
 	//	real_path = Path::Combine(Path::Combine(EmuFolders::PTR2, "/TMP"), Path::GetFileName(file.path));
 	//else
-	if (enabled)
-		real_path = GetEnabledModFilePath(file.path);
-	else
-		real_path = GetDisabledModFilePath(modname, file.path);
+
+	real_path = GetInstalledModFilePath(modname, file.path);
 
 	std::string real_path_folder = std::string(Path::GetDirectory(real_path));
 
