@@ -169,6 +169,9 @@ target_sources(pcsx2-qt PRIVATE
 	Settings/HddCreateQt.cpp
 	Settings/HddCreateQt.h
 	Settings/PatchDetailsWidget.ui
+	Settings/QuickSettingsWidget.cpp
+	Settings/QuickSettingsWidget.h
+	Settings/QuickSettingsWidget.ui
 	Settings/SettingsWidget.cpp
 	Settings/SettingsWidget.h
 	Settings/SettingsWindow.cpp

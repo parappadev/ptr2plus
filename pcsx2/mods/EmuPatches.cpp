@@ -8,8 +8,8 @@
 //patches out UseGsSetXyOffset()
 void NoBlackBox()
 {
-	char buf[4] = {0x08, 0x00, 0xE0, 0x03}; //jr ra
-	char buf2[4] = {0x00, 0x00, 0x00, 0x00}; //nop
+	u8 buf[4] = {0x08, 0x00, 0xE0, 0x03}; //jr ra
+	u8 buf2[4] = {0x00, 0x00, 0x00, 0x00}; //nop
 	vtlb_memSafeWriteBytes(0x0010FC18, &buf, 4);
 	vtlb_memSafeWriteBytes(0x0010FC1C, &buf2, 4);
 }
@@ -17,12 +17,12 @@ void NoBlackBox()
 //no interlacing patch - this actually halfs the vertical res which is bad at low res
 void EnableInterlacing()
 {
-	char buf[4] = {0x08, 0x00, 0x42, 0x64};
+	u8 buf[4] = {0x08, 0x00, 0x42, 0x64};
 	vtlb_memSafeWriteBytes(0x0015487C, &buf, 4);
 }
 void DisableInterlacing()
 {
-	char buf[4] = {0x00, 0x00, 0x00, 0x00};
+	u8 buf[4] = {0x00, 0x00, 0x00, 0x00};
 	vtlb_memSafeWriteBytes(0x0015487C, &buf, 4);
 }
 
@@ -109,13 +109,13 @@ void PTR2AspectRatioSet(AspectRatioType ar)
 		
 			{
 				//patch=1,EE,0016066c,word,3c013f40
-				char buf2[4] = {0x40, 0x3F, 0x01, 0x3C};
+				u8 buf2[4] = {0x40, 0x3F, 0x01, 0x3C};
 				vtlb_memSafeWriteBytes(0x0016066c, &buf2, 4);
 				//patch=1,EE,00160678,word,44810000
-				char buf3[4] = {00, 00, 0x81, 0x44};
+				u8 buf3[4] = {00, 00, 0x81, 0x44};
 				vtlb_memSafeWriteBytes(0x00160678, &buf3, 4);
 				//patch=1,EE,0016067c,word,4600c602
-				char buf4[4] = {0x02, 0xC6, 0x00, 0x46};
+				u8 buf4[4] = {0x02, 0xC6, 0x00, 0x46};
 				vtlb_memSafeWriteBytes(0x0016067c, &buf4, 4);
 			}
 			break;
@@ -164,7 +164,7 @@ void PTR2AspectRatioSet()
 
 void createAsyncFunc()
 {
-	char buf[48] = {
+	u8 buf[48] = {
 		0xE0, 0xFF, 0xBD, 0x27, // addiu sp -0x20
 		0x10, 0x00, 0xA4, 0xFF, // sd a0, 0x10(sp)
 		0x00, 0x00, 0x00, 0x00, // nop					<-------------
@@ -182,7 +182,7 @@ void createAsyncFunc()
 	vtlb_memSafeWriteBytes(0x00104e90, &buf, 48);
 
 	// patch jal PackIntDecodeWait to jal PackIntDecode
-	char buf2[4] = { 0xA4, 0x13, 0x04, 0x0C };
+	u8 buf2[4] = { 0xA4, 0x13, 0x04, 0x0C };
 	vtlb_memSafeWriteBytes(0x00105ad8, &buf2, 4);
 }
 

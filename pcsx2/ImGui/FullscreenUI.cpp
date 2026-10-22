@@ -1644,7 +1644,7 @@ static void DrawShadowedText(
 }
 
 //ptr2plus - draw bottom subtitle description
-static void FullscreenUI::DrawSubtitleBubble(ImVec2 subtitle_pos, ImVec2 subtitle_size, float bg_alpha, std::string text)
+void FullscreenUI::DrawSubtitleBubble(ImVec2 subtitle_pos, ImVec2 subtitle_size, float bg_alpha, std::string text)
 {
 	ImDrawList* dl = ImGui::GetForegroundDrawList();
 		

@@ -79,7 +79,7 @@ void PrHookManager::INT_Loader()
 		// Doing a relative displacement instead of a jump means we don't have to add cases here for
 		// other regions of PTR2 that have different addresses to move to.
 
-		char buf[4] = {0xFA, 0xFF, 0x00, 0x10}; 
+		u8 buf[4] = {0xFA, 0xFF, 0x00, 0x10};
 		vtlb_memSafeWriteBytes(0x00104EAC, &buf, 4);
 
 		// Find FILE_STR on stack and get int name
@@ -313,7 +313,7 @@ void PrHookManager::INT_Loader()
 		u32 one = 1;
 		vtlb_memSafeWriteBytes(regs.n.sp.UD[0] - 0x20, &one, 4);
 
-		char buf3[4] = {0x00, 0x00, 0x00, 0x00}; // Patch PackIntDecode loop to a NOP to escape it
+		u8 buf3[4] = {0x00, 0x00, 0x00, 0x00}; // Patch PackIntDecode loop to a NOP to escape it
 		vtlb_memSafeWriteBytes(0x00104EAC, &buf3, 4);
 	}
 	else

@@ -146,6 +146,11 @@ set(pcsx2Sources
 	VUflags.cpp
 	VUmicroMem.cpp
 	VUops.cpp
+	mods/ActiveMods.cpp
+	mods/EmuPatches.cpp
+	mods/P2mTools.cpp
+	mods/PriorityList.cpp
+	mods/PTR2Hooks.cpp
 )
 
 # Main pcsx2 header
@@ -211,7 +216,13 @@ set(pcsx2Headers
 	vtlb.h
 	VUflags.h
 	VUmicro.h
-	VUops.h)
+	VUops.h
+	mods/ActiveMods.h
+	mods/EmuPatches.h
+	mods/P2mTools.h
+	mods/PriorityList.h
+	mods/PTR2Hooks.h
+	mods/PTR2Common.h)
 
 # CDVD sources
 set(pcsx2CDVDSources

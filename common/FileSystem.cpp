@@ -2417,6 +2417,11 @@ bool FileSystem::DirectoryExists(const char* path)
 		return false;
 }
 
+bool FileSystem::PathExists(const char* path)
+{
+	return FileExists(path) || DirectoryExists(path);
+}
+
 bool FileSystem::DirectoryIsEmpty(const char* path)
 {
 	DIR* pDir = opendir(path);
@@ -2573,6 +2578,20 @@ bool FileSystem::DeleteDirectory(const char* path)
 
 	return (rmdir(path) == 0);
 }
+
+bool FileSystem::DeletePath(const char* path)
+{
+	if (DirectoryExists(path))
+	{
+		return DeleteDirectory(path);
+	}
+	else if (FileExists(path))
+	{
+		return DeleteFilePath(path);
+	}
+	return false; //no file or dir found
+}
+
 
 std::string FileSystem::GetPackagePath()
 {
