@@ -206,6 +206,9 @@ std::string GetP2MPathFromModName(std::string modname)
 
 bool LoadTexFiles(std::string modname)
 {
+	//if texture replacements setting is off, turn it on
+	toggleTexReplacementSetting(true);
+	
 	std::string source_folder = GetTexUnloadDirectory(modname);
 	std::string destination_folder = GetTexReplacementDirectory(modname);
 
@@ -219,9 +222,6 @@ bool LoadTexFiles(std::string modname)
 	FileSystem::EnsureDirectoryExists(replacementsPath.c_str(), true);
 
 	FileSystem::RenamePath(source_folder.c_str(), destination_folder.c_str());
-
-	//if texture replacements setting is off, turn it on
-	toggleTexReplacementSetting(true);
 
 	return true;
 }
