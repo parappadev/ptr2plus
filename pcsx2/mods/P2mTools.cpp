@@ -177,7 +177,7 @@ bool toggleTexReplacementSetting(bool new_value)
 		bsi->SetBoolValue(section.c_str(), key.c_str(), new_value);
 		Host::RunOnCPUThread([]() { VMManager::ApplySettings(); });
 	}
-	
+	return true;
 }
 
 static std::string GetTexReplacementDirectory(std::string modname)
@@ -185,16 +185,17 @@ static std::string GetTexReplacementDirectory(std::string modname)
 	int priority;
 	PriorityList::GetPriority(modname, priority);
 	std::string folder_name = std::to_string(priority) + "_" + modname;
-	return Path::Combine(Path::Combine(EmuFolders::Textures, "/SCPS_150/replacements"), folder_name);
+	return Path::Combine(Path::Combine(EmuFolders::Textures, "SCPS_150/replacements"), folder_name);
 }
 static std::string GetTexUnloadDirectory(std::string modname)
 {
-	return Path::Combine(Path::Combine(EmuFolders::PTR2InstalledMods, Path::StripExtension(modname)), "/textures/");
+	return Path::Combine(Path::Combine(EmuFolders::PTR2InstalledMods, Path::StripExtension(modname)), "textures/");
 }
 
 static std::string GetInstalledModFilePath(std::string modname, std::string path)
 {
 	std::string mod_dir = Path::Combine(EmuFolders::PTR2InstalledMods, modname);
+	std::replace(path.begin(), path.end(), '\\', FS_OSPATH_SEPARATOR_CHARACTER);
 	std::string mod_file = Path::Combine(Path::StripExtension(mod_dir), path);
 	return mod_file;
 }
@@ -218,7 +219,7 @@ bool LoadTexFiles(std::string modname)
 		return true;
 
 	//ensure texture replacements game directory exists
-	std::string replacementsPath = Path::Combine(EmuFolders::Textures, "/SCPS_150/replacements");
+	std::string replacementsPath = Path::Combine(EmuFolders::Textures, "SCPS_150/replacements");
 	FileSystem::EnsureDirectoryExists(replacementsPath.c_str(), true);
 
 	FileSystem::RenamePath(source_folder.c_str(), destination_folder.c_str());
@@ -235,13 +236,13 @@ bool UnloadTexFiles(std::string modname)
 	if (FileSystem::DirectoryExists(destination_folder.c_str())) //already unloaded
 		return true;
 
-	//std::string unloadedPath = Path::Combine(EmuFolders::Textures, "/SCPS_150/unloaded");
+	//std::string unloadedPath = Path::Combine(EmuFolders::Textures, "SCPS_150/unloaded");
 	//FileSystem::EnsureDirectoryExists(unloadedPath.c_str(), true);
 	FileSystem::RenamePath(source_folder.c_str(), destination_folder.c_str());
 	//todo error handling
 	
 	//if all textures are unloaded, turn texture replacements off
-	if (FileSystem::DirectoryIsEmpty(Path::Combine(EmuFolders::Textures, "/SCPS_150/replacements").c_str()))
+	if (FileSystem::DirectoryIsEmpty(Path::Combine(EmuFolders::Textures, "SCPS_150/replacements").c_str()))
 	{
 		toggleTexReplacementSetting(false);
 	}
@@ -596,10 +597,6 @@ bool ExtractTexFilesFromP2M(std::string modname)
 bool CopyModFileFromP2M(FILE* stream, mod_file file, std::string modname, bool enabled)
 {
 	std::string real_path;
-	//if (file.tmp)
-	//	real_path = Path::Combine(Path::Combine(EmuFolders::PTR2, "/TMP"), Path::GetFileName(file.path));
-	//else
-
 	real_path = GetInstalledModFilePath(modname, file.path);
 
 	std::string real_path_folder = std::string(Path::GetDirectory(real_path));

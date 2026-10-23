@@ -1,10 +1,6 @@
 #pragma once
 namespace PriorityList
 {
-	static std::string GetFilename();
-
-	static bool CacheFileValidation();
-
 	std::vector<std::string> Get();
 	bool ContainsMod(std::string modname);
 

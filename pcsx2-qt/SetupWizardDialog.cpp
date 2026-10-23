@@ -678,8 +678,9 @@ bool ReadOneFile(FILE* stream, file_entry &entry)
 	//fgets puts file offset at end for some reason, so reset it:
 	off += entry.path.length();
 	std::fseek(stream, off, SEEK_SET);
-	if (entry.path.back() == '\n')
-		entry.path = entry.path.substr(0, entry.path.length() - 2);
+	
+	while (entry.path.back() == '\n' || entry.path.back() == '\r')
+		entry.path.pop_back();
 
 	/* char buf2[900];
 		if (fgets(buf2, sizeof(buf2), stream) == nullptr)
@@ -818,7 +819,9 @@ void SetupWizardDialog::extractPTR2Files()
 				return;
 			}
 
-			std::string dest_path = Path::Combine(extract_path, entry.path);
+			std::string hostpath = entry.path;
+			std::replace(hostpath.begin(), hostpath.end(), '\\', FS_OSPATH_SEPARATOR_CHARACTER);
+			std::string dest_path = Path::Combine(extract_path, hostpath);
 			std::string dest_dir = std::string(Path::GetDirectory(dest_path));
 			if (!FileSystem::EnsureDirectoryExists(dest_dir.c_str(), true))
 			{

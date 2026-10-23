@@ -214,24 +214,18 @@ void PrHookManager::INT_Loader()
 		//remove ".INT"
 		std::string int_dir = g_int_path.substr(0, g_int_path.size() - 4);
 
-		std::string int_title(Path::GetFileTitle(g_int_path));
-
 		// Remove "host:\"
-		std::string path = int_dir;
-		path = path.substr(6, path.size());
-
-		path += "\\" + g_folder + "\\" + name;
-
-
+		int_dir = int_dir.substr(6, int_dir.size());
+	
+		std::string host_path = int_dir + '\\' + g_folder + '\\' + name;
+		std::replace(host_path.begin(), host_path.end(), '\\', FS_OSPATH_SEPARATOR_CHARACTER);
 		//replace path with modded file if active mod
 		std::string mod;
 		std::string final_path;
-		if (ActiveMods::GetMod(path, mod))
+		if (ActiveMods::GetMod(host_path, mod))
 		{
-			
-			path = "DATA\\" + int_title + "\\" + g_folder + "\\" + name;
 			std::string mod_dir = std::string(Path::StripExtension(Path::Combine(EmuFolders::PTR2InstalledMods, mod)));
-			final_path = Path::Combine(mod_dir, path);
+			final_path = Path::Combine(mod_dir, host_path);
 
 #if defined(PCSX2_DEVBUILD)
 			Console.WriteLn(Color_Cyan, "[PTR2PLUS] INT_Loader: Using " + name + " from " + mod + " instead.");
@@ -239,9 +233,10 @@ void PrHookManager::INT_Loader()
 		}
 		else
 		{
-			final_path = Path::Combine(EmuFolders::PTR2, path);
+			final_path = Path::Combine(EmuFolders::PTR2, host_path);
 		}
 
+		std::replace(final_path.begin(), final_path.end(), '\\', FS_OSPATH_SEPARATOR_CHARACTER);
 		// Write bytes from file to memory
 		const auto fp = FileSystem::OpenManagedCFile(final_path.c_str(), "rb");
 		int fp_file_size = FileSystem::GetPathFileSize(final_path.c_str());

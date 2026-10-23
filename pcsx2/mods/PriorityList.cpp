@@ -5,12 +5,12 @@
 #include <common/StringUtil.h>
 #include <common/Console.h>
 
-static std::string PriorityList::GetFilename()
+static std::string GetFilename()
 {
 	return Path::Combine(EmuFolders::Cache, "modpriority.cache");
 }
 
-static bool PriorityList::CacheFileValidation()
+static bool CacheFileValidation()
 {
 	const std::string modspriority_filename(GetFilename());
 	if (!FileSystem::FileExists(modspriority_filename.c_str()))
@@ -18,6 +18,21 @@ static bool PriorityList::CacheFileValidation()
 		u16 data = 0;
 		return FileSystem::WriteBinaryFile(modspriority_filename.c_str(), &data, 2);
 	}
+	return true;
+}
+
+static bool ReadModName(FILE* fp, std::string& mod_name)
+{
+	while(true)
+	{
+		int chr = fgetc(fp);
+		if (chr == '\0' || chr == EOF)
+			break;
+		else
+			mod_name.push_back(static_cast<char>(chr));
+	}
+	if (mod_name.empty())
+		Console.WriteLn("Error reading modspriority list: bad mod name");
 	return true;
 }
 
@@ -38,18 +53,7 @@ std::vector<std::string> PriorityList::Get()
 	for (int i = 0; i < file_count; i++)
 	{
 		std::string found_mod_name;
-
-		long off = ftell(fp.get());
-
-		char buf[900];
-		if (fgets(buf, sizeof(buf), fp.get()) == nullptr)
-			Console.WriteLn("Error reading modspriority list: bad mod name");
-		found_mod_name = buf;
-
-		//fgets puts file offset at end for some reason, so reset it:
-		off += found_mod_name.length() + 1;
-		std::fseek(fp.get(), off, SEEK_SET);
-
+		ReadModName(fp.get(), found_mod_name);
 		modnames_list.push_back(found_mod_name);
 	}
 	fp.reset();
@@ -70,17 +74,7 @@ bool PriorityList::GetPriority(std::string modname, int& priority)
 	for (int i = 0; i < file_count; i++)
 	{
 		std::string found_mod_name;
-
-		long off = ftell(fp.get());
-
-		char buf[900];
-		if (fgets(buf, sizeof(buf), fp.get()) == nullptr)
-			Console.WriteLn("Error reading modspriority list: bad mod name");
-		found_mod_name = buf;
-
-		//fgets puts file offset at end for some reason, so reset it:
-		off += found_mod_name.length() + 1;
-		std::fseek(fp.get(), off, SEEK_SET);
+		ReadModName(fp.get(), found_mod_name);
 
 		if (StringUtil::compareNoCase(found_mod_name, modname))
 		{
@@ -105,17 +99,7 @@ bool PriorityList::GetModName(int priority, std::string& modname)
 	for (int i = 0; i < file_count; i++)
 	{
 		std::string found_mod_name;
-
-		long off = ftell(fp.get());
-
-		char buf[900];
-		if (fgets(buf, sizeof(buf), fp.get()) == nullptr)
-			Console.WriteLn("Error reading modspriority list: bad mod name");
-		found_mod_name = buf;
-
-		//fgets puts file offset at end for some reason, so reset it:
-		off += found_mod_name.length() + 1;
-		std::fseek(fp.get(), off, SEEK_SET);
+		ReadModName(fp.get(), found_mod_name);
 
 		if (i == priority)
 		{
