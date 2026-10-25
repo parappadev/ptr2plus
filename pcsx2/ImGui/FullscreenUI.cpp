@@ -2081,7 +2081,7 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 			ImVec2(10.0f, 10.0f), ImGuiWindowFlags_NoBackground))
 	{
 		static constexpr u32 submenu_item_count[] = {
-			8, // None
+			9, // None
 			4, // Exit
 			3, // Achievements
 		};

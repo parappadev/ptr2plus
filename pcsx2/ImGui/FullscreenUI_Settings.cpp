@@ -2766,7 +2766,7 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 	if (BeginFullscreenWindow(ImVec2(0.0f, 0.0f), ImVec2(s_game_size.x, s_game_size.y), "folder_graphics",
 			ImVec4(1.0f, 0.686f, 0.082f, 0.0f), 30.0f))
 	{ 
-	
+		
 		ImDrawList* dl = ImGui::GetWindowDrawList();
 		if (WantsToCloseMenu())
 			ReturnToPreviousWindow();
@@ -2774,7 +2774,7 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 
 		ImVec2 tab_pos(heading_pos.x, heading_pos.y);
 		ImVec2 tab_size(heading_text_size.x + heading_text_padding_x * 2 + (style.FrameBorderSize + style.FramePadding.x) * 8, heading_size.y + navbar_size.y);
-
+		
 		//filled area is drawn later to overlap folder
 		
 		//bevel
@@ -2783,7 +2783,7 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 		dl->AddRect(GameBounds(tab_pos + ImVec2(bevel_thickness / 2, bevel_thickness /2)),
 			GameBounds(tab_pos + tab_size - ImVec2(bevel_thickness / 2, bevel_thickness / 2)),
 			IM_COL32(UIPrimaryColor.x * 255, UIPrimaryColor.y * 255, UIPrimaryColor.z * 255, 255),
-			LayoutScale(22.0f), bevel_thickness, ImDrawFlags_None);
+			LayoutScale(22.0f), bevel_thickness, ImDrawFlags_StrokeCenter);
 		int vert_end_idx = dl->VtxBuffer.Size;
 
 		//bevel gradient
@@ -2813,7 +2813,7 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 		dl->AddRect(GameBounds(rect_pos + ImVec2(bevel_thickness / 2, bevel_thickness / 2)),
 			GameBounds(rect_pos + rect_size - ImVec2(bevel_thickness / 2, bevel_thickness / 2)),
 			IM_COL32(UIPrimaryColor.x * 255, UIPrimaryColor.y * 255, UIPrimaryColor.z * 255, 255),
-			LayoutScale(22.0f), bevel_thickness, ImDrawFlags_None);
+			LayoutScale(22.0f), bevel_thickness, ImDrawFlags_StrokeCenter);
 		vert_end_idx = dl->VtxBuffer.Size;
 
 		//bevel gradient
@@ -2844,7 +2844,7 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 		dl->AddRect(GameBounds(rect_pos + ImVec2(bevel_thickness / 6, 0.0f)),
 			GameBounds(rect_pos + rect_size - ImVec2(bevel_thickness * 1/6, 0.0f)),
 			IM_COL32(UIPrimaryColor.x * 255, UIPrimaryColor.y * 255, UIPrimaryColor.z * 255, 255),
-			LayoutScale(22.0f), bevel_thickness, ImDrawFlags_None);
+			LayoutScale(22.0f), bevel_thickness, ImDrawFlags_StrokeCenter);
 		vert_end_idx = dl->VtxBuffer.Size;
 
 		//bevel gradient

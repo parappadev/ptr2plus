@@ -69,7 +69,7 @@ namespace QtHost
 	static bool DownloadMissingFont(QWidget* dialog_parent, const char* font_name, const std::string& path);
 	static FontScript GetFontScript(const std::string_view language);
 
-	static constexpr const char* DEFAULT_IMGUI_FONT_NAME = "ptr2font.ttf"; //"Roboto-Regular.ttf";
+	//static constexpr const char* DEFAULT_IMGUI_FONT_NAME = "ptr2font.ttf"; //"Roboto-Regular.ttf";
 
 	static QLocale s_current_locale;
 	static QCollator s_current_collator;
@@ -368,7 +368,8 @@ namespace FontNames
 	};
 	static constexpr FontLoadInfo Latin[] = {
 		// We ship this with PCSX2 so no fallbacks are needed
-		{"Roboto-Regular.ttf"},
+		//{"Roboto-Regular.ttf"},
+		{"ptr2font.ttf"},
 	};
 } // namespace FontNames
 
