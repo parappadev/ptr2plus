@@ -1648,7 +1648,7 @@ void FullscreenUI::DrawSubtitleBubble(ImVec2 subtitle_pos, ImVec2 subtitle_size,
 {
 	ImDrawList* dl = ImGui::GetForegroundDrawList();
 		
-	dl->AddRectFilled(GameBounds(subtitle_pos), GameBounds(subtitle_pos + subtitle_size), IM_COL32(0, 0, 0, bg_alpha * 255), 30.0f);
+	dl->AddRectFilled(GameBounds(subtitle_pos), GameBounds(subtitle_pos + subtitle_size), IM_COL32(0, 0, 0, bg_alpha * 255), LayoutScale(30.0f));
 	if (text == "") //if no text input, then display menu controls
 	{
 		//this is one of the most horrific things i've ever coded
