@@ -2712,7 +2712,7 @@ void ImGuiFullscreen::DrawPTR2PopupModalBG(ImVec2 win_pos, ImVec2 win_size, cons
 		//ImVec2 padding = LayoutScale(ImVec2(0.0f, 1.0f));
 
 		//outer window
-		dl->AddRectFilled(GameBounds(win_pos), GameBounds(win_pos + win_size), redcol, thickness);
+		dl->AddRectFilled(GameBounds(win_pos), GameBounds(win_pos + win_size), redcol, thickness, 0, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
 
 		float shadow_depth = shading_depth * 2;
 		//shadow
@@ -2733,7 +2733,7 @@ void ImGuiFullscreen::DrawPTR2PopupModalBG(ImVec2 win_pos, ImVec2 win_size, cons
 			pos = ImVec2(win_pos.x, win_pos.y);
 
 			int vert_start_idx = dl->VtxBuffer.Size;
-			dl->AddRect(GameBounds(pos + offset), GameBounds(pos + ImVec2(win_size.x, win_size.y) - offset), IM_COL32(40, 30, 0, transparency), thickness * 0.98, depth, ImDrawFlags_StrokeCenter);
+			dl->AddRect(GameBounds(pos + offset), GameBounds(pos + ImVec2(win_size.x, win_size.y) - offset), IM_COL32(40, 30, 0, transparency), thickness * 0.98, depth, ImDrawFlags_StrokeCenter, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
 			int vert_end_idx = dl->VtxBuffer.Size;
 			ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
 				GameBounds(win_pos + ImVec2(0.0f, title_bar_size * 2)),
@@ -2748,7 +2748,7 @@ void ImGuiFullscreen::DrawPTR2PopupModalBG(ImVec2 win_pos, ImVec2 win_size, cons
 			offset = depth_offset; // -ImVec2(oldLayoutScale(0.3f), oldLayoutScale(0.3f));
 
 			//vert_start_idx = dl->VtxBuffer.Size;
-			dl->AddRect(GameBounds(pos - offset), GameBounds(pos + ImVec2(inner_win_size.x, inner_win_size.y) + offset), IM_COL32(40, 30, 0, transparency * 1.2), thickness * 0.8, depth, ImDrawFlags_StrokeCenter);
+			dl->AddRect(GameBounds(pos - offset), GameBounds(pos + ImVec2(inner_win_size.x, inner_win_size.y) + offset), IM_COL32(40, 30, 0, transparency * 1.2), thickness * 0.8, depth, ImDrawFlags_StrokeCenter, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
 			//vert_end_idx = dl->VtxBuffer.Size;
 			/* ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
 				GameBounds(outer_win_pos + ImVec2(0.0f, outer_win_size.y - bottom_bar_size * 3)),
@@ -2761,7 +2761,7 @@ void ImGuiFullscreen::DrawPTR2PopupModalBG(ImVec2 win_pos, ImVec2 win_size, cons
 			transparency = 200 / s_shadow_detail * (float)i / s_shadow_detail;
 			pos = ImVec2(pos.x, pos.y - title_bar_size + shading_depth * 1);
 			vert_start_idx = dl->VtxBuffer.Size;
-			dl->AddRect(GameBounds(pos), GameBounds(ImVec2(pos.x + inner_win_size.x, pos.y + inner_win_size.y + bottom_bar_size + shadow_depth)), IM_COL32(255, 255, 255, transparency), thickness * 0.8, depth, ImDrawFlags_StrokeCenter);
+			dl->AddRect(GameBounds(pos), GameBounds(ImVec2(pos.x + inner_win_size.x, pos.y + inner_win_size.y + bottom_bar_size + shadow_depth)), IM_COL32(255, 255, 255, transparency), thickness * 0.8, depth, ImDrawFlags_StrokeCenter, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
 			vert_end_idx = dl->VtxBuffer.Size;
 			ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
 				GameBounds(win_pos + ImVec2(0.0f, 0.0f)),
@@ -2773,7 +2773,7 @@ void ImGuiFullscreen::DrawPTR2PopupModalBG(ImVec2 win_pos, ImVec2 win_size, cons
 			transparency = 180 / s_shadow_detail * (float)i / s_shadow_detail;
 			pos = ImVec2(inner_win_pos.x, inner_win_pos.y);
 			//vert_start_idx = dl->VtxBuffer.Size;
-			dl->AddRect(GameBounds(pos), GameBounds(ImVec2(pos.x + inner_win_size.x, pos.y + inner_win_size.y + bottom_bar_size * 0.3)), IM_COL32(255, 255, 255, transparency), outer_rounding * 0.60, depth, ImDrawFlags_StrokeCenter);
+			dl->AddRect(GameBounds(pos), GameBounds(ImVec2(pos.x + inner_win_size.x, pos.y + inner_win_size.y + bottom_bar_size * 0.3)), IM_COL32(255, 255, 255, transparency), outer_rounding * 0.60, depth, ImDrawFlags_StrokeCenter, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
 			//vert_end_idx = dl->VtxBuffer.Size;
 			/* ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
 				GameBounds(inner_win_pos + ImVec2(0.0f, 0.0f)),
@@ -2785,7 +2785,7 @@ void ImGuiFullscreen::DrawPTR2PopupModalBG(ImVec2 win_pos, ImVec2 win_size, cons
 
 		//inner window
 
-		dl->AddRectFilled(GameBounds(inner_win_pos), GameBounds(inner_win_pos + inner_win_size), IM_COL32(255, 236, 153, 255), rounding);
+		dl->AddRectFilled(GameBounds(inner_win_pos), GameBounds(inner_win_pos + inner_win_size), IM_COL32(255, 236, 153, 255), rounding, 0, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
 
 		//inner window shadow
 		for (int i = 0; i < s_shadow_detail; i++)
@@ -2797,7 +2797,7 @@ void ImGuiFullscreen::DrawPTR2PopupModalBG(ImVec2 win_pos, ImVec2 win_size, cons
 			ImVec2 offset = depth_offset - ImVec2(oldLayoutScale(0.3f), oldLayoutScale(0.3f));
 
 			int vert_start_idx = dl->VtxBuffer.Size;
-			dl->AddRect(GameBounds(pos + offset), GameBounds(pos + ImVec2(inner_win_size.x, inner_win_size.y) - offset), IM_COL32(40, 30, 0, transparency), rounding * 0.925, depth, ImDrawFlags_StrokeCenter);
+			dl->AddRect(GameBounds(pos + offset), GameBounds(pos + ImVec2(inner_win_size.x, inner_win_size.y) - offset), IM_COL32(40, 30, 0, transparency), rounding * 0.925, depth, ImDrawFlags_StrokeCenter, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
 			int vert_end_idx = dl->VtxBuffer.Size;
 			ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
 				GameBounds(pos + ImVec2(0.0f, title_bar_size * 0.6)),

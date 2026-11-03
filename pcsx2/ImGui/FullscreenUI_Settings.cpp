@@ -54,6 +54,8 @@
 #include <pcsx2/mods/PriorityList.h>
 #include "mods/P2mTools.h"
 
+using ImGuiFullscreen::oldLayoutScale;
+
 namespace FullscreenUI
 {
 	class HddCreateInProgress : public HddCreate
@@ -2783,7 +2785,7 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 		dl->AddRect(GameBounds(tab_pos + ImVec2(bevel_thickness / 2, bevel_thickness /2)),
 			GameBounds(tab_pos + tab_size - ImVec2(bevel_thickness / 2, bevel_thickness / 2)),
 			IM_COL32(UIPrimaryColor.x * 255, UIPrimaryColor.y * 255, UIPrimaryColor.z * 255, 255),
-			LayoutScale(22.0f), bevel_thickness, ImDrawFlags_StrokeCenter);
+			LayoutScale(22.0f), bevel_thickness, ImDrawFlags_StrokeCenter, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
 		int vert_end_idx = dl->VtxBuffer.Size;
 
 		//bevel gradient
@@ -2806,14 +2808,14 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 		dl->AddRectFilled(GameBounds(rect_pos),
 			GameBounds(rect_pos + rect_size),
 			IM_COL32(rect_col.x * 255, rect_col.y * 255, rect_col.z * 255, 255),
-			LayoutScale(30.0f));
+			LayoutScale(30.0f), 0, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
 
 		//bevel
 		vert_start_idx = dl->VtxBuffer.Size;
 		dl->AddRect(GameBounds(rect_pos + ImVec2(bevel_thickness / 2, bevel_thickness / 2)),
 			GameBounds(rect_pos + rect_size - ImVec2(bevel_thickness / 2, bevel_thickness / 2)),
 			IM_COL32(UIPrimaryColor.x * 255, UIPrimaryColor.y * 255, UIPrimaryColor.z * 255, 255),
-			LayoutScale(22.0f), bevel_thickness, ImDrawFlags_StrokeCenter);
+			LayoutScale(22.0f), bevel_thickness, ImDrawFlags_StrokeCenter, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
 		vert_end_idx = dl->VtxBuffer.Size;
 
 		//bevel gradient
@@ -2827,7 +2829,7 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 		dl->AddRectFilled(GameBounds(tab_pos + ImVec2(bevel_thickness, bevel_thickness)),
 			GameBounds(tab_pos + tab_size - ImVec2(bevel_thickness, bevel_thickness)),
 			IM_COL32(UIPrimaryColor.x * 255, UIPrimaryColor.y * 255, UIPrimaryColor.z * 255, 255),
-			LayoutScale(18.0f));
+			LayoutScale(18.0f), 0, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
 		
 
 	//inner content area
@@ -2844,7 +2846,7 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 		dl->AddRect(GameBounds(rect_pos + ImVec2(bevel_thickness / 6, 0.0f)),
 			GameBounds(rect_pos + rect_size - ImVec2(bevel_thickness * 1/6, 0.0f)),
 			IM_COL32(UIPrimaryColor.x * 255, UIPrimaryColor.y * 255, UIPrimaryColor.z * 255, 255),
-			LayoutScale(22.0f), bevel_thickness, ImDrawFlags_StrokeCenter);
+			LayoutScale(22.0f), bevel_thickness, ImDrawFlags_StrokeCenter, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
 		vert_end_idx = dl->VtxBuffer.Size;
 
 		//bevel gradient
@@ -2862,7 +2864,7 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 		dl->AddRectFilled(GameBounds(rect_pos),
 			GameBounds(rect_pos + rect_size),
 			IM_COL32(rect_col.x * 255, rect_col.y * 255, rect_col.z * 255, 255),
-			LayoutScale(30.0f));
+			LayoutScale(30.0f), 0, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
 
 
 		/*

@@ -1826,7 +1826,7 @@ void ImDrawList::PathBezierQuadraticCurveTo(const ImVec2& p2, const ImVec2& p3, 
     }
 }
 
-void ImDrawList::PathRect(const ImVec2& a, const ImVec2& b, float rounding, ImDrawFlags flags)
+void ImDrawList::PathRect(const ImVec2& a, const ImVec2& b, float rounding, ImDrawFlags flags, bool wobble, float wobble_incr, float wobble_amp)
 {
     const bool has_rounding = IM_HAS_ROUNDING(rounding);
     if (has_rounding)
@@ -1851,8 +1851,29 @@ void ImDrawList::PathRect(const ImVec2& a, const ImVec2& b, float rounding, ImDr
         const float rounding_br = (flags & ImDrawFlags_RoundBottomRight) ? rounding : 0.0f;
         const float rounding_bl = (flags & ImDrawFlags_RoundBottomLeft)  ? rounding : 0.0f;
         PathArcToFast(ImVec2(a.x + rounding_tl, a.y + rounding_tl), rounding_tl, 6, 9);
+		bool out = true;
+		if (wobble && wobble_incr > 0)
+		{
+			for (int i = wobble_incr; i <= b.x - a.x - wobble_incr; i += wobble_incr)
+            {
+				_Path.push_back(ImVec2(a.x + i, a.y - (out ? wobble_amp : 0)));
+                out = !out;
+            }
+        }
+
         PathArcToFast(ImVec2(b.x - rounding_tr, a.y + rounding_tr), rounding_tr, 9, 12);
         PathArcToFast(ImVec2(b.x - rounding_br, b.y - rounding_br), rounding_br, 0, 3);
+
+		if (wobble && wobble_incr > 0)
+		{
+			out = true;
+			for (int i = wobble_incr; i <= b.x - a.x - wobble_incr; i += wobble_incr)
+		    {
+				_Path.push_back(ImVec2(b.x - i, b.y + (out ? wobble_amp : 0)));
+			    out = !out;
+		    }
+        }
+
         PathArcToFast(ImVec2(a.x + rounding_bl, b.y - rounding_bl), rounding_bl, 3, 6);
     }
 }
@@ -2333,7 +2354,7 @@ void ImDrawList::_AddRectTinyRounding(const ImVec2& p_min, const ImVec2& p_max, 
 }
 
 // p_min = upper-left, p_max = lower-right
-void ImDrawList::AddRect(const ImVec2& p_min, const ImVec2& p_max, ImU32 col, float rounding, float thickness, ImDrawFlags flags)
+void ImDrawList::AddRect(const ImVec2& p_min, const ImVec2& p_max, ImU32 col, float rounding, float thickness, ImDrawFlags flags, bool wobble, float wobble_incr, float wobble_amp)
 {
     // If this assert triggers on legacy code:
     // - 1.92.8 (2025/05): swapped two last parameters order: flags, thickness --> thickness, flags. This should normally be caught by compile-time type-checking.
@@ -2475,8 +2496,28 @@ void ImDrawList::AddRect(const ImVec2& p_min, const ImVec2& p_max, ImU32 col, fl
         const float rounding_br = (flags & ImDrawFlags_RoundBottomRight) ? outer_rounding : 0.0f;
         const float rounding_bl = (flags & ImDrawFlags_RoundBottomLeft) ? outer_rounding : 0.0f;
         PathArcToFast(ImVec2(outer_min.x + rounding_tl, outer_min.y + rounding_tl), rounding_tl, 6, 9);
+		ImVec2 a = outer_min;
+		ImVec2 b = outer_max;
+		bool out = true;
+		if (wobble && wobble_incr > 0)
+		{
+			for (int i = wobble_incr; i <= b.x - a.x - wobble_incr; i += wobble_incr)
+			{
+				_Path.push_back(ImVec2(a.x + i, a.y - (out ? wobble_amp : 0)));
+				out = !out;
+			}
+		}
         PathArcToFast(ImVec2(outer_max.x - rounding_tr, outer_min.y + rounding_tr), rounding_tr, 9, 12);
         PathArcToFast(ImVec2(outer_max.x - rounding_br, outer_max.y - rounding_br), rounding_br, 0, 3);
+		if (wobble && wobble_incr > 0)
+		{
+			out = true;
+			for (int i = wobble_incr; i <= b.x - a.x - wobble_incr; i += wobble_incr)
+			{
+				_Path.push_back(ImVec2(b.x - i, b.y + (out ? wobble_amp : 0)));
+				out = !out;
+			}
+		}
         PathArcToFast(ImVec2(outer_min.x + rounding_bl, outer_max.y - rounding_bl), rounding_bl, 3, 6);
 
         _AddPolyline(_Path.Data, _Path.Size, col, thickness, ImDrawFlags_Closed | ImDrawFlags_JoinMiter | ImDrawFlags_StrokeInside | (flags & ~ImDrawFlags_StrokeMask_), half_min_dim);
@@ -2532,7 +2573,7 @@ void ImDrawList::_AddRectFilledBaked(const ImVec2& p_min, const ImVec2& p_max, I
     }
 }
 
-void ImDrawList::AddRectFilled(const ImVec2& p_min, const ImVec2& p_max, ImU32 col, float rounding, ImDrawFlags flags)
+void ImDrawList::AddRectFilled(const ImVec2& p_min, const ImVec2& p_max, ImU32 col, float rounding, ImDrawFlags flags, bool wobble, float wobble_incr, float wobble_amp)
 {
     if ((col & IM_COL32_A_MASK) == 0)
         return;
@@ -2613,15 +2654,16 @@ void ImDrawList::AddRectFilled(const ImVec2& p_min, const ImVec2& p_max, ImU32 c
             }
         }
     }
-
     if (!has_rounding)
     {
-        const ImVec2 points[4] = { p_min, ImVec2(p_max.x, p_min.y), p_max, ImVec2(p_min.x, p_max.y) };
-        AddConvexPolyFilled(points, 4, col, ImDrawFlags_JoinMiter);
+        //const ImVec2 points[4] = { p_min, ImVec2(p_max.x, p_min.y), p_max, ImVec2(p_min.x, p_max.y) };
+		const ImVec2 points[5] = {p_min, ImVec2(p_max.x - (p_max.x - p_min.x) / 2, p_min.y * 1.2f), ImVec2(p_max.x, p_min.y), p_max, ImVec2(p_min.x, p_max.y)};
+
+        AddConvexPolyFilled(points, 5, col, ImDrawFlags_JoinMiter);
     }
     else
     {
-        PathRect(p_min, p_max, rounding, flags);
+		PathRect(p_min, p_max, rounding, flags, wobble, wobble_incr, wobble_amp);
         PathFillConvex(col, ImDrawFlags_JoinMiter);
     }
 }
