@@ -2768,7 +2768,7 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 	if (BeginFullscreenWindow(ImVec2(0.0f, 0.0f), ImVec2(s_game_size.x, s_game_size.y), "folder_graphics",
 			ImVec4(1.0f, 0.686f, 0.082f, 0.0f), 30.0f))
 	{ 
-		
+
 		ImDrawList* dl = ImGui::GetWindowDrawList();
 		if (WantsToCloseMenu())
 			ReturnToPreviousWindow();
@@ -3226,16 +3226,16 @@ void FullscreenUI::DrawInterfaceSettingsPage()
 	DrawStringListSetting(bsi, FSUI_ICONSTR(ICON_FA_PAINTBRUSH, "Theme"),
 		FSUI_CSTR("Selects the color style to be used for Big Picture Mode."),
 		"UI", "FullscreenUITheme", "Dark", s_theme_name, s_theme_value, std::size(s_theme_name), true);
-	DrawToggleSetting(
+	/*DrawToggleSetting(
 		bsi, FSUI_ICONSTR(ICON_FA_LIST, "Default To Game List"), FSUI_CSTR("When Big Picture mode is started, the game list will be displayed instead of the main menu."), "UI", "FullscreenUIDefaultToGameList", false);
 	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_GLOBE, "Prefer English Game Titles"),
 		FSUI_CSTR("For games with both a title in the game's native language and one in English, prefer the English title. Affects how game titles are displayed on the game list, window title and Discord Presence"), "UI",
-		"PreferEnglishGameList", false);
+		"PreferEnglishGameList", false);*/
 	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_CIRCLE_INFO, "Use Save State Selector"),
 		FSUI_CSTR("Show a save state selector UI when switching slots instead of showing a notification bubble."),
 		"EmuCore", "UseSavestateSelector", true);
 
-	MenuHeading(FSUI_CSTR("Background"));
+	/*MenuHeading(FSUI_CSTR("Background"));
 
 	std::string background_path = bsi->GetStringValue("UI", "FSUIBackgroundPath", "");
 
@@ -3298,7 +3298,7 @@ void FullscreenUI::DrawInterfaceSettingsPage()
 	};
 	DrawStringListSetting(bsi, FSUI_ICONSTR(ICON_FA_EXPAND, "Background Mode"),
 		FSUI_CSTR("Select how to display the background image."),
-		"UI", "FSUIBackgroundMode", "fit", s_background_mode_names, s_background_mode_values, std::size(s_background_mode_names), true);
+		"UI", "FSUIBackgroundMode", "fit", s_background_mode_names, s_background_mode_values, std::size(s_background_mode_names), true);*/
 
 	MenuHeading(FSUI_CSTR("Behaviour"));
 	// ptr2plus
@@ -3471,8 +3471,8 @@ void FullscreenUI::DrawInterfaceSettingsPage()
 		true);
 	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_ARROW_POINTER, "Hide Cursor In Fullscreen"),
 		FSUI_CSTR("Hides the mouse pointer/cursor when the emulator is in fullscreen mode."), "UI", "HideMouseCursor", false);
-	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_TABLET_SCREEN_BUTTON, "Start In Big Picture Mode"),
-		FSUI_CSTR("Automatically starts Big Picture Mode instead of the regular Qt interface when PCSX2 launches."), "UI", "StartBigPictureMode", false);
+	/*DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_TABLET_SCREEN_BUTTON, "Start In Big Picture Mode"),
+		FSUI_CSTR("Automatically starts Big Picture Mode instead of the regular Qt interface when PCSX2 launches."), "UI", "StartBigPictureMode", false);*/
 
 	MenuHeading(FSUI_CSTR("Operations"));
 	if (MenuButton(FSUI_ICONSTR(u8"🔥", "Reset Settings"),
