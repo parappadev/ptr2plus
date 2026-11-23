@@ -1854,7 +1854,7 @@ void ImDrawList::PathRect(const ImVec2& a, const ImVec2& b, float rounding, ImDr
 		bool out = true;
 		if (wobble && wobble_incr > 0)
 		{
-			for (int i = wobble_incr; i <= b.x - a.x - wobble_incr; i += wobble_incr)
+			for (int i = wobble_incr; i <= b.x - a.x - wobble_incr / 2; i += wobble_incr)
             {
 				_Path.push_back(ImVec2(a.x + i, a.y - (out ? wobble_amp : 0)));
                 out = !out;

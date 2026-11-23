@@ -212,7 +212,7 @@ namespace ImGuiFullscreen
 	void RenderTextClippedWithShadow(const ImVec2& pos_min, const ImVec2& pos_max, const char* text, const char* text_end = nullptr,
 		const ImVec2* text_size_if_known = nullptr, const ImVec2& align = ImVec2(0.0f, 0.0f), const ImRect* clip_rect = nullptr);
 	void BeginMenuButtons(u32 num_items = 0, float y_align = 0.0f, float x_padding = LAYOUT_MENU_BUTTON_X_PADDING,
-						  float y_padding = LAYOUT_MENU_BUTTON_Y_PADDING, float item_height = LAYOUT_MENU_BUTTON_HEIGHT, bool y_centered = false, float pauseLogo_height = 0.0f);
+						  float y_padding = LAYOUT_MENU_BUTTON_Y_PADDING, float item_height = LAYOUT_MENU_BUTTON_HEIGHT, bool y_centered = false, ImVec2 spacing = ImVec2(0.0f,6.0f), float pauseLogo_height = 0.0f);
 	void EndMenuButtons();
 	void GetMenuButtonFrameBounds(float height, ImVec2* pos, ImVec2* size);
 	bool MenuButtonFrame(const char* str_id, bool enabled, float height, bool* visible, bool* hovered, ImVec2* min, ImVec2* max,

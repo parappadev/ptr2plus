@@ -2782,7 +2782,7 @@ void FullscreenUI::DrawSettingsWindow(MainWindowType menu_type)
 		//bevel
 		int vert_start_idx = dl->VtxBuffer.Size;
 		
-		dl->AddRect(GameBounds(tab_pos + ImVec2(bevel_thickness / 2, bevel_thickness /2)),
+		dl->AddRect(GameBounds(tab_pos + ImVec2(bevel_thickness / 2 + 0.4, bevel_thickness / 2 + 0.4)),
 			GameBounds(tab_pos + tab_size - ImVec2(bevel_thickness / 2, bevel_thickness / 2)),
 			IM_COL32(UIPrimaryColor.x * 255, UIPrimaryColor.y * 255, UIPrimaryColor.z * 255, 255),
 			LayoutScale(22.0f), bevel_thickness, ImDrawFlags_StrokeCenter, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));

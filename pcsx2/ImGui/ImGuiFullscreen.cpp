@@ -1254,14 +1254,14 @@ void ImGuiFullscreen::PrerenderMenuButtonBorder()
 	s_rendered_menu_item_border = true;
 }
 
-void ImGuiFullscreen::BeginMenuButtons(u32 num_items, float y_align, float x_padding, float y_padding, float item_height, bool y_centered, float pauseLogo_height)
+void ImGuiFullscreen::BeginMenuButtons(u32 num_items, float y_align, float x_padding, float y_padding, float item_height, bool y_centered, ImVec2 spacing, float pauseLogo_height)
 {
 	s_menu_button_index = 0;
 
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, LayoutScale(x_padding, y_padding));
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, LayoutScale(LAYOUT_FRAME_ROUNDING));
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, LayoutScale(1.0f));
-	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, LayoutScale(spacing));
 
 	if (y_align != 0.0f)
 	{
@@ -1286,6 +1286,7 @@ void ImGuiFullscreen::BeginMenuButtons(u32 num_items, float y_align, float x_pad
 	}
 
 	PrerenderMenuButtonBorder();
+	//PrerenderMenuButtonBorder();
 }
 
 void ImGuiFullscreen::EndMenuButtons()
@@ -1904,9 +1905,9 @@ bool ImGuiFullscreen::ToggleButton(
 		avail_summary_width = frame_width - ImGui::GetStyle().FramePadding.x * 2.0f - toggle_width - toggle_gap;
 		if (avail_summary_width > 0.0f)
 		{
-			const float wrapped_summary_height =
-				summary_font.first->CalcTextSizeA(summary_font.second, FLT_MAX, avail_summary_width, summary).y;
-			const float content_height_px = GetLineHeight(font) + LayoutScale(4.0f) + wrapped_summary_height;
+			//const float wrapped_summary_height =
+			//	summary_font.first->CalcTextSizeA(summary_font.second, FLT_MAX, avail_summary_width, summary).y;
+			const float content_height_px = GetLineHeight(font) + LayoutScale(4.0f);//+wrapped_summary_height;
 			dynamic_height = std::max(height, LayoutUnscale(content_height_px));
 		}
 	}
@@ -2003,9 +2004,9 @@ bool ImGuiFullscreen::ThreeWayToggleButton(
 		avail_summary_width = frame_width - ImGui::GetStyle().FramePadding.x * 2.0f - toggle_width - toggle_gap;
 		if (avail_summary_width > 0.0f)
 		{
-			const float wrapped_summary_height =
-				summary_font.first->CalcTextSizeA(summary_font.second, FLT_MAX, avail_summary_width, summary).y;
-			const float content_height_px = GetLineHeight(font) + LayoutScale(4.0f) + wrapped_summary_height;
+			//const float wrapped_summary_height =
+			//	summary_font.first->CalcTextSizeA(summary_font.second, FLT_MAX, avail_summary_width, summary).y;
+			const float content_height_px = GetLineHeight(font) + LayoutScale(4.0f); // + wrapped_summary_height;
 			dynamic_height = std::max(height, LayoutUnscale(content_height_px));
 		}
 	}
@@ -2023,6 +2024,7 @@ bool ImGuiFullscreen::ThreeWayToggleButton(
 	if (!enabled)
 		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetColorU32(ImGuiCol_TextDisabled));
 
+	DrawSettingsTextOutline(title_bb, font, title, 2.5f, enabled, ImVec2(0.0f, 0.0f));
 	ImGui::PushFont(font.first, font.second);
 	RenderTextClippedWithShadow(title_bb.Min, title_bb.Max, title, nullptr, nullptr, ImVec2(0.0f, 0.0f), &title_bb);
 	ImGui::PopFont();
@@ -2102,9 +2104,9 @@ bool ImGuiFullscreen::MenuButtonWithValue(
 		avail_summary_width = frame_width - ImGui::GetStyle().FramePadding.x * 2.0f - value_size.x;
 		if (avail_summary_width > 0.0f)
 		{
-			const float wrapped_summary_height =
-				summary_font.first->CalcTextSizeA(summary_font.second, FLT_MAX, avail_summary_width, summary).y;
-			const float content_height_px = GetLineHeight(font) + LayoutScale(4.0f) + wrapped_summary_height;
+			//const float wrapped_summary_height =
+			//	summary_font.first->CalcTextSizeA(summary_font.second, FLT_MAX, avail_summary_width, summary).y;
+			const float content_height_px = GetLineHeight(font) + LayoutScale(4.0f); //+ wrapped_summary_height;
 			dynamic_height = std::max(height, LayoutUnscale(content_height_px));
 		}
 	}

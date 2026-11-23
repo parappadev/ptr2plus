@@ -2094,7 +2094,7 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 		const bool just_focused = ResetFocusHere();
 		//prepares cursor y pos for menu buttons, accounting for pause logo on top
 		BeginMenuButtons(submenu_item_count[static_cast<u32>(s_current_pause_submenu)], 1.0f, ImGuiFullscreen::LAYOUT_MENU_BUTTON_X_PADDING,
-			ImGuiFullscreen::LAYOUT_MENU_BUTTON_Y_PADDING, ImGuiFullscreen::LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY, true, pause_image_height);
+			ImGuiFullscreen::LAYOUT_MENU_BUTTON_Y_PADDING, ImGuiFullscreen::LAYOUT_MENU_BUTTON_HEIGHT_NO_SUMMARY, true, ImVec2(0.0f, 0.0f), pause_image_height);
 		
 		if (!ImGui::IsPopupOpen(0u, ImGuiPopupFlags_AnyPopup))
 		{
