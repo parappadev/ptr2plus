@@ -144,6 +144,8 @@ namespace ImGuiFullscreen
 	static bool s_has_hovered_menu_item = false;
 	static bool s_rendered_menu_item_border = false;
 
+	static std::vector<std::pair<int, float>> hovered_items_dict; //imguiID, opacity
+
 	struct FileSelectorItem
 	{
 		FileSelectorItem() = default;
@@ -1285,7 +1287,6 @@ void ImGuiFullscreen::BeginMenuButtons(u32 num_items, float y_align, float x_pad
 			
 	}
 
-	PrerenderMenuButtonBorder();
 	//PrerenderMenuButtonBorder();
 }
 
@@ -1360,40 +1361,40 @@ void ImGuiFullscreen::DrawMenuButtonFrame(const ImVec2& p_min, const ImVec2& p_m
 {
 	ImVec2 frame_min = p_min;
 	ImVec2 frame_max = p_max;
-
-	if (ImGui::GetIO().NavVisible && ImGui::GetHoveredID() != ImGui::GetItemID())
-	{
-		if (!s_had_hovered_menu_item)
-		{
-			s_menu_button_frame_min_animated.Reset(frame_min);
-			s_menu_button_frame_max_animated.Reset(frame_max);
-			s_has_hovered_menu_item = true;
-		}
-		else
-		{
-			if (frame_min.x != s_menu_button_frame_min_animated.GetEndValue().x ||
-				frame_min.y != s_menu_button_frame_min_animated.GetEndValue().y)
-			{
-				s_menu_button_frame_min_animated.Start(s_menu_button_frame_min_animated.GetCurrentValue(), frame_min,
-					MENU_BACKGROUND_ANIMATION_TIME);
-			}
-			if (frame_max.x != s_menu_button_frame_max_animated.GetEndValue().x ||
-				frame_max.y != s_menu_button_frame_max_animated.GetEndValue().y)
-			{
-				s_menu_button_frame_max_animated.Start(s_menu_button_frame_max_animated.GetCurrentValue(), frame_max,
-					MENU_BACKGROUND_ANIMATION_TIME);
-			}
-			frame_min = s_menu_button_frame_min_animated.UpdateAndGetValue();
-			frame_max = s_menu_button_frame_max_animated.UpdateAndGetValue();
-			s_has_hovered_menu_item = true;
-		}
-	}
-
-	if (!s_rendered_menu_item_border)
-	{
-		s_rendered_menu_item_border = true;
+//
+//	if (ImGui::GetIO().NavVisible && ImGui::GetHoveredID() != ImGui::GetItemID())
+//	{
+//		if (!s_had_hovered_menu_item)
+//		{
+//			s_menu_button_frame_min_animated.Reset(frame_min);
+//			s_menu_button_frame_max_animated.Reset(frame_max);
+//			s_has_hovered_menu_item = true;
+//		}
+//		else
+//		{
+//			if (frame_min.x != s_menu_button_frame_min_animated.GetEndValue().x ||
+//				frame_min.y != s_menu_button_frame_min_animated.GetEndValue().y)
+//			{
+//				s_menu_button_frame_min_animated.Start(s_menu_button_frame_min_animated.GetCurrentValue(), frame_min,
+//					MENU_BACKGROUND_ANIMATION_TIME);
+//			}
+//			if (frame_max.x != s_menu_button_frame_max_animated.GetEndValue().x ||
+//				frame_max.y != s_menu_button_frame_max_animated.GetEndValue().y)
+//			{
+//				s_menu_button_frame_max_animated.Start(s_menu_button_frame_max_animated.GetCurrentValue(), frame_max,
+//					MENU_BACKGROUND_ANIMATION_TIME);
+//			}
+//			frame_min = s_menu_button_frame_min_animated.UpdateAndGetValue();
+//			frame_max = s_menu_button_frame_max_animated.UpdateAndGetValue();
+//			s_has_hovered_menu_item = true;
+//		}
+//	}
+//
+//	if (!s_rendered_menu_item_border)
+//	{
+//		s_rendered_menu_item_border = true;
 		ImGui::RenderFrame(frame_min, frame_max, fill_col, border, rounding);
-	}
+//	}
 }
 
 bool ImGuiFullscreen::MenuButtonFrame(
@@ -1440,10 +1441,112 @@ bool ImGuiFullscreen::MenuButtonFrame(
 	if (enabled)
 	{
 		pressed = ImGui::ButtonBehavior(*bb, id, hovered, &held, flags);
+
+		ImGuiIO& io = ImGui::GetIO();
+		float deltaTime = io.DeltaTime;
+		bool was_hovered = false;
+		int cur_ID = ImGui::GetItemID();
+		float cur_opacity = 0.0f;
+		for (int i = 0; i < hovered_items_dict.size(); i++)
+		{
+			if (hovered_items_dict[i].first == cur_ID)
+			{
+				was_hovered = true;
+				cur_opacity = hovered_items_dict[i].second;
+				float new_opacity = cur_opacity - (4 * deltaTime);
+				if (*hovered)
+				{
+					hovered_items_dict[i].second = 1.0f;
+				}
+				else if (new_opacity > 0.0f)
+				{
+					hovered_items_dict[i].second = new_opacity;
+				}
+				else
+				{
+					std::erase_if(hovered_items_dict, [cur_ID](std::pair<int, float> x) {
+						if (x.first == cur_ID)
+							return true;
+						else
+							return false;
+					});
+				}
+				break;
+			}
+		}
+
 		if (*hovered)
 		{
-			const ImU32 col = ImGui::GetColorU32(held ? ImGuiCol_ButtonActive : ImGuiCol_ButtonHovered, hover_alpha);
+			if (!was_hovered)
+			{
+				hovered_items_dict.push_back(std::pair<int, float>(cur_ID, 1.0f));
+			}
+		}
+		if (std::strcmp(window->Name, "settings_parent") == 0)
+		{
+			ImU32 rect_col = IM_COL32(228, 177, 0, 255);
+			ImU32 rect_hover_col = IM_COL32(255, 250, 71, 255 * cur_opacity);
+			ImU32 rect_hover_shadow_col = IM_COL32(241, 180, 41, 255 * cur_opacity);
+			ImU32 rect_hover_highlight_col = IM_COL32(255, 250, 71, 255 * cur_opacity);
+			ImU32 rect_shadow_col = IM_COL32(203, 142, 3, 255);
+			ImU32 rect_highlight_col = IM_COL32(233, 233, 18, 255);
+			
+			ImDrawList* dl = window->DrawList;
+			float rounding = LayoutScale(LAYOUT_FRAME_ROUNDING * 3.5f);
+			dl->AddRectFilled(bb->Min, bb->Max, rect_col, rounding, 0, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
 
+			int vert_start_idx = dl->VtxBuffer.Size;
+			dl->AddRect(bb->Min, bb->Max, IM_COL32_WHITE, rounding, LayoutScale(9.0f), 0, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
+			int vert_end_idx = dl->VtxBuffer.Size;
+
+			ImDrawVert* vert_start = dl->VtxBuffer.Data + vert_start_idx;
+			ImDrawVert* vert_end = dl->VtxBuffer.Data + vert_end_idx;
+
+			ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
+				bb->Min,
+				bb->GetBL(),
+				rect_highlight_col, //highlight
+				rect_shadow_col); //shadow
+
+			//change alpha on every other vert for fade
+			for (ImDrawVert* vert = vert_start + 1; vert < vert_end; vert+=2)
+			{
+				vert->col = vert->col & ~(0xFF << IM_COL32_A_SHIFT);
+			}
+
+			//hover
+			if (*hovered || was_hovered)
+			{
+				dl->AddRectFilled(bb->Min, bb->Max, rect_hover_col, rounding, 0, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
+
+				int vert_start_idx = dl->VtxBuffer.Size;
+				dl->AddRect(bb->Min, bb->Max, IM_COL32_WHITE, rounding, LayoutScale(9.0f), 0, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
+				int vert_end_idx = dl->VtxBuffer.Size;
+
+				ImDrawVert* vert_start = dl->VtxBuffer.Data + vert_start_idx;
+				ImDrawVert* vert_end = dl->VtxBuffer.Data + vert_end_idx;
+
+				ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
+					bb->Min,
+					bb->GetBL(),
+					rect_hover_highlight_col, //highlight
+					rect_hover_shadow_col); //shadow
+
+				for (ImDrawVert* vert = vert_start; vert < vert_end; vert ++)
+				{
+					vert->col = vert->col & ~(static_cast<int>(255 - 255 * cur_opacity) << IM_COL32_A_SHIFT);
+				}
+				//change alpha on every other vert for fade
+				for (ImDrawVert* vert = vert_start + 1; vert < vert_end; vert += 2)
+				{
+					vert->col = vert->col & ~(0xFF << IM_COL32_A_SHIFT);
+				}
+			}
+		}
+		else if (*hovered)
+		{
+			const ImU32 col = ImGui::GetColorU32(held ? ImGuiCol_ButtonActive : ImGuiCol_ButtonHovered, hover_alpha);
+		
 			const float t = std::min<float>(std::abs(std::sin(ImGui::GetTime() * 0.75) * 1.1), 1.0f);
 			ImGui::PushStyleColor(ImGuiCol_Border, ImGui::GetColorU32(ImGuiCol_Border, t));
 
@@ -1907,7 +2010,7 @@ bool ImGuiFullscreen::ToggleButton(
 		{
 			//const float wrapped_summary_height =
 			//	summary_font.first->CalcTextSizeA(summary_font.second, FLT_MAX, avail_summary_width, summary).y;
-			const float content_height_px = GetLineHeight(font) + LayoutScale(4.0f);//+wrapped_summary_height;
+			const float content_height_px = GetLineHeight(font) + LayoutScale(4.0f); // + wrapped_summary_height;
 			dynamic_height = std::max(height, LayoutUnscale(content_height_px));
 		}
 	}
@@ -2006,7 +2109,7 @@ bool ImGuiFullscreen::ThreeWayToggleButton(
 		{
 			//const float wrapped_summary_height =
 			//	summary_font.first->CalcTextSizeA(summary_font.second, FLT_MAX, avail_summary_width, summary).y;
-			const float content_height_px = GetLineHeight(font) + LayoutScale(4.0f); // + wrapped_summary_height;
+			const float content_height_px = GetLineHeight(font) + LayoutScale(4.0f);//+wrapped_summary_height;
 			dynamic_height = std::max(height, LayoutUnscale(content_height_px));
 		}
 	}
