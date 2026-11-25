@@ -1758,9 +1758,9 @@ bool ImGuiFullscreen::MenuButton(const char* title, const char* summary, bool en
 		avail_summary_width = frame_width - ImGui::GetStyle().FramePadding.x * 2.0f;
 		if (avail_summary_width > 0.0f)
 		{
-			const float wrapped_summary_height =
-				summary_font.first->CalcTextSizeA(summary_font.second, FLT_MAX, avail_summary_width, summary).y;
-			const float content_height_px = GetLineHeight(font) + LayoutScale(4.0f) + wrapped_summary_height;
+			//const float wrapped_summary_height =
+			//	summary_font.first->CalcTextSizeA(summary_font.second, FLT_MAX, avail_summary_width, summary).y;
+			const float content_height_px = GetLineHeight(font) + LayoutScale(4.0f); //+ wrapped_summary_height;
 			dynamic_height = std::max(height, LayoutUnscale(content_height_px));
 		}
 	}
@@ -1771,9 +1771,6 @@ bool ImGuiFullscreen::MenuButton(const char* title, const char* summary, bool en
 	if (!visible)
 		return false;
 
-	const float midpoint = bb.Min.y + GetLineHeight(font) + LayoutScale(4.0f);
-	const ImRect title_bb(bb.Min, ImVec2(bb.Max.x, midpoint));
-	const ImRect summary_bb(ImVec2(bb.Min.x, midpoint), bb.Max);
 
 	if (!enabled)
 		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetColorU32(ImGuiCol_TextDisabled));
@@ -2021,8 +2018,6 @@ bool ImGuiFullscreen::ToggleButton(
 	if (!visible)
 		return false;
 
-	const float midpoint = bb.Min.y + GetLineHeight(font) + LayoutScale(4.0f);
-	const ImRect title_bb(bb.Min, ImVec2(bb.Max.x, midpoint));
 	//const ImRect summary_bb(ImVec2(bb.Min.x, midpoint), ImVec2(bb.Max.x - toggle_width - toggle_gap, bb.Max.y)); ptr2plus
 
 	
