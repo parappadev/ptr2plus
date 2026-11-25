@@ -1412,7 +1412,10 @@ bool ImGuiFullscreen::MenuButtonFrame(
 	GetMenuButtonFrameBounds(height, &pos, &size);
 	if (centered) size.x = text_size;
 	*bb = ImRect(pos, pos + size);
-
+	if (std::strcmp(window->Name, "settings_parent") == 0)
+	{
+		*bb = ImRect(pos + oldLayoutScale(ImVec2(6.0f, 0.0f)), pos + size - oldLayoutScale(ImVec2(12.0f, 0.0f)));
+	}
 	const ImGuiID id = window->GetID(str_id);
 	ImGui::ItemSize(size);
 	if (enabled)
@@ -1446,14 +1449,14 @@ bool ImGuiFullscreen::MenuButtonFrame(
 		float deltaTime = io.DeltaTime;
 		bool was_hovered = false;
 		int cur_ID = ImGui::GetItemID();
-		float cur_opacity = 0.0f;
+		float cur_hover_opacity = 0.0f;
 		for (int i = 0; i < hovered_items_dict.size(); i++)
 		{
 			if (hovered_items_dict[i].first == cur_ID)
 			{
 				was_hovered = true;
-				cur_opacity = hovered_items_dict[i].second;
-				float new_opacity = cur_opacity - (4 * deltaTime);
+				cur_hover_opacity = hovered_items_dict[i].second;
+				float new_opacity = cur_hover_opacity - (4 * deltaTime);
 				if (*hovered)
 				{
 					hovered_items_dict[i].second = 1.0f;
@@ -1485,22 +1488,39 @@ bool ImGuiFullscreen::MenuButtonFrame(
 		if (std::strcmp(window->Name, "settings_parent") == 0)
 		{
 			ImU32 rect_col = IM_COL32(228, 177, 0, 255);
-			ImU32 rect_hover_col = IM_COL32(255, 250, 71, 255 * cur_opacity);
-			ImU32 rect_hover_shadow_col = IM_COL32(241, 180, 41, 255 * cur_opacity);
-			ImU32 rect_hover_highlight_col = IM_COL32(255, 250, 71, 255 * cur_opacity);
+			ImU32 rect_hover_col = IM_COL32(255, 250, 71, 255 * cur_hover_opacity);
+			ImU32 rect_hover_shadow_col = IM_COL32(241, 180, 41, 255 * cur_hover_opacity);
+			ImU32 rect_hover_highlight_col = IM_COL32(255, 250, 71, 255 * cur_hover_opacity);
 			ImU32 rect_shadow_col = IM_COL32(203, 142, 3, 255);
 			ImU32 rect_highlight_col = IM_COL32(233, 233, 18, 255);
 			
 			ImDrawList* dl = window->DrawList;
 			float rounding = LayoutScale(LAYOUT_FRAME_ROUNDING * 3.5f);
-			dl->AddRectFilled(bb->Min, bb->Max, rect_col, rounding, 0, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
 
+			//shadow behind button
 			int vert_start_idx = dl->VtxBuffer.Size;
-			dl->AddRect(bb->Min, bb->Max, IM_COL32_WHITE, rounding, LayoutScale(9.0f), 0, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
+			dl->AddRect(bb->Min - oldLayoutScale(ImVec2(3.0f, 3.0f)), bb->Max + oldLayoutScale(ImVec2(3.0f, 3.0f)), IM_COL32(255 * cur_hover_opacity, 255 * cur_hover_opacity, 255 * cur_hover_opacity, 122), rounding, LayoutScale(9.0f), 0, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
 			int vert_end_idx = dl->VtxBuffer.Size;
 
 			ImDrawVert* vert_start = dl->VtxBuffer.Data + vert_start_idx;
 			ImDrawVert* vert_end = dl->VtxBuffer.Data + vert_end_idx;
+
+			//change alpha on every other vert for fade
+			for (ImDrawVert* vert = vert_start; vert < vert_end; vert += 2)
+			{
+				vert->col = vert->col & ~(0xFF << IM_COL32_A_SHIFT);
+			}
+
+			//button
+			dl->AddRectFilled(bb->Min, bb->Max, rect_col, rounding, 0, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
+
+			//button bevel
+			vert_start_idx = dl->VtxBuffer.Size;
+			dl->AddRect(bb->Min, bb->Max, IM_COL32_WHITE, rounding, LayoutScale(9.0f), 0, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
+			vert_end_idx = dl->VtxBuffer.Size;
+
+			vert_start = dl->VtxBuffer.Data + vert_start_idx;
+			vert_end = dl->VtxBuffer.Data + vert_end_idx;
 
 			ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
 				bb->Min,
@@ -1514,17 +1534,17 @@ bool ImGuiFullscreen::MenuButtonFrame(
 				vert->col = vert->col & ~(0xFF << IM_COL32_A_SHIFT);
 			}
 
-			//hover
+			//hover on button
 			if (*hovered || was_hovered)
 			{
 				dl->AddRectFilled(bb->Min, bb->Max, rect_hover_col, rounding, 0, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
 
-				int vert_start_idx = dl->VtxBuffer.Size;
+				vert_start_idx = dl->VtxBuffer.Size;
 				dl->AddRect(bb->Min, bb->Max, IM_COL32_WHITE, rounding, LayoutScale(9.0f), 0, true, oldLayoutScale(111.0f), oldLayoutScale(2.0f));
-				int vert_end_idx = dl->VtxBuffer.Size;
+				vert_end_idx = dl->VtxBuffer.Size;
 
-				ImDrawVert* vert_start = dl->VtxBuffer.Data + vert_start_idx;
-				ImDrawVert* vert_end = dl->VtxBuffer.Data + vert_end_idx;
+				vert_start = dl->VtxBuffer.Data + vert_start_idx;
+				vert_end = dl->VtxBuffer.Data + vert_end_idx;
 
 				ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
 					bb->Min,
@@ -1534,7 +1554,7 @@ bool ImGuiFullscreen::MenuButtonFrame(
 
 				for (ImDrawVert* vert = vert_start; vert < vert_end; vert ++)
 				{
-					vert->col = vert->col & ~(static_cast<int>(255 - 255 * cur_opacity) << IM_COL32_A_SHIFT);
+					vert->col = vert->col & ~(static_cast<int>(255 - 255 * cur_hover_opacity) << IM_COL32_A_SHIFT);
 				}
 				//change alpha on every other vert for fade
 				for (ImDrawVert* vert = vert_start + 1; vert < vert_end; vert += 2)
@@ -1771,6 +1791,10 @@ bool ImGuiFullscreen::MenuButton(const char* title, const char* summary, bool en
 	if (!visible)
 		return false;
 
+	const float midpoint = bb.Max.y - (bb.Max.y - bb.Min.y) / 2; //bb.Min.y + GetLineHeight(font) + LayoutScale(4.0f);
+	const ImVec2 offset = ImVec2(0.0f, LayoutScale(1.0f));
+	const ImRect title_bb(ImVec2(bb.Min.x, midpoint - GetLineHeight(font) / 2) + offset, ImVec2(bb.Max.x, midpoint + GetLineHeight(font) / 2) + offset);
+	//const ImRect summary_bb(ImVec2(bb.Min.x, midpoint), bb.Max);
 
 	if (!enabled)
 		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetColorU32(ImGuiCol_TextDisabled));
@@ -1993,8 +2017,8 @@ void ImGuiFullscreen::DrawSettingsTextOutline(ImRect title_bb, std::pair<ImFont*
 bool ImGuiFullscreen::ToggleButton(
 	const char* title, const char* summary, bool* v, bool enabled, float height, std::pair<ImFont*, float> font, std::pair<ImFont*, float> summary_font)
 {
-	const float toggle_width = LayoutScale(50.0f);
-	const float toggle_height = LayoutScale(25.0f);
+	const float toggle_width = oldLayoutScale(150.0f);
+	const float toggle_height = LayoutScale(50.0f);
 	const float toggle_gap = LayoutScale(8.0f);
 
 	float dynamic_height = height;
@@ -2018,6 +2042,9 @@ bool ImGuiFullscreen::ToggleButton(
 	if (!visible)
 		return false;
 
+	const float midpoint = bb.Max.y - (bb.Max.y - bb.Min.y) / 2; //bb.Min.y + GetLineHeight(font) + LayoutScale(4.0f);
+	const ImVec2 offset = ImVec2(0.0f, LayoutScale(1.0f));
+	const ImRect title_bb(ImVec2(bb.Min.x, midpoint - GetLineHeight(font) / 2) + offset, ImVec2(bb.Max.x, midpoint + GetLineHeight(font) / 2) + offset);
 	//const ImRect summary_bb(ImVec2(bb.Min.x, midpoint), ImVec2(bb.Max.x - toggle_width - toggle_gap, bb.Max.y)); ptr2plus
 
 	
@@ -2049,9 +2076,12 @@ bool ImGuiFullscreen::ToggleButton(
 	if (!enabled)
 		ImGui::PopStyleColor();
 
+	float tri_width = LayoutScale(15.0f);
+	float tri_height = LayoutScale(25.0f);
+
 	const float toggle_radius = toggle_height * 0.5f;
 	const float toggle_y = (bb.Max.y - bb.Min.y - toggle_height) * 0.5f;
-	const ImVec2 toggle_pos(bb.Max.x - toggle_width, bb.Min.y + toggle_y);
+	const ImVec2 toggle_pos(bb.Max.x - toggle_width - tri_width * 2, bb.Min.y + toggle_y);
 
 	if (pressed)
 		*v = !*v;
@@ -2064,24 +2094,82 @@ bool ImGuiFullscreen::ToggleButton(
 		static constexpr const float ANIM_SPEED = 0.08f;
 		float t_anim = ImSaturate(g.LastActiveIdTimer / ANIM_SPEED);
 		t = *v ? (t_anim) : (1.0f - t_anim);
+		tri_width = tri_width * (1 + 0.5 * sin(3.14 * t));
+		tri_height = tri_height * (1 + 0.5 * sin(3.14 * t));
 	}
 
 	ImU32 col_bg;
 	ImU32 col_knob;
 	if (!enabled)
 	{
-		col_bg = ImGui::GetColorU32(UIDisabledColor);
+		col_bg = ImGui::GetColorU32(ImGuiCol_TabHovered);
 		col_knob = IM_COL32(200, 200, 200, 200);
 	}
 	else
 	{
-		col_bg = ImGui::GetColorU32(ImLerp(HEX_TO_IMVEC4(0x8C8C8C, 0xff), UISecondaryStrongColor, t));
+		col_bg = *v ? IM_COL32(255, 108, 0, 255) : IM_COL32(175, 67, 0, 255);
+		//col_bg = ImGui::GetColorU32(ImLerp(HEX_TO_IMVEC4(0x8C8C8C, 0xff), UISecondaryStrongColor, t));
 		col_knob = IM_COL32(255, 255, 255, 255);
 	}
 
-	dl->AddRectFilled(toggle_pos, ImVec2(toggle_pos.x + toggle_width, toggle_pos.y + toggle_height), col_bg, toggle_height * 0.5f);
-	dl->AddCircleFilled(ImVec2(toggle_pos.x + toggle_radius + t * (toggle_width - toggle_radius * 2.0f), toggle_pos.y + toggle_radius),
-		toggle_radius - 1.5f, col_knob, 32);
+	dl->AddRectFilled(toggle_pos, ImVec2(toggle_pos.x + toggle_width, toggle_pos.y + toggle_height), col_bg, toggle_height * 0.3f, true, 0, toggle_width / 2.1, oldLayoutScale(2.0f));
+	
+	int vert_start_idx = dl->VtxBuffer.Size;
+	dl->AddRect(toggle_pos, ImVec2(toggle_pos.x + toggle_width, toggle_pos.y + toggle_height), IM_COL32_WHITE, toggle_height * 0.3f, LayoutScale(9.0f), 0, true, toggle_width / 2.1, oldLayoutScale(2.0f));
+	int vert_end_idx = dl->VtxBuffer.Size;
+
+	ImDrawVert* vert_start = dl->VtxBuffer.Data + vert_start_idx;
+	ImDrawVert* vert_end = dl->VtxBuffer.Data + vert_end_idx;
+
+	ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, vert_start_idx, vert_end_idx,
+		toggle_pos,
+		toggle_pos + ImVec2(0.0f, toggle_height),
+		*v || !enabled ? IM_COL32(221, 85, 0, 255) : IM_COL32(121, 46, 0, 255), //shadow
+		*v || !enabled ? IM_COL32(255, 108, 0, 255) : IM_COL32(175, 67, 0, 255)); //
+
+	//change alpha on every other vert for fade
+	for (ImDrawVert* vert = vert_start + 1; vert < vert_end; vert += 2)
+	{
+		vert->col = vert->col & ~(0xFF << IM_COL32_A_SHIFT);
+	}
+	
+	const float toggle_midpoint = toggle_pos.y + toggle_height / 2;
+	const ImVec2 tri_pos1 = ImVec2(toggle_pos.x - tri_width * 2, toggle_midpoint);
+	const ImVec2 tri_pos2 = ImVec2(toggle_pos.x - tri_width, toggle_midpoint - tri_height / 2);
+	const ImVec2 tri_pos3 = ImVec2(toggle_pos.x - tri_width, toggle_midpoint + tri_height / 2);
+
+	const ImVec2 tri2_pos1 = ImVec2(toggle_pos.x + toggle_width + tri_width * 2, toggle_midpoint);
+	const ImVec2 tri2_pos2 = ImVec2(toggle_pos.x + toggle_width + tri_width, toggle_midpoint - tri_height / 2);
+	const ImVec2 tri2_pos3 = ImVec2(toggle_pos.x + toggle_width + tri_width, toggle_midpoint + tri_height / 2);
+	if (enabled)
+	{
+		ImU32 tri_col = ImGui::GetColorU32(ImLerp(HEX_TO_IMVEC4(0x0D24C6, 0xff), HEX_TO_IMVEC4(0xFFFFFF, 0xff), sin(3.14 * t)));
+		ImU32 tri_col_highlight = ImGui::GetColorU32(ImLerp(HEX_TO_IMVEC4(0x8FA8F7, 0xff), HEX_TO_IMVEC4(0xFFFFFF, 0xff), sin(3.14 * t)));
+		int vert_start_idx = dl->VtxBuffer.Size;
+		dl->AddTriangleFilled(tri_pos1, tri_pos2, tri_pos3, tri_col);
+		int vert_end_idx = dl->VtxBuffer.Size;
+		ImDrawVert* vert = dl->VtxBuffer.Data + vert_start_idx;
+		vert->col = tri_col_highlight;
+		vert_start_idx = dl->VtxBuffer.Size;
+		dl->AddTriangleFilled(tri2_pos1, tri2_pos2, tri2_pos3, tri_col);
+		vert_end_idx = dl->VtxBuffer.Size;
+		vert = dl->VtxBuffer.Data + vert_start_idx;
+		vert->col = tri_col_highlight;
+	}
+	/*dl->AddCircleFilled(ImVec2(toggle_pos.x + toggle_radius + t * (toggle_width - toggle_radius * 2.0f), toggle_pos.y + toggle_radius),
+		toggle_radius - 1.5f, col_knob, 32);*/
+
+	std::string toggle_text = *v ? "ON" : "OFF";
+	const ImVec2 toggle_text_size = font.first->CalcTextSizeA(font.second, std::numeric_limits<float>::max(), -1.0f, toggle_text.c_str());
+	const ImRect toggle_text_bb(ImVec2(toggle_pos.x + toggle_width / 2 - toggle_text_size.x / 2, toggle_midpoint - GetLineHeight(font) / 2) + offset * 2, ImVec2(toggle_pos.x + toggle_width, toggle_midpoint + GetLineHeight(font) / 2) + offset * 2);
+	
+	if (!enabled)
+		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetColorU32(ImGuiCol_TextDisabled));
+	ImGui::PushFont(font.first, font.second);
+	RenderTextClippedWithShadow(toggle_text_bb.Min, toggle_text_bb.Max, toggle_text.c_str(), nullptr, nullptr, ImVec2(0.0f, 0.0f), &toggle_text_bb);
+	ImGui::PopFont();
+	if (!enabled)
+		ImGui::PopStyleColor();
 
 	s_menu_button_index++;
 	return pressed;
@@ -2215,11 +2303,12 @@ bool ImGuiFullscreen::MenuButtonWithValue(
 	if (!visible)
 		return false;
 
-	const float midpoint = bb.Min.y + GetLineHeight(font) + LayoutScale(4.0f);
+	const float midpoint = bb.Max.y - (bb.Max.y - bb.Min.y) / 2; //bb.Min.y + GetLineHeight(font) + LayoutScale(4.0f);
 	const float text_end = bb.Max.x - value_size.x;
-	const ImRect title_bb(bb.Min, ImVec2(text_end, midpoint));
-	const ImRect summary_bb(ImVec2(bb.Min.x, midpoint), ImVec2(text_end, bb.Max.y));
-
+	const ImVec2 offset = ImVec2(0.0f, LayoutScale(1.0f));
+	const ImRect title_bb(ImVec2(bb.Min.x, midpoint - GetLineHeight(font) / 2) + offset, ImVec2(text_end, midpoint + GetLineHeight(font) / 2) + offset);
+	//const ImRect summary_bb(ImVec2(bb.Min.x, midpoint), ImVec2(text_end, bb.Max.y));
+	
 	if (!enabled)
 		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetColorU32(ImGuiCol_TextDisabled));
 
